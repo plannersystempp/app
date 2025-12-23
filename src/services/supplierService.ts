@@ -298,12 +298,17 @@ export const updateEventSupplierCost = async (
 
 export const deleteEventSupplierCost = async (id: string): Promise<void> => {
   try {
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('event_supplier_costs')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('id', id);
 
     if (error) throw error;
+    
+    if (count === 0) {
+      throw new Error("Não foi possível excluir o custo. Verifique se você tem permissão ou se o item já foi removido.");
+    }
+
     console.log('Event supplier cost deleted:', id);
   } catch (error) {
     console.error('Error deleting event supplier cost:', error);
