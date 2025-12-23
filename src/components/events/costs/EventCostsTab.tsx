@@ -13,7 +13,7 @@ interface EventCostsTabProps {
 }
 
 export const EventCostsTab: React.FC<EventCostsTabProps> = ({ eventId }) => {
-  const { eventSupplierCosts, events } = useEnhancedData();
+  const { eventSupplierCosts, events, deleteEventSupplierCost } = useEnhancedData();
   const { user } = useAuth();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingCost, setEditingCost] = useState<any>(null);
@@ -26,6 +26,12 @@ export const EventCostsTab: React.FC<EventCostsTabProps> = ({ eventId }) => {
   const handleEdit = (cost: any) => {
     setEditingCost(cost);
     setShowAddDialog(true);
+  };
+
+  const handleDelete = async (cost: any) => {
+    if (window.confirm('Tem certeza que deseja excluir este custo?')) {
+      await deleteEventSupplierCost(cost.id);
+    }
   };
 
   const handleCloseDialog = () => {
@@ -68,6 +74,7 @@ export const EventCostsTab: React.FC<EventCostsTabProps> = ({ eventId }) => {
                 key={cost.id}
                 cost={cost}
                 onEdit={handleEdit}
+                onDelete={handleDelete}
               />
             ))}
           </div>

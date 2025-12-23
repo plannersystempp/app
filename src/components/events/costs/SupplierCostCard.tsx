@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/shared/StatusBadge';
-import { Edit, Package } from 'lucide-react';
+import { Edit, Package, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { EventSupplierCost } from '@/contexts/data/types';
 import { formatDateBR, parseDateSafe } from '@/utils/dateUtils';
@@ -13,9 +13,10 @@ import { formatCurrency } from '@/utils/formatters';
 interface SupplierCostCardProps {
   cost: EventSupplierCost;
   onEdit: (cost: EventSupplierCost) => void;
+  onDelete: (cost: EventSupplierCost) => void;
 }
 
-export const SupplierCostCard: React.FC<SupplierCostCardProps> = ({ cost, onEdit }) => {
+export const SupplierCostCard: React.FC<SupplierCostCardProps> = ({ cost, onEdit, onDelete }) => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
@@ -41,14 +42,24 @@ export const SupplierCostCard: React.FC<SupplierCostCardProps> = ({ cost, onEdit
             <p className="text-sm text-muted-foreground">{cost.supplier_name}</p>
           </div>
           {isAdmin && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onEdit(cost)}
-              className="h-8 w-8 p-0 flex-shrink-0"
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onEdit(cost)}
+                className="h-8 w-8 p-0 flex-shrink-0"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onDelete(cost)}
+                className="h-8 w-8 p-0 flex-shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           )}
         </div>
       </CardHeader>
