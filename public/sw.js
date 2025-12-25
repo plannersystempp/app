@@ -1,9 +1,8 @@
 // FASE 6: PWA com Cache Otimizado
-const CACHE_NAME = 'plannersystem-v2.7.0-safari-fix';
+const CACHE_NAME = 'plannersystem-v2.7.1-api-fix';
 const API_CACHE_NAME = 'plannersystem-api-cache-v1';
 // Detectar iOS para ajustar TTL de cache
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-const API_CACHE_TTL = isIOS ? 2 * 60 * 1000 : 5 * 60 * 1000; // 2min iOS, 5min outros
 
 const urlsToCache = [
   '/manifest.json',
@@ -31,6 +30,11 @@ self.addEventListener('install', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
+  // API Supabase - Network Only (NUNCA cachear dados dinâmicos/financeiros)
+  if (url.hostname.includes('supabase.co')) {
+    return; // Deixa o navegador lidar com a requisição padrão (Network Only)
+  }
+
   // HTML - Network first
   if (event.request.destination === 'document' || event.request.url.includes('index.html')) {
     event.respondWith(
@@ -43,46 +47,6 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => caches.match(event.request))
-    );
-  }
-  // API Supabase - Cache com TTL
-  else if (url.hostname.includes('supabase.co') && event.request.method === 'GET') {
-    event.respondWith(
-      caches.open(API_CACHE_NAME).then(async (cache) => {
-        const cached = await cache.match(event.request);
-        
-        if (cached) {
-          const cachedTime = new Date(cached.headers.get('sw-cached-time') || 0).getTime();
-          const now = Date.now();
-          
-          // Se cache ainda válido, retornar
-          if (now - cachedTime < API_CACHE_TTL) {
-            return cached;
-          }
-        }
-        
-        // Buscar da rede
-        try {
-          const response = await fetch(event.request);
-          const clonedResponse = response.clone();
-          
-          // Adicionar timestamp ao header antes de cachear
-          const headers = new Headers(clonedResponse.headers);
-          headers.append('sw-cached-time', new Date().toISOString());
-          
-          const cachedResponse = new Response(clonedResponse.body, {
-            status: clonedResponse.status,
-            statusText: clonedResponse.statusText,
-            headers: headers
-          });
-          
-          cache.put(event.request, cachedResponse);
-          return response;
-        } catch (error) {
-          // Fallback para cache em caso de erro
-          return cached || new Response('Offline', { status: 503 });
-        }
-      })
     );
   }
   // Assets estáticos - Cache first

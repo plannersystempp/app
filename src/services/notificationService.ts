@@ -61,8 +61,9 @@ class NotificationService {
       console.log('Push notification sent:', data);
       return data;
     } catch (error) {
-      console.error('Error sending push notification:', error);
-      throw error;
+      console.warn('Warning: Failed to send push notification. This is likely due to CORS configuration or the Edge Function not being deployed.', error);
+      // Return null instead of throwing to avoid disrupting the application flow
+      return null;
     }
   }
 
@@ -80,12 +81,7 @@ class NotificationService {
 
     // Se userId ou teamId foi fornecido, enviar push notification
     if (params.userId || params.teamId) {
-      try {
-        await this.sendPushNotification(params);
-      } catch (error) {
-        // Falha silenciosa - não bloqueia a aplicação
-        console.error('Push notification failed, but local notification was sent');
-      }
+      await this.sendPushNotification(params);
     }
   }
 
