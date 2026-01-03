@@ -101,11 +101,14 @@ export const usePendingPayments = (personnelId: string) => {
   return useQuery({
     queryKey: personnelHistoryKeys.pending(personnelId),
     queryFn: async (): Promise<PendingPayment[]> => {
-      // Buscar alocações em eventos concluídos
+      // Buscar alocações em eventos concluídos com dados completos
       const { data: allocations, error: allocError } = await supabase
         .from('personnel_allocations')
         .select(`
+          id,
           event_id,
+          work_days,
+          event_specific_cache,
           events!inner (
             id,
             name,
@@ -135,14 +138,6 @@ export const usePendingPayments = (personnelId: string) => {
 
           const totalPaid = closings?.reduce((sum, c) => sum + Number(c.total_amount_paid), 0) || 0;
 
-          // Buscar alocações do evento para calcular valor esperado
-          const { data: workDays } = await supabase
-            .from('personnel_allocations')
-            .select('id, work_days, event_specific_cache')
-            .eq('event_id', event.id)
-            .eq('personnel_id', personnelId)
-            .single();
-
           // Buscar dados do pessoal para calcular cache
           const { data: personnel } = await supabase
             .from('personnel')
@@ -150,29 +145,36 @@ export const usePendingPayments = (personnelId: string) => {
             .eq('id', personnelId)
             .single();
 
-          // Buscar ausências para descontar dos dias trabalhados
-          const { data: absences } = await supabase
-            .from('personnel_absences')
-            .select('*')
-            .eq('assignment_id', workDays?.id || '00000000-0000-0000-0000-000000000000'); // Evitar erro se workDays for null
+          // Buscar ausências considerando TODAS as alocações deste funcionário neste evento
+          // Isso garante que ausências registradas em alocações irmãs (mesmo evento) sejam encontradas
+          const eventAllocationIds = allocations
+            .filter(a => (a.events as any).id === event.id)
+            .map(a => a.id);
 
-          const cacheRate = workDays?.event_specific_cache || personnel?.event_cache || 0;
+          const { data: absences } = await supabase
+            .from('absences')
+            .select('*')
+            .in('assignment_id', eventAllocationIds.length > 0 ? eventAllocationIds : [alloc.id]);
+
+          const cacheRate = alloc.event_specific_cache || personnel?.event_cache || 0;
           
           // Usar a função oficial de cálculo para descontar faltas
-          const allocationData = workDays ? [{
-            id: workDays.id,
+          const allocationData = [{
+            id: alloc.id,
             personnel_id: personnelId,
             event_id: event.id,
-            work_days: workDays.work_days || [],
-            event_specific_cache: workDays.event_specific_cache
-          }] : [];
+            work_days: alloc.work_days || [],
+            event_specific_cache: alloc.event_specific_cache
+          }];
           
           const daysWorked = calculateWorkedDays(allocationData, (absences || []) as any[]);
           const totalAmount = Number(cacheRate) * daysWorked;
 
           const pendingAmount = totalAmount - totalPaid;
 
-          if (pendingAmount <= 0) return null;
+          // Usar tolerância de R$ 1,00 para evitar pendências por centavos
+          // Se totalAmount for 0 (devido a faltas) e totalPaid 0, pendingAmount será 0 e retornará null (correto)
+          if (pendingAmount <= 1.0) return null;
 
           return {
             eventId: event.id,
@@ -201,6 +203,7 @@ export const useEventsHistory = (personnelId: string) => {
       const { data, error } = await supabase
         .from('personnel_allocations')
         .select(`
+          id,
           event_id,
           work_days,
           function_name,
@@ -239,9 +242,28 @@ export const useEventsHistory = (personnelId: string) => {
 
           const totalPaid = closings?.reduce((sum, c) => sum + Number(c.total_amount_paid), 0) || 0;
 
+          // Buscar ausências considerando TODAS as alocações deste funcionário neste evento
+          const eventAllocationIds = data
+            .filter(a => (a.events as any).id === event.id)
+            .map(a => a.id);
+
+          const { data: absences } = await supabase
+            .from('absences')
+            .select('*')
+            .in('assignment_id', eventAllocationIds.length > 0 ? eventAllocationIds : [item.id]);
+
           // Calcular valor total baseado em cache
           const cacheRate = item.event_specific_cache || personnel?.event_cache || 0;
-          const daysWorked = item.work_days?.length || 0;
+          
+          const allocationData = [{
+            id: item.id,
+            personnel_id: personnelId,
+            event_id: event.id,
+            work_days: item.work_days || [],
+            event_specific_cache: item.event_specific_cache
+          }];
+
+          const daysWorked = calculateWorkedDays(allocationData, (absences || []) as any[]);
           const totalAmount = Number(cacheRate) * daysWorked;
 
           return {
@@ -254,7 +276,7 @@ export const useEventsHistory = (personnelId: string) => {
             functionName: item.function_name,
             totalPaid,
             totalAmount,
-            isPaid: totalPaid >= totalAmount - 0.01, // tolerância de 1 centavo
+            isPaid: totalPaid >= totalAmount - 1.0, // tolerância de 1 real
           };
         })
       );
@@ -292,6 +314,7 @@ export const usePersonnelStats = (personnelId: string) => {
       const { data: allocations } = await supabase
         .from('personnel_allocations')
         .select(`
+          id,
           event_id,
           work_days,
           event_specific_cache,
@@ -320,12 +343,33 @@ export const usePersonnelStats = (personnelId: string) => {
             .eq('personnel_id', personnelId);
 
           const totalPaidEvent = paid?.reduce((sum, c) => sum + Number(c.total_amount_paid), 0) || 0;
+          
+          // Buscar ausências considerando TODAS as alocações deste funcionário neste evento
+          const eventAllocationIds = allocations
+            .filter(a => a.event_id === alloc.event_id)
+            .map(a => a.id);
+
+          const { data: absences } = await supabase
+            .from('absences')
+            .select('*')
+            .in('assignment_id', eventAllocationIds.length > 0 ? eventAllocationIds : [alloc.id]);
+
           const cacheRate = alloc.event_specific_cache || personnel?.event_cache || 0;
-          const daysWorked = alloc.work_days?.length || 0;
+          
+          const allocationData = [{
+            id: alloc.id, // ID da alocação
+            personnel_id: personnelId,
+            event_id: alloc.event_id,
+            work_days: alloc.work_days || [],
+            event_specific_cache: alloc.event_specific_cache
+          }];
+
+          const daysWorked = calculateWorkedDays(allocationData, (absences || []) as any[]);
           const totalAmountEvent = Number(cacheRate) * daysWorked;
           
           const pending = totalAmountEvent - totalPaidEvent;
-          if (pending > 0) {
+          // Usar tolerância de R$ 1,00 para evitar pendências por centavos
+          if (pending > 1.0) {
             totalPending += pending;
           }
         }

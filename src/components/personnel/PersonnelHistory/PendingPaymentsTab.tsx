@@ -5,7 +5,7 @@ import { AlertCircle, Clock, Check } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePendingPayments } from '@/hooks/queries/usePersonnelHistoryQuery';
 import { formatCurrency } from '@/utils/formatters';
-import { format, isPast, differenceInDays } from 'date-fns';
+import { format, isPast, differenceInCalendarDays, parseISO, addHours, startOfDay, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { EmptyState } from '@/components/shared/EmptyState';
 
@@ -39,9 +39,18 @@ export const PendingPaymentsTab: React.FC<PendingPaymentsTabProps> = ({ personne
   return (
     <div className="space-y-3">
       {pendingPayments.map((pending) => {
-        const dueDate = pending.paymentDueDate ? new Date(pending.paymentDueDate) : null;
-        const isOverdue = dueDate ? isPast(dueDate) : false;
-        const daysUntilDue = dueDate ? differenceInDays(dueDate, new Date()) : null;
+        // Correção de timezone: adiciona 12h para garantir que a data caia no dia correto
+        // independentemente do fuso horário local
+        const dueDate = pending.paymentDueDate ? addHours(parseISO(pending.paymentDueDate), 12) : null;
+        
+        // Para verificações de "passado/atrasado", usamos a data atual e startOfDay para comparar apenas datas
+        const today = new Date();
+        const isOverdue = dueDate ? isAfter(startOfDay(today), startOfDay(dueDate)) : false;
+        const daysUntilDue = dueDate ? differenceInCalendarDays(dueDate, today) : null;
+        
+        // Formatar datas do evento também corrigindo timezone
+        const startDate = pending.startDate ? addHours(parseISO(pending.startDate), 12) : new Date();
+        const endDate = pending.endDate ? addHours(parseISO(pending.endDate), 12) : new Date();
 
         return (
           <Card key={pending.eventId} className={isOverdue ? 'border-l-4 border-l-red-500' : 'border-l-4 border-l-orange-500'}>
@@ -64,15 +73,15 @@ export const PendingPaymentsTab: React.FC<PendingPaymentsTabProps> = ({ personne
                     </div>
                     <p className="text-sm font-medium mb-1 truncate">{pending.eventName}</p>
                     <p className="text-xs text-muted-foreground">
-                      Evento: {format(new Date(pending.startDate), 'dd/MM/yy')} - {format(new Date(pending.endDate), 'dd/MM/yy')}
+                      Evento: {format(startDate, 'dd/MM/yy')} - {format(endDate, 'dd/MM/yy')}
                     </p>
                     {dueDate && (
                       <div className="flex items-center gap-1 mt-2">
                         <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                         <p className={`text-xs ${isOverdue ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
                           Vencimento: {format(dueDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                          {daysUntilDue !== null && !isOverdue && ` (${daysUntilDue} dias)`}
-                          {isOverdue && ` (${Math.abs(daysUntilDue!)} dias atrasado)`}
+                          {daysUntilDue !== null && !isOverdue && daysUntilDue >= 0 && ` (em ${daysUntilDue} dias)`}
+                          {isOverdue && daysUntilDue !== null && ` (${Math.abs(daysUntilDue)} dias atrasado)`}
                         </p>
                       </div>
                     )}
