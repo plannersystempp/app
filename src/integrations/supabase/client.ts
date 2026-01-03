@@ -5,29 +5,50 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://atogozlqfwxztjyycjoy.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0b2dvemxxZnd4enRqeXljam95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAxMDQ3MjksImV4cCI6MjA2NTY4MDcyOX0.m9c9XOJoU0RQeCentl1Ibow5yBqS6NfJVpxBaF75-ik";
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
-
-// Verificar se localStorage está disponível (iOS modo privado pode bloquear)
-const isLocalStorageAvailable = () => {
-  try {
-    const test = '__storage_test__';
-    localStorage.setItem(test, test);
-    localStorage.removeItem(test);
-    return true;
-  } catch (e) {
-    console.warn('⚠️ localStorage não disponível (modo privado?), usando storage temporário');
-    return false;
+// Custom storage adapter for cookies with domain support
+const cookieStorage = {
+  getItem: (key: string) => {
+    if (typeof document === 'undefined') return null;
+    const name = key + "=";
+    const decodedCookie = decodeURIComponent(document.cookie);
+    const ca = decodedCookie.split(';');
+    for(let i = 0; i <ca.length; i++) {
+      let c = ca[i];
+      while (c.charAt(0) == ' ') {
+        c = c.substring(1);
+      }
+      if (c.indexOf(name) == 0) {
+        return c.substring(name.length, c.length);
+      }
+    }
+    return null;
+  },
+  setItem: (key: string, value: string) => {
+    if (typeof document === 'undefined') return;
+    const isProd = window.location.hostname.endsWith('plannersystem.com.br');
+    const domainAttribute = isProd ? '; domain=.plannersystem.com.br' : '';
+    const expires = new Date();
+    expires.setFullYear(expires.getFullYear() + 10); // Persistent
+    // Set cookie with appropriate domain
+    document.cookie = `${key}=${value}${domainAttribute}; path=/; expires=${expires.toUTCString()}; SameSite=Lax; Secure`;
+  },
+  removeItem: (key: string) => {
+    if (typeof document === 'undefined') return;
+    const isProd = window.location.hostname.endsWith('plannersystem.com.br');
+    const domainAttribute = isProd ? '; domain=.plannersystem.com.br' : '';
+    document.cookie = `${key}=${domainAttribute}; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax; Secure`;
   }
 };
 
 let supabase: ReturnType<typeof createClient<Database>> | any;
+
 try {
   supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: {
-      storage: isLocalStorageAvailable() ? localStorage : undefined,
-      persistSession: isLocalStorageAvailable(),
+      storage: cookieStorage,
+      persistSession: true,
       autoRefreshToken: true,
+      detectSessionInUrl: true,
     }
   });
 } catch (e) {

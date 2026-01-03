@@ -285,10 +285,10 @@ export const AppSidebar = () => {
 
       <SidebarFooter className="p-4 space-y-2">
         <Button
-          variant="secondary"
+          variant="ghost"
           size="sm"
           onClick={() => setShowErrorReportDialog(true)}
-          className="w-full justify-start text-xs"
+          className="w-full justify-start text-xs text-muted-foreground hover:text-foreground"
           ref={reportButtonRef}
         >
           <Bug className="mr-2 h-3 w-3" />

@@ -116,26 +116,33 @@ export const PersonnelPaymentCard = ({ payment }: PersonnelPaymentCardProps) => 
                 </Badge>
               )}
             </div>
-            {payment.payment_status === 'pending' && (
-              <DropdownMenu>
+            <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8">
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setShowMarkAsPaid(true)}>
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    Marcar como Pago
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowEdit(true)}>
-                    <Edit className="mr-2 h-4 w-4" />
-                    Editar
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleCancel}>
-                    <XCircle className="mr-2 h-4 w-4" />
-                    Cancelar
-                  </DropdownMenuItem>
+                  {payment.payment_status === 'pending' && (
+                    <>
+                      <DropdownMenuItem onClick={() => setShowMarkAsPaid(true)}>
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Marcar como Pago
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setShowEdit(true)}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Editar
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  
+                  {payment.payment_status !== 'cancelled' && (
+                    <DropdownMenuItem onClick={handleCancel}>
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Cancelar
+                    </DropdownMenuItem>
+                  )}
+                  
                   <DropdownMenuItem 
                     onClick={() => setShowDelete(true)}
                     className="text-destructive"
@@ -145,7 +152,6 @@ export const PersonnelPaymentCard = ({ payment }: PersonnelPaymentCardProps) => 
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            )}
           </div>
         </CardHeader>
 

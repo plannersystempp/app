@@ -41,8 +41,22 @@ export const useErrorReporting = () => {
 
   // Interceptar console.error e console.warn
   useEffect(() => {
+    try {
+      const savedConsole = localStorage.getItem('error_console_logs');
+      const savedNetwork = localStorage.getItem('error_network_errors');
+      if (savedConsole) {
+        consoleLogsRef.current = JSON.parse(savedConsole).slice(-50);
+      }
+      if (savedNetwork) {
+        networkErrorsRef.current = JSON.parse(savedNetwork).slice(-50);
+      }
+    } catch {}
+
     const originalError = console.error;
     const originalWarn = console.warn;
+    const originalFetch = window.fetch;
+    const originalXhrOpen = XMLHttpRequest.prototype.open;
+    const originalXhrSend = XMLHttpRequest.prototype.send;
 
     console.error = (...args: any[]) => {
       consoleLogsRef.current.push({
@@ -53,6 +67,9 @@ export const useErrorReporting = () => {
       if (consoleLogsRef.current.length > 50) {
         consoleLogsRef.current.shift();
       }
+      try {
+        localStorage.setItem('error_console_logs', JSON.stringify(consoleLogsRef.current));
+      } catch {}
       originalError.apply(console, args);
     };
 
@@ -65,8 +82,71 @@ export const useErrorReporting = () => {
       if (consoleLogsRef.current.length > 50) {
         consoleLogsRef.current.shift();
       }
+      try {
+        localStorage.setItem('error_console_logs', JSON.stringify(consoleLogsRef.current));
+      } catch {}
       originalWarn.apply(console, args);
     };
+
+    const isSameOrigin = (urlString: string) => {
+      try {
+        const url = new URL(urlString, window.location.origin);
+        return url.origin === window.location.origin;
+      } catch {
+        return true; // relative or invalid -> assume same-origin to avoid missing internal errors
+      }
+    };
+
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      try {
+        const response = await originalFetch(input, init);
+        const url = typeof input === 'string' ? input : (input as Request).url;
+        const method = (input instanceof Request) ? input.method : (init?.method || 'GET');
+        if (response.status >= 400 && isSameOrigin(url) && method.toUpperCase() !== 'OPTIONS') {
+          networkErrorsRef.current.push({
+            url,
+            status: response.status,
+            timestamp: new Date().toISOString()
+          });
+          if (networkErrorsRef.current.length > 50) networkErrorsRef.current.shift();
+          try { localStorage.setItem('error_network_errors', JSON.stringify(networkErrorsRef.current)); } catch {}
+        }
+        return response;
+      } catch (err) {
+        try {
+          const url = typeof input === 'string' ? input : (input as Request).url;
+          const method = (input instanceof Request) ? input.method : (init?.method || 'GET');
+          if (isSameOrigin(url) && method.toUpperCase() !== 'OPTIONS') {
+            networkErrorsRef.current.push({ url, status: -1, timestamp: new Date().toISOString() });
+            if (networkErrorsRef.current.length > 50) networkErrorsRef.current.shift();
+            localStorage.setItem('error_network_errors', JSON.stringify(networkErrorsRef.current));
+          }
+        } catch {}
+        throw err;
+      }
+    };
+
+    let currentXhrUrl: string | null = null;
+    let currentXhrMethod: string | null = null;
+    XMLHttpRequest.prototype.open = function(method: string, url: string, async?: boolean, user?: string, password?: string) {
+      currentXhrUrl = url;
+      currentXhrMethod = method;
+      return originalXhrOpen.apply(this, [method, url, async as any, user as any, password as any]);
+    } as any;
+
+    XMLHttpRequest.prototype.send = function(body?: Document | XMLHttpRequestBodyInit | null) {
+      this.addEventListener('loadend', () => {
+        try {
+          const status = (this as any).status;
+          if (status >= 400 && currentXhrUrl && currentXhrMethod && isSameOrigin(currentXhrUrl) && currentXhrMethod.toUpperCase() !== 'OPTIONS') {
+            networkErrorsRef.current.push({ url: currentXhrUrl, status, timestamp: new Date().toISOString() });
+            if (networkErrorsRef.current.length > 50) networkErrorsRef.current.shift();
+            localStorage.setItem('error_network_errors', JSON.stringify(networkErrorsRef.current));
+          }
+        } catch {}
+      });
+      return originalXhrSend.apply(this, [body as any]);
+    } as any;
 
     const handleError = (event: ErrorEvent) => {
       consoleLogsRef.current.push({
@@ -84,6 +164,9 @@ export const useErrorReporting = () => {
     return () => {
       console.error = originalError;
       console.warn = originalWarn;
+      window.fetch = originalFetch;
+      XMLHttpRequest.prototype.open = originalXhrOpen;
+      XMLHttpRequest.prototype.send = originalXhrSend;
       window.removeEventListener('error', handleError);
     };
   }, []);

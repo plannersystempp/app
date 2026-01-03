@@ -9,11 +9,6 @@ import { EnhancedDataProvider } from './contexts/EnhancedDataContext';
 import { TeamProvider } from './contexts/TeamContext';
 import { LoginScreen } from './components/LoginScreen';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
-import { Landing } from './pages/Landing';
-import { SalesLanding } from './pages/SalesLanding';
-import { TermosDeUso } from './pages/TermosDeUso';
-import { PoliticaPrivacidade } from './pages/PoliticaPrivacidade';
-import { QuemSomos } from './pages/QuemSomos';
 import { Layout } from './components/Layout';
 import { Toaster } from './components/ui/toaster';
 import Dashboard from './components/Dashboard';
@@ -245,7 +240,7 @@ const AppContent = () => {
     checkTeamApprovalStatus();
   }, [user]);
 
-  if (isLoading || teamApprovalStatus.loading) {
+  if (isLoading || (user && teamApprovalStatus.loading)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
         <img
@@ -445,14 +440,10 @@ function App() {
       <AuthProvider>
         <Router>
           <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/oferta" element={<SalesLanding />} />
+            {/* Redirecionar rota raiz para /app se logado ou /auth se não */}
+            <Route path="/" element={<Navigate to="/app" replace />} />
             <Route path="/auth" element={<LoginScreen />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/termos-de-uso" element={<TermosDeUso />} />
-            <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
-            <Route path="/quem-somos" element={<QuemSomos />} />
-            <Route path="/plans" element={<PlansPage />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
             <Route path="/app/*" element={
               <RouteErrorBoundary routeName="App Principal">
@@ -469,7 +460,7 @@ function App() {
                 </TeamProvider>
               </RouteErrorBoundary>
             } />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/app" replace />} />
           </Routes>
           <SessionTimeout />
           <PWAManager />

@@ -1,0 +1,11 @@
+\set ON_ERROR_STOP on
+\copy public.users FROM 'data/users.csv' WITH (FORMAT csv, HEADER true)
+\copy public.teams FROM 'data/teams.csv' WITH (FORMAT csv, HEADER true)
+\copy public.team_members FROM 'data/team_members.csv' WITH (FORMAT csv, HEADER true)
+\copy public.subscriptions FROM 'data/subscriptions.csv' WITH (FORMAT csv, HEADER true)
+\copy public.personnel FROM 'data/personnel.csv' WITH (FORMAT csv, HEADER true)
+\copy public.events FROM 'data/events.csv' WITH (FORMAT csv, HEADER true)
+\copy public.event_personnel FROM 'data/event_personnel.csv' WITH (FORMAT csv, HEADER true)
+\copy public.payroll_closings FROM 'data/payroll_closings.csv' WITH (FORMAT csv, HEADER true)
+\copy public.notifications FROM 'data/notifications.csv' WITH (FORMAT csv, HEADER true)
+\copy public.audit_logs FROM 'data/audit_logs.csv' WITH (FORMAT csv, HEADER true)

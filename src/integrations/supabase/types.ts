@@ -1411,7 +1411,6 @@ export type Database = {
           features: Json | null
           id: string
           is_active: boolean | null
-          is_hidden: boolean
           is_popular: boolean | null
           limits: Json
           name: string
@@ -1429,7 +1428,6 @@ export type Database = {
           features?: Json | null
           id?: string
           is_active?: boolean | null
-          is_hidden?: boolean
           is_popular?: boolean | null
           limits?: Json
           name: string
@@ -1447,7 +1445,6 @@ export type Database = {
           features?: Json | null
           id?: string
           is_active?: boolean | null
-          is_hidden?: boolean
           is_popular?: boolean | null
           limits?: Json
           name?: string
@@ -2233,11 +2230,11 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
       is_team_member:
-        | { Args: { check_team_id: string }; Returns: boolean }
         | {
             Args: { check_team_id: string; check_user_id: string }
             Returns: boolean
           }
+        | { Args: { check_team_id: string }; Returns: boolean }
       is_valid_photo_url: { Args: { url: string }; Returns: boolean }
       join_team_by_invite_code: {
         Args: { p_invite_code: string }

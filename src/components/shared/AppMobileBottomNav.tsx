@@ -10,6 +10,7 @@ import {
   Wrench,
   BadgeDollarSign,
   Calculator,
+  Bug,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -63,6 +64,7 @@ export function AppMobileBottomNav() {
       { path: '/app/custos', label: 'Custos', icon: Calculator },
       { path: '/app/folha', label: 'Folha', icon: Wallet },
       { path: '/app/equipe', label: 'Equipe', icon: Users },
+      { path: '/app/reportar-erro', label: 'Reportar Erro', icon: Bug }
     ];
     
     return allMoreTabs.filter(tab => {
@@ -152,6 +154,7 @@ export function AppMobileBottomNav() {
               aria-haspopup="true"
               aria-expanded={moreSheetOpen}
               aria-label="Mais opções"
+              id="mobile-more-trigger"
             >
               <div className="grid grid-cols-2 gap-px w-4 h-4">
                 <div className="w-2 h-2 bg-current rounded-sm" />
@@ -179,6 +182,7 @@ export function AppMobileBottomNav() {
                     onClick={() => handleMoreTabSelect(tab.path)}
                     variant={active ? 'default' : 'outline'}
                     className="h-auto flex flex-col items-center gap-3 p-4"
+                    aria-label={tab.label}
                     aria-current={active ? 'page' : undefined}
                   >
                     <Icon className="h-6 w-6" />

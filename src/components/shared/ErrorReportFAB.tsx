@@ -20,7 +20,7 @@ export const ErrorReportFAB: React.FC = () => {
         className={cn(
           "fixed z-40 shadow-lg transition-all duration-300",
           isMobile 
-            ? "bottom-4 left-4 h-14 rounded-full" 
+            ? "bottom-20 left-4 h-14 rounded-full" 
             : "bottom-6 right-6 h-12 rounded-full hover:shadow-xl",
           isHovered && !isMobile ? "px-4" : "w-12 px-0"
         )}

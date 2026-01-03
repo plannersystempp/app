@@ -9,9 +9,25 @@ import { ActivityHeatmap } from './charts/ActivityHeatmap';
 import { AlertCards } from './AlertCards';
 import { DemoAccountManager } from './DemoAccountManager';
 import { Users, Building2, Calendar, DollarSign, TrendingUp, UserCheck, AlertTriangle, RefreshCw, Database } from 'lucide-react';
+import { Bug } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 
 export function SuperAdminDashboard() {
   const { data: dashboardData, isLoading, error, refetch } = useSuperAdminDashboard();
+  const { data: reportTelemetry } = useQuery({
+    queryKey: ['superadmin-report-telemetry'],
+    queryFn: async () => {
+      const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('action, created_at, new_values')
+        .in('action', ['ERROR_REPORT_OPENED','ERROR_REPORT_SUBMITTED'])
+        .gte('created_at', since);
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   if (isLoading) {
     return (
@@ -63,6 +79,15 @@ export function SuperAdminDashboard() {
   }
 
   const { stats, user_growth, mrr_history, top_teams } = dashboardData;
+  let opened = 0, submitted = 0, high = 0;
+  (reportTelemetry || []).forEach((row: any) => {
+    if (row.action === 'ERROR_REPORT_OPENED') opened++;
+    if (row.action === 'ERROR_REPORT_SUBMITTED') {
+      submitted++;
+      if (row.new_values?.urgency === 'high') high++;
+    }
+  });
+  const conversion = opened > 0 ? Math.round((submitted / opened) * 100) : 0;
 
   return (
     <div className="space-y-6">
@@ -131,6 +156,38 @@ export function SuperAdminDashboard() {
             <p className="text-xs text-muted-foreground mt-1">
               {stats.trial_conversion_rate}% conversão
             </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* KPI de Reportes de Erro (14 dias) */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Aberturas de Reporte</CardTitle>
+            <Bug className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{opened}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Envios de Reporte</CardTitle>
+            <Bug className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{submitted}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Conversão</CardTitle>
+            <TrendingUp className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{conversion}%</div>
+            <p className="text-xs text-muted-foreground mt-1">Críticos: {high}</p>
           </CardContent>
         </Card>
       </div>

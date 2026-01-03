@@ -155,11 +155,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const initializeAuth = async () => {
+      // Safety timeout to prevent infinite loading
+      const safetyTimeout = setTimeout(() => {
+        if (mounted) {
+          console.warn('Auth initialization timed out, forcing loading state to false');
+          setIsLoading(false);
+        }
+      }, 5000);
+
       try {
         debugLog('Initializing auth...');
         
         // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession();
+
+        clearTimeout(safetyTimeout);
 
         if (error) {
           console.error('Error getting session:', error);

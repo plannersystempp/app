@@ -14,6 +14,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Camera, Check, AlertCircle } from 'lucide-react';
 import { useErrorReporting } from '@/hooks/useErrorReporting';
+import { supabase } from '@/integrations/supabase/client';
+import { useTeam } from '@/contexts/TeamContext';
 import { toast } from '@/hooks/use-toast';
 
 interface ErrorReportDialogProps {
@@ -24,6 +26,7 @@ interface ErrorReportDialogProps {
 
 export const ErrorReportDialog: React.FC<ErrorReportDialogProps> = ({ isOpen, onClose, returnFocusTo }) => {
   const { submitErrorReport, isSubmitting } = useErrorReporting();
+  const { activeTeam } = useTeam();
   
   const [whatTrying, setWhatTrying] = useState('');
   const [whatHappened, setWhatHappened] = useState('');
@@ -32,6 +35,20 @@ export const ErrorReportDialog: React.FC<ErrorReportDialogProps> = ({ isOpen, on
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [reportNumber, setReportNumber] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      const payload = {
+        action: 'ERROR_REPORT_OPENED',
+        table_name: 'error_reports',
+        record_id: null,
+        new_values: { url: window.location.href },
+        team_id: activeTeam?.id || null,
+        user_id: null,
+      } as any;
+      supabase.from('audit_logs').insert(payload);
+    }
+  }, [isOpen, activeTeam?.id]);
 
   const handleClose = () => {
     onClose();
@@ -95,6 +112,36 @@ export const ErrorReportDialog: React.FC<ErrorReportDialogProps> = ({ isOpen, on
     if (number) {
       setReportNumber(number);
       setShowSuccess(true);
+
+      const telemetryPayload = {
+        action: 'ERROR_REPORT_SUBMITTED',
+        table_name: 'error_reports',
+        record_id: number,
+        new_values: { urgency, url: window.location.href },
+        team_id: activeTeam?.id || null,
+        user_id: null,
+      } as any;
+      supabase.from('audit_logs').insert(telemetryPayload);
+
+      if (urgency === 'high') {
+        const { data: superadmins } = await supabase.rpc('get_superadmin_user_ids');
+        const ids: string[] = Array.isArray(superadmins) ? superadmins : [];
+        await Promise.all(ids.map(async (uid) => {
+          try {
+            await supabase.functions.invoke('send-push-notification', {
+              body: {
+                userId: uid,
+                title: 'Erro crítico reportado',
+                body: `Reporte ${number}: ${whatHappened.substring(0, 100)}`,
+                tag: 'error-high',
+                data: { reportNumber: number }
+              }
+            });
+          } catch (e) {
+            console.warn('Push notify failed for superadmin', uid, e);
+          }
+        }));
+      }
       
       setTimeout(() => {
         setWhatTrying('');
@@ -124,7 +171,7 @@ export const ErrorReportDialog: React.FC<ErrorReportDialogProps> = ({ isOpen, on
               <Check className="h-8 w-8 text-green-600 dark:text-green-400" />
             </div>
             
-            <Alert className="w-full">
+            <Alert className="w-full" role="alert" aria-live="polite" aria-atomic="true">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 <div className="space-y-1">
@@ -148,7 +195,7 @@ export const ErrorReportDialog: React.FC<ErrorReportDialogProps> = ({ isOpen, on
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>🐞 Reportar Erro</DialogTitle>
+          <DialogTitle tabIndex={-1} id="error-report-title">🐞 Reportar Erro</DialogTitle>
           <DialogDescription>
             Nos ajude a melhorar o PlannerSystem! Descreva o problema que encontrou.
           </DialogDescription>
