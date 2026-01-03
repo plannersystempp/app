@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useTeam } from '@/contexts/TeamContext';
+import { calculateWorkedDays } from '@/components/payroll/payrollCalculations';
 
 // Types
 export interface PaymentHistoryItem {
@@ -137,7 +138,7 @@ export const usePendingPayments = (personnelId: string) => {
           // Buscar alocações do evento para calcular valor esperado
           const { data: workDays } = await supabase
             .from('personnel_allocations')
-            .select('work_days, event_specific_cache')
+            .select('id, work_days, event_specific_cache')
             .eq('event_id', event.id)
             .eq('personnel_id', personnelId)
             .single();
@@ -149,8 +150,24 @@ export const usePendingPayments = (personnelId: string) => {
             .eq('id', personnelId)
             .single();
 
+          // Buscar ausências para descontar dos dias trabalhados
+          const { data: absences } = await supabase
+            .from('personnel_absences')
+            .select('*')
+            .eq('assignment_id', workDays?.id || '00000000-0000-0000-0000-000000000000'); // Evitar erro se workDays for null
+
           const cacheRate = workDays?.event_specific_cache || personnel?.event_cache || 0;
-          const daysWorked = workDays?.work_days?.length || 0;
+          
+          // Usar a função oficial de cálculo para descontar faltas
+          const allocationData = workDays ? [{
+            id: workDays.id,
+            personnel_id: personnelId,
+            event_id: event.id,
+            work_days: workDays.work_days || [],
+            event_specific_cache: workDays.event_specific_cache
+          }] : [];
+          
+          const daysWorked = calculateWorkedDays(allocationData, (absences || []) as any[]);
           const totalAmount = Number(cacheRate) * daysWorked;
 
           const pendingAmount = totalAmount - totalPaid;
