@@ -164,6 +164,21 @@ const AppContent = () => {
         return;
       }
 
+      // Timeout de segurança para evitar travamento no loading
+      const safetyTimeout = setTimeout(() => {
+        console.warn('Team approval check timed out');
+        setTeamApprovalStatus(prev => {
+          if (prev.loading) {
+            return {
+              loading: false,
+              status: null,
+              teamName: ''
+            };
+          }
+          return prev;
+        });
+      }, 8000);
+
       try {
         // Verificar se o usuário é owner de alguma equipe
         const { data: ownedTeams, error: ownedError } = await supabase
@@ -174,6 +189,7 @@ const AppContent = () => {
         if (ownedError) throw ownedError;
 
         if (ownedTeams && ownedTeams.length > 0) {
+          clearTimeout(safetyTimeout);
           setTeamApprovalStatus({
             loading: false,
             status: 'approved',
@@ -192,6 +208,8 @@ const AppContent = () => {
           .eq('user_id', user.id);
 
         if (error) throw error;
+
+        clearTimeout(safetyTimeout);
 
         if (memberships && memberships.length > 0) {
           // Procurar por uma membership aprovada
@@ -228,6 +246,7 @@ const AppContent = () => {
           });
         }
       } catch (error) {
+        clearTimeout(safetyTimeout);
         console.error('Error checking team approval status:', error);
         setTeamApprovalStatus({
           loading: false,
@@ -244,11 +263,12 @@ const AppContent = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
         <img
-          src="/icons/logo_plannersystem.png"
+          src="/icons/logo_plannersystempng.png"
           alt="PlannerSystem"
-          className="h-12 w-auto sm:h-16 md:h-20 object-contain mb-8 animate-pulse"
+          className="h-12 w-auto sm:h-16 md:h-20 object-contain mb-8 animate-pulse brightness-0 invert dark:invert-0"
         />
         <div className="animate-spin rounded-full h-16 w-16 sm:h-20 sm:w-20 border-b-2 border-primary"></div>
+        <p className="mt-4 text-muted-foreground animate-pulse">Carregando sistema...</p>
       </div>
     );
   }
