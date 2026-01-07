@@ -460,8 +460,8 @@ function App() {
       <AuthProvider>
         <Router>
           <Routes>
-            {/* Redirecionar rota raiz para /app se logado ou /auth se não */}
-            <Route path="/" element={<Navigate to="/app" replace />} />
+            {/* Redirecionar rota raiz diretamente para /auth (Login) ao invés de /app */}
+            <Route path="/" element={<Navigate to="/auth" replace />} />
             <Route path="/auth" element={<LoginScreen />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
