@@ -4,13 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, ArrowLeft, CheckCircle, Mail } from 'lucide-react';
+import { Loader2, CheckCircle, Mail, Lock, Building2, User, ArrowRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { resetPassword } from '@/services/authService';
 import { validateEmail, validatePassword, validateName, sanitizeInput } from '@/utils/validation';
@@ -75,7 +73,6 @@ export const LoginScreen: React.FC = () => {
         return;
       }
 
-      // Validar aceite dos termos
       if (!acceptedTerms) {
         toast({
           title: "Erro",
@@ -86,7 +83,6 @@ export const LoginScreen: React.FC = () => {
       }
 
       if (isCreatingCompany) {
-        // Validação para administrador criando empresa
         if (!companyName.trim() || !companyCnpj.trim() || !confirmAdmin) {
           toast({
             title: "Erro",
@@ -97,12 +93,10 @@ export const LoginScreen: React.FC = () => {
         }
 
         try {
-          // Sanitize inputs
           const sanitizedName = sanitizeInput(name);
           const sanitizedCompanyName = sanitizeInput(companyName);
           const sanitizedCnpj = sanitizeInput(companyCnpj);
 
-          // Create user account first
           const { data: userData, error: signupError } = await supabase.auth.signUp({
             email: email.trim().toLowerCase(),
             password,
@@ -130,9 +124,6 @@ export const LoginScreen: React.FC = () => {
           }
 
           if (userData.user) {
-            console.log('User created, setting up company...');
-            
-            // Setup company using RPC function
             const { data: companyData, error: companyError } = await supabase
               .rpc('setup_company_for_current_user', {
                 p_company_name: sanitizedCompanyName,
@@ -163,7 +154,6 @@ export const LoginScreen: React.FC = () => {
           });
         }
       } else {
-        // Validação para coordenador solicitando acesso com código
         if (!inviteCode.trim()) {
           toast({
             title: "Erro",
@@ -174,10 +164,7 @@ export const LoginScreen: React.FC = () => {
         }
 
         try {
-          // Sanitize inputs
           const sanitizedName = sanitizeInput(name);
-
-          // Create user account first
           const { data: userData, error: signupError } = await supabase.auth.signUp({
             email: email.trim().toLowerCase(),
             password,
@@ -200,9 +187,6 @@ export const LoginScreen: React.FC = () => {
           }
 
           if (userData.user) {
-            console.log('User created, joining team...');
-            
-            // Join team using RPC function
             const { data: joinData, error: joinError } = await supabase
               .rpc('join_team_by_invite_code', {
                 p_invite_code: inviteCode.trim()
@@ -210,7 +194,6 @@ export const LoginScreen: React.FC = () => {
 
             if (joinError) {
               console.error('Error joining team:', joinError);
-              
               if (joinError.message?.includes('Invalid invite code')) {
                 toast({
                   title: "Código inválido",
@@ -242,31 +225,28 @@ export const LoginScreen: React.FC = () => {
         }
       }
     } else {
-      // Login flow otimizado: evitar consulta extra antes do login
       const { error } = await login(email, password);
       if (error) {
-        // Verificar se o erro é de credenciais inválidas mas usuário existe
         if (error.message?.includes('Invalid login credentials')) {
-          // Não consultar base antes do login: manter mensagem amigável
           toast({
             title: "Credenciais inválidas",
             description: "Verifique seu e-mail e senha ou use 'Esqueci minha senha'.",
             variant: "destructive"
           });
         } else if (error.message?.includes('Email not confirmed')) {
-        toast({
-          title: "Email não confirmado",
-          description: "Verifique seu email e clique no link de confirmação antes de fazer login.",
-          variant: "destructive"
-        });
-      } else {
-        toast({
-          title: "Erro no login",
-          description: error.message,
-          variant: "destructive"
-        });
+          toast({
+            title: "Email não confirmado",
+            description: "Verifique seu email e clique no link de confirmação antes de fazer login.",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Erro no login",
+            description: error.message,
+            variant: "destructive"
+          });
+        }
       }
-    }
     }
   };
 
@@ -282,7 +262,6 @@ export const LoginScreen: React.FC = () => {
 
     try {
       const { error } = await resetPassword(forgotPasswordEmail);
-
       if (error) {
         if (error.message?.includes('over_email_send_rate_limit') || error.message?.includes('429')) {
           toast({
@@ -295,12 +274,10 @@ export const LoginScreen: React.FC = () => {
         }
         return;
       }
-
       toast({
         title: "Link enviado!",
         description: "Link de redefinição enviado! Verifique seu e-mail para redefinir sua senha. O link é válido por 1 hora."
       });
-
       setShowForgotPassword(false);
       setForgotPasswordEmail('');
     } catch (error: any) {
@@ -313,295 +290,302 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
-  if (signUpSuccess) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <div className="flex items-center justify-between mb-4">
-              <Link to="/">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Voltar
-                </Button>
-              </Link>
-            </div>
-            <CardTitle className="text-2xl font-bold text-center">
-              Cadastro Realizado!
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-center space-y-6">
-            <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold">Aguardando Aprovação</h3>
-              <p className="text-muted-foreground">
-                Sua conta foi criada com sucesso! Agora você precisa aguardar a aprovação 
-                do administrador para ter acesso ao sistema.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Você será notificado por email assim que sua conta for aprovada.
-              </p>
-            </div>
-            <div className="space-y-3">
-              <Button 
-                onClick={() => {
-                  setSignUpSuccess(false);
-                  setIsSignUp(false);
-                  setEmail('');
-                  setPassword('');
-                  setName('');
-                }}
-                className="w-full"
-              >
-                Fazer Login
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => navigate('/')}
-                className="w-full"
-              >
-                Voltar ao Início
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <div className="flex items-center justify-between mb-4">
-            <Link to="/">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Voltar
-              </Button>
-            </Link>
-          </div>
-          <CardTitle className="text-2xl font-bold text-center">
-            {isSignUp ? 'Criar Conta' : 'Sistema de Gestão de Eventos'}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {signupMessage && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-              <p className="text-sm text-blue-700">{signupMessage}</p>
+    <div className="min-h-screen w-full lg:grid lg:grid-cols-2 overflow-x-hidden bg-background">
+      {/* Coluna Esquerda - Branding (Visível apenas em desktop) */}
+      <div className="hidden lg:flex flex-col justify-between bg-slate-900 p-10 xl:p-16 2xl:p-24 text-white relative h-full min-h-screen">
+        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop')] bg-cover bg-center opacity-20 mix-blend-overlay"></div>
+        <div className="z-10 flex items-center gap-3">
+          <img src="/icons/logo_plannersystempng.png" alt="Logo" className="h-6 w-auto opacity-90 brightness-0 invert" />
+        </div>
+        <div className="z-10 max-w-xl 2xl:max-w-2xl">
+          <h1 className="text-4xl xl:text-5xl 2xl:text-6xl font-bold leading-tight mb-6">
+            Gestão inteligente para eventos de sucesso.
+          </h1>
+          <p className="text-lg xl:text-xl text-slate-300">
+            Simplifique a organização, controle suas equipes e foque no que realmente importa: a experiência.
+          </p>
+        </div>
+        <div className="z-10 text-sm text-slate-400">
+          © 2026 PlannerSystem. Todos os direitos reservados.
+        </div>
+      </div>
+
+      {/* Coluna Direita - Formulário */}
+      <div className="flex items-center justify-center p-4 sm:p-8 lg:p-12 xl:p-16 2xl:p-24 overflow-y-auto h-full min-h-screen bg-background">
+        <div className="mx-auto w-full max-w-[350px] sm:max-w-[400px] xl:max-w-[450px] 2xl:max-w-[500px] space-y-6 lg:space-y-8">
+          <div className="flex flex-col space-y-2 text-center">
+            {/* Mobile Logo */}
+            <div className="lg:hidden flex justify-center mb-4">
+               <img src="/icons/plannersystem-logo.svg" alt="Logo" className="h-10 w-auto" />
             </div>
-          )}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {isSignUp && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    placeholder="Seu nome completo"
-                  />
-                </div>
+            
+            {/* Desktop Icon (Centered above form) */}
+            <div className="hidden lg:flex justify-center mb-6">
+              <img src="/icons/plannersystem-logo.svg" alt="Icon" className="h-12 xl:h-16 w-auto" />
+            </div>
 
-                {/* Checkbox de decisão */}
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="createCompany"
-                    checked={isCreatingCompany}
-                    onCheckedChange={(checked) => setIsCreatingCompany(checked as boolean)}
-                  />
-                  <Label htmlFor="createCompany" className="text-sm">
-                    Quero cadastrar uma nova empresa
-                  </Label>
-                </div>
+            <h1 className="text-2xl xl:text-3xl font-semibold tracking-tight">
+              {signUpSuccess 
+                ? 'Cadastro realizado!' 
+                : (isSignUp ? 'Crie sua conta' : 'Bem-vindo de volta')}
+            </h1>
+            <p className="text-sm xl:text-base text-muted-foreground">
+              {signUpSuccess
+                ? 'Aguarde a aprovação do administrador.'
+                : (isSignUp 
+                    ? 'Preencha os dados abaixo para começar.' 
+                    : 'Digite suas credenciais para acessar sua conta.')}
+            </p>
+          </div>
 
-                {/* Campos condicionais baseados na escolha */}
-                {isCreatingCompany ? (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="companyName">Nome da Empresa</Label>
+          {signUpSuccess ? (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex justify-center py-8">
+                <div className="h-24 w-24 rounded-full bg-green-500/10 flex items-center justify-center animate-pulse">
+                  <CheckCircle className="h-12 w-12 text-green-500" />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <Button 
+                  onClick={() => {
+                    setSignUpSuccess(false);
+                    setIsSignUp(false);
+                    setEmail('');
+                    setPassword('');
+                    setName('');
+                  }}
+                  className="w-full"
+                >
+                  Voltar para Login
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <form onSubmit={handleSubmit}>
+                <div className="grid gap-4">
+                  {signupMessage && (
+                    <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-md text-sm text-blue-500 text-center">
+                      {signupMessage}
+                    </div>
+                  )}
+
+                  {isSignUp && (
+                    <div className="grid gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="name">Nome completo</Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="name"
+                            placeholder="Ex: João Silva"
+                            type="text"
+                            autoCapitalize="words"
+                            autoComplete="name"
+                            autoCorrect="off"
+                            disabled={isLoading}
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="pl-9 h-11"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2 rounded-md border p-3 bg-muted/30">
+                        <Checkbox
+                          id="createCompany"
+                          checked={isCreatingCompany}
+                          onCheckedChange={(checked) => setIsCreatingCompany(checked as boolean)}
+                        />
+                        <Label htmlFor="createCompany" className="text-sm font-normal cursor-pointer flex-1">
+                          Quero cadastrar uma empresa
+                        </Label>
+                      </div>
+
+                      {isCreatingCompany ? (
+                        <div className="grid gap-4 pl-4 border-l-2 border-primary/20 animate-in slide-in-from-left-2">
+                          <div className="grid gap-2">
+                            <Label htmlFor="companyName">Nome da Empresa</Label>
+                            <div className="relative">
+                              <Building2 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                id="companyName"
+                                placeholder="Sua Empresa Ltda"
+                                value={companyName}
+                                onChange={(e) => setCompanyName(e.target.value)}
+                                className="pl-9 h-11"
+                                required
+                              />
+                            </div>
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="companyCnpj">CNPJ</Label>
+                            <Input
+                              id="companyCnpj"
+                              placeholder="00.000.000/0000-00"
+                              value={companyCnpj}
+                              onChange={(e) => setCompanyCnpj(e.target.value)}
+                              className="h-11"
+                              required
+                            />
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="confirmAdmin"
+                              checked={confirmAdmin}
+                              onCheckedChange={(checked) => setConfirmAdmin(checked as boolean)}
+                            />
+                            <Label htmlFor="confirmAdmin" className="text-xs font-normal text-muted-foreground">
+                              Sou o administrador legal
+                            </Label>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid gap-2 animate-in slide-in-from-top-2">
+                          <Label htmlFor="inviteCode">Código da Empresa</Label>
+                          <Input
+                            id="inviteCode"
+                            placeholder="CÓDIGO"
+                            value={inviteCode}
+                            onChange={(e) => setInviteCode(e.target.value)}
+                            className="uppercase tracking-widest text-center font-mono bg-muted/30 h-11"
+                            required
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
-                        id="companyName"
-                        type="text"
-                        value={companyName}
-                        onChange={(e) => setCompanyName(e.target.value)}
+                        id="email"
+                        placeholder="nome@exemplo.com"
+                        type="email"
+                        autoCapitalize="none"
+                        autoComplete="email"
+                        autoCorrect="off"
+                        disabled={isLoading}
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-9 h-11"
                         required
-                        placeholder="Nome da sua empresa"
                       />
                     </div>
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="companyCnpj">CNPJ</Label>
-                      <Input
-                        id="companyCnpj"
-                        type="text"
-                        value={companyCnpj}
-                        onChange={(e) => setCompanyCnpj(e.target.value)}
+                  <div className="grid gap-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">Senha</Label>
+                      {!isSignUp && (
+                        <Dialog open={showForgotPassword} onOpenChange={setShowForgotPassword}>
+                          <DialogTrigger asChild>
+                            <Button variant="link" size="sm" className="px-0 font-normal h-auto text-xs text-primary hover:no-underline hover:text-primary/80">
+                              Esqueceu a senha?
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Recuperar Senha</DialogTitle>
+                            </DialogHeader>
+                            <div className="grid gap-4 py-4">
+                              <div className="grid gap-2">
+                                <Label htmlFor="forgot-email">Email</Label>
+                                <Input
+                                  id="forgot-email"
+                                  placeholder="Digite seu email"
+                                  value={forgotPasswordEmail}
+                                  onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                                />
+                              </div>
+                              <Button onClick={handleForgotPassword}>Enviar Link</Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
+                      <PasswordInput
+                        id="password"
+                        placeholder="••••••••"
+                        disabled={isLoading}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-9 h-11"
                         required
-                        placeholder="00.000.000/0000-00"
+                        minLength={6}
                       />
                     </div>
+                  </div>
 
-                    <div className="flex items-center space-x-2">
+                  {isSignUp && (
+                    <div className="flex items-start space-x-2">
                       <Checkbox
-                        id="confirmAdmin"
-                        checked={confirmAdmin}
-                        onCheckedChange={(checked) => setConfirmAdmin(checked as boolean)}
+                        id="acceptTerms"
+                        checked={acceptedTerms}
+                        onCheckedChange={(checked) => setAcceptedTerms(checked as boolean)}
+                        className="mt-1"
                       />
-                      <Label htmlFor="confirmAdmin" className="text-sm">
-                        Confirmo que sou o administrador legal desta empresa
+                      <Label htmlFor="acceptTerms" className="text-xs leading-normal font-normal text-muted-foreground">
+                        Concordo com os <a href="#" className="underline hover:text-primary">Termos de Uso</a> e <a href="#" className="underline hover:text-primary">Política de Privacidade</a>.
                       </Label>
                     </div>
-                  </>
-                ) : (
-                  <div className="space-y-2">
-                    <Label htmlFor="inviteCode">Código da Empresa</Label>
-                    <Input
-                      id="inviteCode"
-                      type="text"
-                      value={inviteCode}
-                      onChange={(e) => setInviteCode(e.target.value)}
-                      required
-                      placeholder="Digite o código de convite"
-                      className="uppercase"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Solicite o código de convite ao administrador da sua empresa
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-            
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="seu@email.com"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
-              <PasswordInput
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="Sua senha"
-                minLength={6}
-              />
-            </div>
+                  )}
 
-            {/* Checkbox de aceite dos termos apenas para signup */}
-            {isSignUp && (
-              <div className="flex items-start space-x-2">
-                <Checkbox
-                  id="acceptTerms"
-                  checked={acceptedTerms}
-                  onCheckedChange={(checked) => setAcceptedTerms(checked as boolean)}
-                />
-                <Label htmlFor="acceptTerms" className="text-sm leading-tight">
-                  Eu li e concordo com os{' '}
-                  <a
-                    href="/termos-de-uso"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    Termos de Uso
-                  </a>
-                  {' '}e a{' '}
-                  <a
-                    href="/politica-de-privacidade"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    Política de Privacidade
-                  </a>
-                  {' '}do PlannerSystem.
-                </Label>
-              </div>
-            )}
-            
-            <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={isLoading || (isSignUp && !acceptedTerms)}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {isSignUp ? 'Criando...' : 'Entrando...'}
-                </>
-              ) : (
-                isSignUp ? 'Criar Conta' : 'Entrar'
-              )}
-            </Button>
-            
-            {!isSignUp && (
-              <Dialog open={showForgotPassword} onOpenChange={setShowForgotPassword}>
-                <DialogTrigger asChild>
-                  <Button variant="link" className="text-sm">
-                    Esqueci minha senha
+                  <Button disabled={isLoading} className="w-full h-11 shadow-sm font-medium text-base">
+                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isSignUp ? 'Criar conta' : 'Entrar'}
+                    {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
                   </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                      <Mail className="w-5 h-5" />
-                      Recuperar Senha
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="forgot-email">Email</Label>
-                      <Input
-                        id="forgot-email"
-                        type="email"
-                        value={forgotPasswordEmail}
-                        onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                        placeholder="Digite seu email"
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowForgotPassword(false)}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button onClick={handleForgotPassword}>
-                        Enviar Link
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            )}
-            
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full"
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setSignupMessage(''); // Limpar mensagem ao alternar
-              }}
-            >
-              {isSignUp ? 'Já tem conta? Fazer login' : 'Não tem conta? Criar agora'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+                </div>
+              </form>
+              
+              <div className="relative my-2">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Ou
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Button 
+                  variant="outline" 
+                  type="button" 
+                  disabled={isLoading}
+                  onClick={() => {
+                    setIsSignUp(!isSignUp);
+                    setSignupMessage('');
+                  }}
+                  className="h-11 border-dashed border-border hover:border-solid hover:bg-muted/50"
+                >
+                  {isSignUp ? 'Já tenho uma conta' : 'Criar uma nova conta'}
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          <p className="px-8 text-center text-xs text-muted-foreground">
+            Ao clicar em continuar, você concorda com nossos{' '}
+            <a href="/termos-de-uso" className="underline underline-offset-4 hover:text-primary">
+              Termos de Serviço
+            </a>{' '}
+            e{' '}
+            <a href="/politica-de-privacidade" className="underline underline-offset-4 hover:text-primary">
+              Política de Privacidade
+            </a>
+            .
+          </p>
+        </div>
+      </div>
     </div>
   );
 };
