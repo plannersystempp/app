@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getEventsInProgress, getUpcomingPayments, computeDashboardKpis, EventItem } from '../dashboardData';
+import { getEventsInProgress, getUpcomingPayments, computeDashboardKpis, EventItem, getAverageEventsPerWeek, getAverageEventsPerMonth, getAverageEventsPerYear } from '../dashboardData';
 
 const baseEvents: EventItem[] = [
   { id: 'e1', status: 'em_andamento', start_date: '2025-11-01', end_date: '2025-11-10' },
@@ -68,5 +68,37 @@ describe('computeDashboardKpis', () => {
     expect(res.eventsCount).toBe(baseEvents.length);
     expect(res.personnelCount).toBe(10);
     expect(res.functionsCount).toBe(5);
+  });
+});
+
+describe('event averages', () => {
+  it('calcula média por mês', () => {
+    const events: EventItem[] = [
+      { id: 'm1', status: 'planejado', start_date: '2025-01-10' },
+      { id: 'm2', status: 'planejado', start_date: '2025-01-20' },
+      { id: 'm3', status: 'planejado', start_date: '2025-02-05' },
+    ];
+    const avg = getAverageEventsPerMonth(events);
+    expect(avg).toBe(1.5);
+  });
+
+  it('calcula média por semana', () => {
+    const events: EventItem[] = [
+      { id: 'w1', status: 'planejado', start_date: '2025-01-05' },
+      { id: 'w2', status: 'planejado', start_date: '2025-01-06' },
+      { id: 'w3', status: 'planejado', start_date: '2025-01-15' },
+    ];
+    const avg = getAverageEventsPerWeek(events);
+    expect(avg).toBeGreaterThan(1);
+  });
+
+  it('calcula média por ano', () => {
+    const events: EventItem[] = [
+      { id: 'y1', status: 'planejado', start_date: '2024-12-31' },
+      { id: 'y2', status: 'planejado', start_date: '2025-01-01' },
+      { id: 'y3', status: 'planejado', start_date: '2025-06-01' },
+    ];
+    const avg = getAverageEventsPerYear(events);
+    expect(avg).toBe(1.5);
   });
 });

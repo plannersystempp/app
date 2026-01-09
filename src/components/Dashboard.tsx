@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Calendar, Users, Briefcase, CheckCircle, Clock, AlertCircle, DollarSign, Package, AlertTriangle, UserCheck, Circle, TrendingUp } from 'lucide-react';
+import { Calendar, Users, Briefcase, CheckCircle, Clock, AlertCircle, DollarSign, Package, AlertTriangle, UserCheck, Circle, TrendingUp, CalendarClock, CalendarRange } from 'lucide-react';
 import { LoadingSpinner } from './shared/LoadingSpinner';
 import { EmptyState } from './shared/EmptyState';
 import { NoTeamSelected } from './shared/NoTeamSelected';
@@ -36,6 +36,9 @@ import { usePersistentFilter } from '@/hooks/usePersistentFilter';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { logger } from '@/utils/logger';
+import { getAverageEventsPerWeek, getAverageEventsPerMonth, getAverageEventsPerYear } from '@/utils/dashboardData';
+import { AnalyticsCharts } from '@/components/dashboard/AnalyticsCharts';
+
 
 const Dashboard = () => {
   
@@ -76,6 +79,9 @@ const Dashboard = () => {
   const eventsInProgress = useEventsInProgress();
   const upcomingPayments = useUpcomingPayments(eventsWithCompletePayments);
   const { data: avulsosPending = [] } = usePersonnelPaymentsQuery({ status: 'pending' });
+  const avgEventsWeek = useMemo(() => getAverageEventsPerWeek(events as any), [events]);
+  const avgEventsMonth = useMemo(() => getAverageEventsPerMonth(events as any), [events]);
+  const avgEventsYear = useMemo(() => getAverageEventsPerYear(events as any), [events]);
 
   // Check if user is superadmin - HOOK MUST BE CALLED UNCONDITIONALLY
   const { data: isSuperAdminCheck } = useQuery({
@@ -300,36 +306,56 @@ const Dashboard = () => {
       {/* KPIs organizados por grupos: Atividade, Cadastro e Financeiro */}
       <div className="space-y-4 sm:space-y-6">
         <KpiGroup title="Atividade" icon={<AlertCircle className="h-4 w-4 text-yellow-600" />}> 
-          <div className="col-span-full sm:col-span-2 lg:col-span-1">
+          <div className="col-span-1">
             <KpiCard
-              title="Eventos em Andamento"
+              title="Em Andamento"
               value={eventsInProgress.length}
               icon={<AlertCircle className="h-4 w-4 text-yellow-600" />}
               accentClassName="border-yellow-200 bg-yellow-50/50"
               valueClassName="text-yellow-600"
-              size="sm"
+              size="xs"
             />
           </div>
+          <KpiCard
+            title="Média Semanal"
+            value={avgEventsWeek}
+            icon={<CalendarClock className="h-4 w-4 text-muted-foreground" />}
+            size="xs"
+          />
+          <KpiCard
+            title="Média Mensal"
+            value={avgEventsMonth}
+            icon={<CalendarRange className="h-4 w-4 text-muted-foreground" />}
+            size="xs"
+          />
+          <KpiCard
+            title="Média Anual"
+            value={avgEventsYear}
+            icon={<Calendar className="h-4 w-4 text-muted-foreground" />}
+            size="xs"
+          />
         </KpiGroup>
+
+        <AnalyticsCharts events={events as any} personnel={personnel as any} costs={eventSupplierCosts as any} />
 
         <KpiGroup title="Cadastro" icon={<Users className="h-4 w-4 text-muted-foreground" />}> 
           <KpiCard
-            title="Total de Eventos"
+            title="Total Eventos"
             value={events.length}
             icon={<Calendar className="h-4 w-4 text-muted-foreground" />}
-            size="sm"
+            size="xs"
           />
           <KpiCard
-            title="Pessoal Cadastrado"
+            title="Pessoal"
             value={personnelCount}
             icon={<Users className="h-4 w-4 text-muted-foreground" />}
-            size="sm"
+            size="xs"
           />
           <KpiCard
-            title="Funções Criadas"
+            title="Funções"
             value={uniqueFunctionsCount}
             icon={<Briefcase className="h-4 w-4 text-muted-foreground" />}
-            size="sm"
+            size="xs"
           />
         </KpiGroup>
 

@@ -230,27 +230,28 @@ export const QuickActions: React.FC = () => {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-yellow-600" />
+      <Card className="bg-muted/30 dark:bg-muted/20 shadow-none border-none">
+        <CardHeader className="pb-2 pt-0 px-0">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground px-1">
+            <Zap className="h-3.5 w-3.5 text-yellow-600" />
             Ações Rápidas
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          {/* Grade 2x2 para ações rápidas */}
-          <div className="grid grid-cols-2 gap-3">
+        <CardContent className="p-0">
+          {/* Lista horizontal de ações rápidas */}
+          <div className="flex flex-wrap items-center gap-2">
             {quickActions.map((action, index) => (
               <Button
                 key={index}
                 variant="outline"
-                className="h-auto p-3 flex flex-col items-center gap-2 text-center hover:shadow-sm transition-all"
+                size="sm"
+                className="h-9 px-3 flex items-center gap-2 hover:bg-muted/50 transition-all border-dashed"
                 onClick={action.action}
               >
-                <div className={`flex items-center justify-center ${action.color}`}>
-                  {action.icon}
+                <div className={`${action.color}`}>
+                  {React.cloneElement(action.icon as React.ReactElement, { className: "h-3.5 w-3.5" })}
                 </div>
-                <span className="text-xs font-semibold leading-tight">{action.title}</span>
+                <span className="text-xs font-medium">{action.title}</span>
               </Button>
             ))}
           </div>

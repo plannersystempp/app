@@ -104,3 +104,50 @@ export function computeDashboardKpis(input: KpiInput): KpiOutput {
     functionsCount: input.functionsCount,
   };
 }
+
+export type PeriodKind = 'semana' | 'mes' | 'ano';
+
+function pickEventDate(e: EventItem): Date | null {
+  if (e.start_date) return new Date(e.start_date + 'T00:00:00');
+  if (e.end_date) return new Date(e.end_date + 'T00:00:00');
+  return null;
+}
+
+function getPeriodKey(d: Date, period: PeriodKind): string {
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  if (period === 'ano') return `${y}`;
+  if (period === 'mes') return `${y}-${String(m).padStart(2, '0')}`;
+  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = (tmp.getUTCDay() + 6) % 7;
+  tmp.setUTCDate(tmp.getUTCDate() - dayNum + 3);
+  const firstThursday = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(((tmp.getTime() - firstThursday.getTime()) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+  return `${y}-W${String(week).padStart(2, '0')}`;
+}
+
+function averageByPeriod(events: EventItem[], period: PeriodKind): number {
+  let total = 0;
+  const keys = new Set<string>();
+  for (const e of events) {
+    const d = pickEventDate(e);
+    if (!d) continue;
+    keys.add(getPeriodKey(d, period));
+    total += 1;
+  }
+  const denom = keys.size;
+  if (!denom) return 0;
+  return Math.round((total / denom) * 10) / 10;
+}
+
+export function getAverageEventsPerWeek(events: EventItem[]): number {
+  return averageByPeriod(events, 'semana');
+}
+
+export function getAverageEventsPerMonth(events: EventItem[]): number {
+  return averageByPeriod(events, 'mes');
+}
+
+export function getAverageEventsPerYear(events: EventItem[]): number {
+  return averageByPeriod(events, 'ano');
+}
