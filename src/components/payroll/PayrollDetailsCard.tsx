@@ -8,6 +8,7 @@ import { PayrollDetails } from './types';
 import { useTeam } from '@/contexts/TeamContext';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { PersonnelHistoryDialog } from '../personnel/PersonnelHistory/PersonnelHistoryDialog';
 import { AbsencesModal } from '../personnel/AbsencesModal';
 import { PartialPaymentDialog } from './PartialPaymentDialog';
 import { formatCurrency } from '@/utils/formatters';
@@ -50,6 +51,7 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
   const isMobile = useIsMobile();
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
   const [showAbsencesModal, setShowAbsencesModal] = useState(false);
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [showPartialPaymentDialog, setShowPartialPaymentDialog] = useState(false);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   const [confirmPermanent, setConfirmPermanent] = useState(false);
@@ -81,7 +83,12 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
         <div className={`${isMobile ? 'space-y-1.5' : 'flex items-center justify-between'} mb-1.5`}>
           <div className={isMobile ? 'space-y-1.5' : ''}>
             <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-              <h3 className="font-semibold text-sm sm:text-base">{detail.personName}</h3>
+              <h3 
+                className="font-semibold text-sm sm:text-base cursor-pointer hover:underline decoration-primary hover:text-primary transition-colors"
+                onClick={() => setShowHistoryDialog(true)}
+              >
+                {detail.personName}
+              </h3>
               {detail.absencesCount > 0 && (
                 <Badge 
                   variant="destructive" 
@@ -377,6 +384,15 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
           eventName="Evento" // You may want to pass the actual event name
         />
         
+        <PersonnelHistoryDialog
+          open={showHistoryDialog}
+          onOpenChange={setShowHistoryDialog}
+          personnel={{
+            id: detail.personnelId,
+            name: detail.personName
+          }}
+        />
+
         <PartialPaymentDialog
           open={showPartialPaymentDialog}
           onOpenChange={setShowPartialPaymentDialog}
