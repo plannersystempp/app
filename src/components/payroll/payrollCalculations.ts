@@ -131,7 +131,7 @@ export function getDailyCacheRate(
   allocations: AllocationData[],
   person: PersonnelData
 ): number {
-  // Verifica todas as alocações e usa o maior cachê específico definido (> 0)
+  // 1. Verifica todas as alocações e usa o maior cachê específico definido para o evento (> 0)
   const specificRates = allocations
     .map(a => (a.event_specific_cache ?? 0))
     .filter(rate => rate > 0);
@@ -140,7 +140,32 @@ export function getDailyCacheRate(
     return Math.max(...specificRates);
   }
 
-  // Caso contrário, usa o cachê padrão da pessoa
+  // 2. Verifica se há cachê específico por função
+  if (person.functions && allocations.length > 0) {
+    const functionCaches = allocations
+      .map(alloc => {
+        // Tenta encontrar por ID primeiro
+        if (alloc.function_id) {
+          const func = person.functions?.find(f => f.id === alloc.function_id);
+          if (func?.custom_cache) return func.custom_cache;
+        }
+        
+        // Se não tiver ID ou não achar, tenta por nome
+        if (alloc.function_name) {
+          const func = person.functions?.find(f => f.name === alloc.function_name);
+          if (func?.custom_cache) return func.custom_cache;
+        }
+        
+        return 0;
+      })
+      .filter(rate => rate > 0);
+    
+    if (functionCaches.length > 0) {
+      return Math.max(...functionCaches);
+    }
+  }
+
+  // 3. Caso contrário, usa o cachê padrão da pessoa
   return person.event_cache || 0;
 }
 
@@ -207,7 +232,8 @@ export function calculateTotalRegularHours(workLogs: WorkLogData[]): number {
  */
 export const calculateOvertimePay = (workLogs: WorkLogData[], person: PersonnelData): number => {
   const totalOvertimeHours = calculateTotalOvertimeHours(workLogs);
-  return totalOvertimeHours * person.overtime_rate;
+  const rate = getOvertimeRate([], person);
+  return totalOvertimeHours * rate;
 };
 
 /**
@@ -508,4 +534,42 @@ export function processPaymentHistory(paymentRecords: PaymentRecord[]): Array<{
 export function hasEventSpecificCache(allocations: AllocationData[]): boolean {
   // Verdadeiro se qualquer alocação tiver cachê específico definido (> 0)
   return allocations.some(a => (a.event_specific_cache ?? 0) > 0);
+}
+
+/**
+ * Determina a taxa de hora extra a ser usada com prioridade por função
+ * 
+ * Ordem de prioridade:
+ * 1. Taxa específica por função (custom_overtime) encontrada nas alocações
+ *    - procura por `function_id` e fallback por `function_name`
+ *    - usa o MAIOR valor encontrado (> 0) entre as funções alocadas
+ * 2. `person.overtime_rate` (valor padrão da pessoa)
+ */
+export function getOvertimeRate(
+  allocations: AllocationData[],
+  person: PersonnelData
+): number {
+  if (person.functions && allocations.length > 0) {
+    const functionRates = allocations
+      .map(alloc => {
+        // ID tem prioridade
+        if ((alloc as any).function_id) {
+          const func = person.functions?.find((f: any) => f.id === (alloc as any).function_id);
+          if (func?.custom_overtime) return Number(func.custom_overtime);
+        }
+        // Fallback por nome
+        if ((alloc as any).function_name) {
+          const func = person.functions?.find((f: any) => f.name === (alloc as any).function_name);
+          if (func?.custom_overtime) return Number(func.custom_overtime);
+        }
+        return 0;
+      })
+      .filter(rate => rate > 0);
+
+    if (functionRates.length > 0) {
+      return Math.max(...functionRates);
+    }
+  }
+
+  return Number(person.overtime_rate || 0);
 }

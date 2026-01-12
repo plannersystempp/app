@@ -13,8 +13,8 @@ export default defineConfig(({ mode }) => ({
   },
   preview: {
     host: "localhost",
-    port: 8081,
-    strictPort: false,
+    port: 8080,
+    strictPort: true,
   },
   plugins: [
     react(),

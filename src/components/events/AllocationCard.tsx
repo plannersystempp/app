@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useState } from 'react';
 import { formatCurrency } from '@/utils/formatters';
 import { useTeam } from '@/contexts/TeamContext';
+import { getDailyCacheRate, type AllocationData, type PersonnelData } from '@/components/payroll/payrollCalculations';
 
 interface AllocationCardProps {
   assignment: Assignment;
@@ -42,6 +43,14 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
   const totalOvertimeHours = assignmentWorkLogs.reduce((sum, log) => sum + log.overtime_hours, 0);
 
   if (!person) return null;
+
+  const assignmentFunction = functions.find(f => f.name === assignment.function_name);
+  const personFunctionData = person.functions?.find(f => f.id === assignmentFunction?.id);
+  const functionCache = personFunctionData?.custom_cache;
+  const isFunctionCache = !!functionCache && functionCache > 0;
+  
+  // Calculate effective rate for display (priority: event specific > function specific > standard)
+  const effectiveCacheRate = assignment.event_specific_cache || functionCache || person.event_cache || 0;
 
   return (
     <Card className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-primary">
@@ -82,11 +91,15 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
                 <Badge variant="outline" className="text-xs capitalize">
                   {person.type === 'fixo' ? 'Funcionário Fixo' : 'Freelancer'}
                 </Badge>
-                {assignment.event_specific_cache && assignment.event_specific_cache > 0 && (
+                {assignment.event_specific_cache && assignment.event_specific_cache > 0 ? (
                   <Badge variant="default" className="text-xs bg-orange-100 text-orange-700 border-orange-300">
                     💰 Cache Específico
                   </Badge>
-                )}
+                ) : isFunctionCache ? (
+                  <Badge variant="default" className="text-xs bg-purple-100 text-purple-700 border-purple-300">
+                    ✨ Cache Função
+                  </Badge>
+                ) : null}
                 {division && (
                   <Badge variant="secondary" className="text-xs">
                     {division.name}
@@ -188,6 +201,24 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
                   </div>
                   <div className="text-xs text-muted-foreground text-center">
                     {formatCurrency(assignment.event_specific_cache)} × {assignment.work_days.length} dias
+                  </div>
+                </>
+              ) : isFunctionCache ? (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-purple-700 font-medium">Cache aplicado:</span>
+                    <span className="font-semibold text-purple-700">
+                      {formatCurrency(effectiveCacheRate)}/dia ✨
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm border-t pt-2">
+                    <span className="font-medium text-primary">Total do evento:</span>
+                    <span className="font-bold text-primary">
+                      {formatCurrency(effectiveCacheRate * assignment.work_days.length)}
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground text-center">
+                    {formatCurrency(effectiveCacheRate)} × {assignment.work_days.length} dias (Função)
                   </div>
                 </>
               ) : (

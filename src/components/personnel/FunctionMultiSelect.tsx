@@ -6,7 +6,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Check, ChevronDown, X, Star, Plus } from 'lucide-react';
+import { Check, ChevronDown, X, Star, Plus, Trash2 } from 'lucide-react';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { useQueryClient } from '@tanstack/react-query';
 import { FunctionForm } from '@/components/functions/FunctionForm';
 import { functionKeys } from '@/hooks/queries/useFunctionsQuery';
@@ -19,6 +20,10 @@ interface FunctionMultiSelectProps {
   placeholder?: string;
   primaryFunctionId?: string;
   onPrimaryChange?: (functionId: string | null) => void;
+  functionCaches: Record<string, number>;
+  onCacheChange: (functionId: string, value: number | null) => void;
+  functionOvertimes: Record<string, number>;
+  onOvertimeChange: (functionId: string, value: number | null) => void;
 }
 
 export const FunctionMultiSelect: React.FC<FunctionMultiSelectProps> = ({
@@ -27,11 +32,34 @@ export const FunctionMultiSelect: React.FC<FunctionMultiSelectProps> = ({
   onSelectionChange,
   placeholder = "Selecione as funções",
   primaryFunctionId,
-  onPrimaryChange
+  onPrimaryChange,
+  functionCaches,
+  onCacheChange,
+  functionOvertimes,
+  onOvertimeChange
 }) => {
   const [open, setOpen] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const queryClient = useQueryClient();
+
+  const handleCacheChange = (functionId: string, value: string | number) => {
+    // Convert string to number if needed, or handle empty string as null/0
+    const numValue = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : value;
+    onCacheChange(functionId, isNaN(numValue) ? null : numValue);
+  };
+
+  const handleOvertimeChange = (functionId: string, value: string | number) => {
+    const numValue = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : value;
+    onOvertimeChange(functionId, isNaN(numValue) ? null : numValue);
+  };
+
+  const handleClearCache = (functionId: string) => {
+    onCacheChange(functionId, null);
+  };
+
+  const handleClearOvertime = (functionId: string) => {
+    onOvertimeChange(functionId, null);
+  };
 
   const selectedFunctions = functions.filter(func => 
     selectedFunctionIds.includes(func.id)
@@ -98,41 +126,119 @@ export const FunctionMultiSelect: React.FC<FunctionMultiSelectProps> = ({
       
       {/* Selected functions display */}
       {selectedFunctions.length > 0 && (
-        <div className="flex flex-wrap gap-2 p-3 border rounded-md bg-muted/10">
-          {selectedFunctions.map(func => (
-            <Badge 
-              key={func.id} 
-              variant={primaryFunctionId === func.id ? "default" : "secondary"}
-              className="px-2 py-1 text-sm flex items-center gap-1"
-            >
-              {primaryFunctionId === func.id && (
-                <Star className="w-3 h-3 fill-current" />
-              )}
-              {func.name}
-              {primaryFunctionId !== func.id && selectedFunctions.length > 1 && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2 p-3 border rounded-md bg-muted/10">
+            {selectedFunctions.map(func => (
+              <Badge 
+                key={func.id} 
+                variant={primaryFunctionId === func.id ? "default" : "secondary"}
+                className="px-2 py-1 text-sm flex items-center gap-1"
+              >
+                {primaryFunctionId === func.id && (
+                  <Star className="w-3 h-3 fill-current" />
+                )}
+                {func.name}
+                {primaryFunctionId !== func.id && selectedFunctions.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setPrimary(func.id)}
+                    title="Definir como principal"
+                    className="ml-1 hover:bg-muted rounded-full p-0.5 transition-colors"
+                  >
+                    <Star className="w-3 h-3 text-muted-foreground hover:text-yellow-500" />
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => setPrimary(func.id)}
-                  title="Definir como principal"
-                  className="ml-1 hover:bg-muted rounded-full p-0.5 transition-colors"
+                  onClick={() => removeFunction(func.id)}
+                  className="ml-1 hover:bg-muted rounded-full p-0.5"
                 >
-                  <Star className="w-3 h-3 text-muted-foreground hover:text-yellow-500" />
+                  <X className="w-3 h-3" />
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => removeFunction(func.id)}
-                className="ml-1 hover:bg-muted rounded-full p-0.5"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </Badge>
-          ))}
-          {selectedFunctions.length > 1 && !primaryFunctionId && (
-            <span className="text-xs text-amber-600 dark:text-amber-500 self-center">
-              ⚠️ Selecione uma função principal
-            </span>
-          )}
+              </Badge>
+            ))}
+            {selectedFunctions.length > 1 && !primaryFunctionId && (
+              <span className="text-xs text-amber-600 dark:text-amber-500 self-center">
+                ⚠️ Selecione uma função principal
+              </span>
+            )}
+          </div>
+
+          {/* Cachês e Horas Extras Específicos */}
+          <div className="space-y-2 pt-1">
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              Valores por Função (Opcional)
+              <span className="text-[10px] font-normal normal-case text-muted-foreground/70">
+                Se não definido, usa os valores padrão
+              </span>
+            </Label>
+            <div className="grid gap-2 border rounded-md p-3 bg-muted/5">
+              <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-2 mb-1">
+                <div className="col-span-4">Função</div>
+                <div className="col-span-4">Cachê</div>
+                <div className="col-span-4">Hora Extra</div>
+              </div>
+              {selectedFunctions.map(func => {
+                const hasCustomCache = functionCaches[func.id] !== undefined && functionCaches[func.id] !== null;
+                const hasCustomOvertime = functionOvertimes[func.id] !== undefined && functionOvertimes[func.id] !== null;
+                
+                return (
+                  <div key={func.id} className="grid grid-cols-12 gap-2 items-center group">
+                    <div className="col-span-4 flex items-center gap-2 overflow-hidden">
+                      {primaryFunctionId === func.id && (
+                        <Star className="w-3 h-3 text-primary fill-primary flex-shrink-0" />
+                      )}
+                      <span className="text-sm truncate font-medium" title={func.name}>{func.name}</span>
+                    </div>
+                    
+                    {/* Cache Input */}
+                    <div className="col-span-4 flex items-center gap-1">
+                      <CurrencyInput
+                        value={functionCaches[func.id]}
+                        onChange={(val) => handleCacheChange(func.id, val)}
+                        placeholder="Padrão"
+                        className={`h-8 text-sm ${hasCustomCache ? 'border-primary/50 bg-primary/5' : ''}`}
+                      />
+                      {hasCustomCache && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0"
+                          onClick={() => handleClearCache(func.id)}
+                          title="Usar cachê padrão"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Overtime Input */}
+                    <div className="col-span-4 flex items-center gap-1">
+                      <CurrencyInput
+                        value={functionOvertimes[func.id]}
+                        onChange={(val) => handleOvertimeChange(func.id, val)}
+                        placeholder="Padrão"
+                        className={`h-8 text-sm ${hasCustomOvertime ? 'border-primary/50 bg-primary/5' : ''}`}
+                      />
+                      {hasCustomOvertime && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0"
+                          onClick={() => handleClearOvertime(func.id)}
+                          title="Usar hora extra padrão"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 

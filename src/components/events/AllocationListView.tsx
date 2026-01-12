@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
-import { type Assignment } from '@/contexts/EnhancedDataContext';
+import { type Assignment, type Personnel } from '@/contexts/EnhancedDataContext';
 import { Clock, Edit2, Trash2, User, Calendar } from 'lucide-react';
 import { getSimplifiedName } from '@/utils/nameUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -24,13 +24,15 @@ interface AllocationListViewProps {
   onLaunchHours: (assignmentId: string) => void;
   onEditAssignment: (assignment: Assignment) => void;
   onDeleteAssignment: (assignmentId: string) => void;
+  onEditPerson?: (person: Personnel) => void;
 }
 
 export const AllocationListView: React.FC<AllocationListViewProps> = ({
   assignments,
   onLaunchHours,
   onEditAssignment,
-  onDeleteAssignment
+  onDeleteAssignment,
+  onEditPerson
 }) => {
   const { personnel, workLogs } = useEnhancedData();
   const [deleteConfirmation, setDeleteConfirmation] = useState<string | null>(null);
@@ -98,9 +100,15 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
                             <User className="w-4 h-4 md:w-5 md:h-5 text-primary" />
                           </div>
                           <div>
-                            <div className="font-medium text-xs md:text-sm">
+                            <button
+                              type="button"
+                              className="font-medium text-xs md:text-sm hover:underline text-left cursor-pointer"
+                              onClick={() => {
+                                if (person && onEditPerson) onEditPerson(person);
+                              }}
+                            >
                               {person ? getSimplifiedName(person.name) : 'Pessoa não encontrada'}
-                            </div>
+                            </button>
                             <div className="text-xs text-muted-foreground capitalize">
                               {person?.type}
                             </div>
@@ -194,9 +202,15 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
                       <User className="w-4 h-4 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">
+                      <button
+                        type="button"
+                        className="font-medium text-sm truncate hover:underline text-left cursor-pointer"
+                        onClick={() => {
+                          if (person && onEditPerson) onEditPerson(person);
+                        }}
+                      >
                         {person ? getSimplifiedName(person.name) : 'Pessoa não encontrada'}
-                      </div>
+                      </button>
                       <div className="flex items-center gap-1 mt-1">
                         <Badge variant={person?.type === 'fixo' ? 'default' : 'secondary'} className="text-xs px-1 py-0">
                           {person?.type === 'fixo' ? 'Fixo' : 'Freelancer'}

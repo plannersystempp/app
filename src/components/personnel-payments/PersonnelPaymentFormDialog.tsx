@@ -19,9 +19,10 @@ interface PersonnelPaymentFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   payment?: PersonnelPayment;
+  initialData?: Partial<CreatePersonnelPaymentData>;
 }
 
-export const PersonnelPaymentFormDialog = ({ open, onOpenChange, payment }: PersonnelPaymentFormDialogProps) => {
+export const PersonnelPaymentFormDialog = ({ open, onOpenChange, payment, initialData }: PersonnelPaymentFormDialogProps) => {
   const { activeTeam } = useTeam();
   const { data: personnel } = usePersonnelQuery();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,10 +49,27 @@ export const PersonnelPaymentFormDialog = ({ open, onOpenChange, payment }: Pers
         description: payment.description,
         notes: payment.notes || '',
       });
+    } else if (initialData) {
+      form.reset({
+        team_id: activeTeam?.id || '',
+        personnel_id: initialData.personnel_id || '',
+        amount: initialData.amount || 0,
+        payment_due_date: initialData.payment_due_date || new Date().toISOString().split('T')[0],
+        description: initialData.description || '',
+        notes: initialData.notes || '',
+        related_events: initialData.related_events || [],
+      });
     } else if (activeTeam?.id) {
-      form.setValue('team_id', activeTeam.id);
+      form.reset({ // Reset to defaults if no payment or initialData
+        team_id: activeTeam.id,
+        personnel_id: '',
+        amount: 0,
+        payment_due_date: '',
+        description: '',
+        notes: '',
+      });
     }
-  }, [payment, activeTeam, form]);
+  }, [payment, initialData, activeTeam, form]);
 
   const onSubmit = async (data: CreatePersonnelPaymentData) => {
     try {

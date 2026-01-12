@@ -106,6 +106,9 @@ export interface CreatePersonnelPaymentData {
   related_events?: string[];
   description: string;
   notes?: string;
+  payment_status?: 'pending' | 'paid' | 'cancelled';
+  paid_at?: string;
+  payment_method?: string;
 }
 
 export interface UpdatePersonnelPaymentData {

@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useEventsQuery, useDeleteEventMutation } from '@/hooks/queries/useEventsQuery';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -27,7 +28,9 @@ import { EventPermissionsManager } from '@/components/admin/EventPermissionsMana
 export const EventDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { events, assignments, personnel, functions, workLogs, divisions, loading, deleteEvent } = useEnhancedData();
+  const { assignments, personnel, functions, workLogs, divisions, loading } = useEnhancedData();
+  const { data: eventsList } = useEventsQuery();
+  const deleteEventMutation = useDeleteEventMutation();
   const { user } = useAuth();
   const { toast } = useToast();
   const { userRole } = useTeam();
@@ -79,7 +82,7 @@ export const EventDetail: React.FC = () => {
     return () => window.clearTimeout(id);
   }, [activeTab]);
 
-  const event = events.find(e => e.id === id);
+  const event = eventsList?.find(e => e.id === id);
   
   // Verificação de acesso para coordenadores
   useEffect(() => {
@@ -109,7 +112,7 @@ export const EventDetail: React.FC = () => {
   }
   
   // Only show skeleton on initial load, not on background refreshes
-  if (loading && events.length === 0) {
+  if (loading && (!eventsList || eventsList.length === 0)) {
     return (
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center gap-4">
@@ -195,11 +198,7 @@ export const EventDetail: React.FC = () => {
       return;
     }
     try {
-      await deleteEvent(event.id);
-      toast({
-        title: "Sucesso",
-        description: "Evento excluído com sucesso!",
-      });
+      await deleteEventMutation.mutateAsync(event.id);
       setConfirmPermanent(false);
       navigate('/app/eventos');
     } catch (error) {

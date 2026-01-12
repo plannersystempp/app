@@ -1,17 +1,10 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, User, DollarSign, MoreVertical, CheckCircle, XCircle, Edit, Trash } from 'lucide-react';
+import { Calendar, User, DollarSign, CheckCircle, XCircle, Edit, Trash, AlertTriangle, Clock } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { MarkAsPaidDialog } from './MarkAsPaidDialog';
 import { PersonnelPaymentFormDialog } from './PersonnelPaymentFormDialog';
 import { useQueryClient } from '@tanstack/react-query';
@@ -22,6 +15,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '@/components/ui/checkbox';
 import { parseDateSafe } from '@/utils/dateUtils';
 import type { PersonnelPayment } from '@/contexts/data/types';
+import { formatCurrency } from '@/utils/formatters';
+import { cn } from '@/lib/utils';
 
 interface PersonnelPaymentCardProps {
   payment: PersonnelPayment & { personnel?: any };
@@ -37,10 +32,36 @@ export const PersonnelPaymentCard = ({ payment }: PersonnelPaymentCardProps) => 
   const dueDate = parseDateSafe(payment.payment_due_date);
   const isOverdue = payment.payment_status === 'pending' && dueDate < new Date();
 
-  const statusConfig = {
-    pending: { label: 'Pendente', class: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' },
-    paid: { label: 'Pago', class: 'bg-green-500/10 text-green-600 dark:text-green-400' },
-    cancelled: { label: 'Cancelado', class: 'bg-gray-500/10 text-gray-600 dark:text-gray-400' },
+  // Configuração de cores e estilos baseados no status
+  const getStatusStyle = () => {
+    if (payment.payment_status === 'paid') return {
+      border: 'border-l-4 border-l-green-500',
+      badge: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100',
+      icon: <CheckCircle className="h-4 w-4 text-green-600" />
+    };
+    if (payment.payment_status === 'cancelled') return {
+      border: 'border-l-4 border-l-gray-400',
+      badge: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-100',
+      icon: <XCircle className="h-4 w-4 text-gray-500" />
+    };
+    if (isOverdue) return {
+      border: 'border-l-4 border-l-red-500 bg-red-50/30 dark:bg-red-900/10',
+      badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-100',
+      icon: <AlertTriangle className="h-4 w-4 text-red-600" />
+    };
+    return {
+      border: 'border-l-4 border-l-amber-400',
+      badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-100',
+      icon: <Clock className="h-4 w-4 text-amber-600" />
+    };
+  };
+
+  const style = getStatusStyle();
+
+  const statusLabels = {
+    pending: isOverdue ? 'Em Atraso' : 'Pendente',
+    paid: 'Pago',
+    cancelled: 'Cancelado'
   };
 
   const handleDelete = async () => {
@@ -54,17 +75,12 @@ export const PersonnelPaymentCard = ({ payment }: PersonnelPaymentCardProps) => 
     }
     try {
       await personnelPaymentsService.delete(payment.id);
-      // Atualização otimista: remover do cache imediatamente
+      // Atualização otimista
       queryClient.setQueriesData<(any[])>({ queryKey: personnelPaymentsKeys.all }, (old) => {
         if (!old) return old as any;
-        try {
-          return (old as any[]).filter((p) => p.id !== payment.id);
-        } catch {
-          return old as any;
-        }
+        return (old as any[]).filter((p) => p.id !== payment.id);
       });
 
-      // Invalidação para garantir sincronização com o backend
       queryClient.invalidateQueries({ queryKey: personnelPaymentsKeys.all });
       toast({
         title: 'Pagamento excluído',
@@ -100,84 +116,117 @@ export const PersonnelPaymentCard = ({ payment }: PersonnelPaymentCardProps) => 
 
   return (
     <>
-      <Card className={isOverdue ? 'border-destructive' : ''}>
-        <CardHeader className="pb-3">
+      <Card className={cn("transition-all hover:shadow-md animate-in fade-in duration-300", style.border)}>
+        <CardHeader className="pb-2 pt-4 px-4">
           <div className="flex justify-between items-start">
-            <div className="space-y-1 flex-1">
+            <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span className="font-semibold">{payment.personnel?.name || 'N/A'}</span>
+                 <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                 </div>
+                 <div>
+                    <p className="font-semibold text-sm leading-none">{payment.personnel?.name || 'Sem nome'}</p>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1" title={payment.description}>
+                        {payment.description}
+                    </p>
+                 </div>
               </div>
-              {payment.payment_status === 'pending' ? (
-                <StatusBadge status={'concluido_pagamento_pendente'} labelOverride="Pendente" />
-              ) : (
-                <Badge className={statusConfig[payment.payment_status].class}>
-                  {statusConfig[payment.payment_status].label}
-                </Badge>
-              )}
             </div>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {payment.payment_status === 'pending' && (
-                    <>
-                      <DropdownMenuItem onClick={() => setShowMarkAsPaid(true)}>
-                        <CheckCircle className="mr-2 h-4 w-4" />
-                        Marcar como Pago
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setShowEdit(true)}>
-                        <Edit className="mr-2 h-4 w-4" />
-                        Editar
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                  
-                  {payment.payment_status !== 'cancelled' && (
-                    <DropdownMenuItem onClick={handleCancel}>
-                      <XCircle className="mr-2 h-4 w-4" />
-                      Cancelar
-                    </DropdownMenuItem>
-                  )}
-                  
-                  <DropdownMenuItem 
-                    onClick={() => setShowDelete(true)}
-                    className="text-destructive"
-                  >
-                    <Trash className="mr-2 h-4 w-4" />
-                    Excluir
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+            <Badge variant="outline" className={cn("ml-2 whitespace-nowrap gap-1", style.badge)}>
+                {style.icon}
+                {statusLabels[payment.payment_status]}
+            </Badge>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-3">
-          <p className="text-sm">{payment.description}</p>
-
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            <span>Vencimento: {format(dueDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
+        <CardContent className="px-4 py-2">
+          <div className="flex items-center justify-between mt-2">
+             <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Valor</span>
+                <span className="text-xl font-bold text-foreground">
+                    {formatCurrency(Number(payment.amount))}
+                </span>
+             </div>
+             
+             <div className="flex flex-col items-end">
+                <span className="text-xs text-muted-foreground">Vencimento</span>
+                <div className={cn("flex items-center gap-1 text-sm font-medium", isOverdue ? "text-red-600" : "")}>
+                    <Calendar className="h-3.5 w-3.5" />
+                    {format(dueDate, "dd/MM", { locale: ptBR })}
+                </div>
+             </div>
           </div>
-
+          
           {payment.notes && (
-            <p className="text-xs text-muted-foreground italic">{payment.notes}</p>
+            <div className="mt-3 p-2 bg-muted/50 rounded text-xs italic text-muted-foreground border border-border/50">
+                "{payment.notes}"
+            </div>
           )}
         </CardContent>
 
-        <CardFooter className="pt-3 border-t">
-          <div className="flex items-center gap-2 w-full">
-            <DollarSign className="h-5 w-5 text-primary" />
-            <span className="text-2xl font-bold">
-              {Number(payment.amount).toLocaleString('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-              })}
-            </span>
-          </div>
+        <CardFooter className="px-4 py-3 bg-muted/20 border-t flex gap-2 items-center">
+             {payment.payment_status === 'pending' ? (
+                 <>
+                    <Button 
+                        size="sm" 
+                        className="flex-1 h-8 bg-green-600 hover:bg-green-700 text-white gap-1 shadow-sm"
+                        onClick={() => setShowMarkAsPaid(true)}
+                    >
+                        <CheckCircle className="h-3.5 w-3.5" />
+                        Pagar
+                    </Button>
+                    <Button 
+                        size="sm" 
+                        variant="outline"
+                        className="flex-1 h-8 gap-1"
+                        onClick={() => setShowEdit(true)}
+                    >
+                        <Edit className="h-3.5 w-3.5" />
+                        Editar
+                    </Button>
+                    <Button 
+                        size="sm" 
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setShowDelete(true)}
+                        title="Excluir"
+                    >
+                        <Trash className="h-4 w-4" />
+                    </Button>
+                 </>
+             ) : (
+                <>
+                    {payment.payment_status !== 'cancelled' && (
+                        <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="flex-1 h-8 gap-1"
+                            onClick={handleCancel}
+                        >
+                            <XCircle className="h-3.5 w-3.5" />
+                            Cancelar
+                        </Button>
+                    )}
+                     <Button 
+                        size="sm" 
+                        variant="outline"
+                        className="flex-1 h-8 gap-1"
+                        onClick={() => setShowEdit(true)}
+                    >
+                        <Edit className="h-3.5 w-3.5" />
+                        Editar
+                    </Button>
+                    <Button 
+                        size="sm" 
+                        variant="ghost"
+                        className="h-8 w-8 p-0 ml-auto text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setShowDelete(true)}
+                        title="Excluir"
+                    >
+                        <Trash className="h-4 w-4" />
+                    </Button>
+                </>
+             )}
         </CardFooter>
       </Card>
 
@@ -209,13 +258,10 @@ export const PersonnelPaymentCard = ({ payment }: PersonnelPaymentCardProps) => 
             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir este pagamento? Esta ação não pode ser desfeita.
-              <div className="mt-3 space-y-1 text-sm">
+              <div className="mt-3 space-y-1 text-sm bg-muted p-3 rounded">
                 <div><strong>Pessoa:</strong> {payment.personnel?.name || 'N/A'}</div>
-                <div><strong>Valor:</strong> {Number(payment.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+                <div><strong>Valor:</strong> {formatCurrency(Number(payment.amount))}</div>
                 <div><strong>Vencimento:</strong> {format(dueDate, 'dd/MM/yyyy', { locale: ptBR })}</div>
-                {payment.description && (
-                  <div><strong>Descrição:</strong> {payment.description}</div>
-                )}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -225,7 +271,7 @@ export const PersonnelPaymentCard = ({ payment }: PersonnelPaymentCardProps) => 
               checked={confirmPermanent}
               onCheckedChange={(v) => setConfirmPermanent(!!v)}
             />
-            <label htmlFor="confirm-permanent" className="text-sm leading-none select-none">
+            <label htmlFor="confirm-permanent" className="text-sm leading-none select-none cursor-pointer">
               Entendo que esta ação é permanente
             </label>
           </div>

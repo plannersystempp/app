@@ -1,13 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, Clock, Check } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePendingPayments } from '@/hooks/queries/usePersonnelHistoryQuery';
 import { formatCurrency } from '@/utils/formatters';
-import { format, isPast, differenceInCalendarDays, parseISO, addHours, startOfDay, isAfter } from 'date-fns';
+import { format, differenceInCalendarDays, parseISO, addHours, startOfDay, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { useTeam } from '@/contexts/TeamContext';
 
 interface PendingPaymentsTabProps {
   personnelId: string;
@@ -15,6 +16,7 @@ interface PendingPaymentsTabProps {
 
 export const PendingPaymentsTab: React.FC<PendingPaymentsTabProps> = ({ personnelId }) => {
   const { data: pendingPayments, isLoading } = usePendingPayments(personnelId);
+  const { activeTeam } = useTeam();
 
   if (isLoading) {
     return (

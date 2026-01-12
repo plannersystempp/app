@@ -43,6 +43,7 @@ interface PersonnelFormData {
   address_neighborhood: string;
   address_city: string;
   address_state: string;
+  functionCaches: Record<string, number>;
 }
 
 export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose, onSuccess }) => {
@@ -77,7 +78,9 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
     address_complement: '',
     address_neighborhood: '',
     address_city: '',
-    address_state: ''
+    address_state: '',
+    functionCaches: {},
+    functionOvertimes: {}
   });
   const [loading, setLoading] = useState(false);
 
@@ -108,7 +111,15 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
         address_complement: personnel.address_complement || '',
         address_neighborhood: personnel.address_neighborhood || '',
         address_city: personnel.address_city || '',
-        address_state: personnel.address_state || ''
+        address_state: personnel.address_state || '',
+        functionCaches: personnel.functions?.reduce((acc, f) => {
+          if (f.custom_cache !== undefined && f.custom_cache !== null) acc[f.id] = f.custom_cache;
+          return acc;
+        }, {} as Record<string, number>) || {},
+        functionOvertimes: personnel.functions?.reduce((acc, f) => {
+          if (f.custom_overtime !== undefined && f.custom_overtime !== null) acc[f.id] = f.custom_overtime;
+          return acc;
+        }, {} as Record<string, number>) || {}
       };
       setFormData(initialData);
       initialDataRef.current = initialData;
@@ -148,7 +159,7 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
     return JSON.stringify(formData) !== JSON.stringify(initialDataRef.current);
   }, [formData]);
 
-  const handleFieldChange = (field: keyof PersonnelFormData, value: string | number | string[]) => {
+  const handleFieldChange = (field: keyof PersonnelFormData, value: string | number | string[] | Record<string, number>) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -446,13 +457,13 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
         <PersonnelFormHeader personnel={personnel} onClose={handleCloseRequest} />
         <CardContent>
           <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} autoComplete="off">
-            <PersonnelFormFields
-              formData={formData}
-              functions={functions}
-              personnelId={personnel?.id}
-              onFieldChange={handleFieldChange}
-              onPhoneChange={handlePhoneChange}
-            />
+            <PersonnelFormFields 
+          formData={formData}
+          functions={functions}
+          personnelId={personnel?.id}
+          onFieldChange={handleFieldChange}
+          onPhoneChange={handlePhoneChange}
+        />
             
             <PersonnelFormActions
               loading={loading}

@@ -43,13 +43,14 @@ interface PersonnelFormData {
   address_neighborhood: string;
   address_city: string;
   address_state: string;
+  functionCaches: Record<string, number>;
 }
 
 interface PersonnelFormFieldsProps {
   formData: PersonnelFormData;
   functions: Func[];
   personnelId?: string;
-  onFieldChange: (field: keyof PersonnelFormData, value: string | number | string[]) => void;
+  onFieldChange: (field: keyof PersonnelFormData, value: string | number | string[] | Record<string, number>) => void;
   onPhoneChange: (value: string) => void;
 }
 
@@ -242,6 +243,26 @@ export const PersonnelFormFields: React.FC<PersonnelFormFieldsProps> = ({
           onSelectionChange={(functionIds) => onFieldChange('functionIds', functionIds)}
           primaryFunctionId={formData.primaryFunctionId}
           onPrimaryChange={(fid) => onFieldChange('primaryFunctionId', fid || '')}
+          functionCaches={formData.functionCaches || {}}
+          onCacheChange={(fid, val) => {
+            const newCaches = { ...formData.functionCaches };
+            if (val === null) {
+              delete newCaches[fid];
+            } else {
+              newCaches[fid] = val;
+            }
+            onFieldChange('functionCaches', newCaches);
+          }}
+          functionOvertimes={formData.functionOvertimes || {}}
+          onOvertimeChange={(fid, val) => {
+            const newOvertimes = { ...formData.functionOvertimes };
+            if (val === null) {
+              delete newOvertimes[fid];
+            } else {
+              newOvertimes[fid] = val;
+            }
+            onFieldChange('functionOvertimes', newOvertimes);
+          }}
           placeholder="Selecione as funções"
         />
 

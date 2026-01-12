@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { useToast } from '@/hooks/use-toast';
@@ -13,6 +13,7 @@ import { logger } from '@/utils/logger';
 export const personnelKeys = {
   all: ['personnel'] as const,
   list: (teamId?: string) => ['personnel', 'list', teamId] as const,
+  paginated: (teamId?: string, params?: any) => ['personnel', 'paginated', teamId, params] as const,
   detail: (id: string) => ['personnel', 'detail', id] as const,
 };
 
@@ -40,6 +41,8 @@ interface PersonnelFormData {
   address_city?: string;
   address_state?: string;
   phone_secondary?: string;
+  functionCaches?: Record<string, number>;
+  functionOvertimes?: Record<string, number>;
 }
 
 // FASE 2: Fetch personnel usando RPC otimizada (1 query em vez de 2)
@@ -79,7 +82,11 @@ const fetchPersonnelWithFunctions = async (teamId: string, userRole?: string | n
 
         return {
           ...person,
-          functions: parsedFunctions,
+          functions: parsedFunctions.map((f: any) => ({
+            ...f,
+            custom_cache: f.custom_cache !== null && f.custom_cache !== undefined ? Number(f.custom_cache) : undefined,
+            custom_overtime: f.custom_overtime !== null && f.custom_overtime !== undefined ? Number(f.custom_overtime) : undefined
+          })),
           primaryFunctionId: person.primary_function_id,
           type: (person.type === 'fixo' || person.type === 'freelancer') ? person.type : 'freelancer',
           shirt_size: person.shirt_size as Personnel['shirt_size'] || undefined,
@@ -100,7 +107,7 @@ const fetchPersonnelWithFunctions = async (teamId: string, userRole?: string | n
     // Fetch personnel functions associations
     const { data: personnelFunctionsData, error: personnelFunctionsError } = await supabase
       .from('personnel_functions')
-      .select('personnel_id, function_id, is_primary, functions:function_id(id, name, description)')
+      .select('personnel_id, function_id, is_primary, custom_cache, custom_overtime, functions:function_id(id, name, description)')
       .eq('team_id', teamId);
 
     if (personnelFunctionsError) {
@@ -115,7 +122,17 @@ const fetchPersonnelWithFunctions = async (teamId: string, userRole?: string | n
       const primaryFunctionId = personFunctionRows.find(pf => (pf as any).is_primary)?.function_id as string | undefined;
 
       const personFunctions = personFunctionRows
-        .map(pf => pf.functions)
+        .map(pf => {
+          const func = pf.functions as any;
+          if (func) {
+            return {
+              ...func,
+              custom_cache: pf.custom_cache,
+              custom_overtime: pf.custom_overtime
+            };
+          }
+          return null;
+        })
         .filter(f => f != null) as any[];
 
       const orderedFunctions = primaryFunctionId
@@ -165,6 +182,165 @@ export const usePersonnelQuery = () => {
   });
 };
 
+export interface UsePersonnelPaginatedOptions {
+  page: number;
+  perPage: number;
+  search?: string;
+  type?: string;
+  functionId?: string;
+  sortBy?: string;
+}
+
+// Helper for transform
+const transformPersonnel = (person: any): Personnel => {
+  const personFunctions = (person.personnel_functions || [])
+    .map((pf: any) => {
+      const f = pf.functions;
+      if (!f) return null;
+      return {
+        ...f,
+        custom_cache: pf.custom_cache !== null && pf.custom_cache !== undefined ? Number(pf.custom_cache) : undefined,
+        custom_overtime: pf.custom_overtime !== null && pf.custom_overtime !== undefined ? Number(pf.custom_overtime) : undefined,
+      };
+    })
+    .filter((f: any) => f != null);
+  const primaryFunctionData = person.personnel_functions?.find((pf: any) => pf.is_primary);
+  return {
+    ...person,
+    functions: personFunctions,
+    primaryFunctionId: primaryFunctionData?.function_id,
+    type: (person.type === 'fixo' || person.type === 'freelancer') ? person.type : 'freelancer',
+    monthly_salary: person.monthly_salary || 0,
+    event_cache: person.event_cache || 0,
+    overtime_rate: person.overtime_rate || 0,
+    shirt_size: person.shirt_size || undefined,
+  };
+};
+
+export const fetchPersonnelPaginated = async (
+  teamId: string,
+  options: UsePersonnelPaginatedOptions
+) => {
+  const { page, perPage, search, type, functionId, sortBy } = options;
+  const from = (page - 1) * perPage;
+  const to = from + perPage - 1;
+
+  // Rating Sort Logic
+  const isRatingSort = sortBy === 'rating_desc' || sortBy === 'rating_asc';
+  
+  if (isRatingSort) {
+    try {
+      let query = supabase
+        .from('personnel_with_rating')
+        .select('id', { count: 'exact' })
+        .eq('team_id', teamId);
+
+      if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+      if (type && type !== 'all') query = query.eq('type', type);
+      
+      query = query.order('average_rating', { ascending: sortBy === 'rating_asc' });
+      
+      const { data: idsData, count, error } = await query.range(from, to);
+      if (error) throw error;
+      
+      if (!idsData?.length) return { data: [], count: count || 0 };
+      
+      const ids = idsData.map((d: any) => d.id);
+      
+      const { data: fullData, error: fullError } = await supabase
+        .from('personnel')
+        .select(`
+          *,
+          personnel_functions!left(
+            function_id,
+            is_primary,
+            custom_cache,
+            custom_overtime,
+            functions(id, name)
+          )
+        `)
+        .in('id', ids);
+        
+      if (fullError) throw fullError;
+      
+      // Sort in JS
+      const sortedData = ids.map(id => fullData.find(p => p.id === id)).filter(Boolean);
+      
+      // Transform
+      const personnel = sortedData.map(transformPersonnel);
+      return { data: personnel, count: count || 0 };
+      
+    } catch (err) {
+      console.warn('View personnel_with_rating failed, falling back', err);
+    }
+  }
+
+  // Standard Logic
+  let query = supabase
+    .from('personnel')
+    .select(`
+      *,
+      personnel_functions!left(
+        function_id,
+        is_primary,
+        custom_cache,
+        custom_overtime,
+        functions(id, name)
+      )
+    `, { count: 'exact' })
+    .eq('team_id', teamId);
+
+  if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+  if (type && type !== 'all') query = query.eq('type', type);
+  if (functionId && functionId !== 'all') {
+     query = supabase
+       .from('personnel')
+       .select(`
+         *,
+         personnel_functions!inner(
+           function_id,
+           is_primary,
+           custom_cache,
+           custom_overtime,
+           functions(id, name)
+         )
+       `, { count: 'exact' })
+       .eq('team_id', teamId)
+       .eq('personnel_functions.function_id', functionId);
+       
+      if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+      if (type && type !== 'all') query = query.eq('type', type);
+  }
+
+  if (sortBy === 'name_desc') query = query.order('name', { ascending: false });
+  else query = query.order('name', { ascending: true });
+
+  const { data, count, error } = await query.range(from, to);
+  if (error) {
+    logger.query.error('personnel_paginated', error);
+    throw error;
+  }
+  
+  const personnel = (data || []).map(transformPersonnel);
+  return { data: personnel, count: count || 0 };
+};
+
+export const usePersonnelPaginatedQuery = (options: UsePersonnelPaginatedOptions) => {
+  const { user } = useAuth();
+  const { activeTeam } = useTeam();
+
+  return useQuery({
+    queryKey: personnelKeys.paginated(activeTeam?.id, options),
+    queryFn: () => {
+      if (!activeTeam?.id) return { data: [], count: 0 };
+      return fetchPersonnelPaginated(activeTeam.id, options);
+    },
+    enabled: !!user && !!activeTeam?.id,
+    placeholderData: keepPreviousData,
+    staleTime: 5000,
+  });
+};
+
 // Hook to create new personnel
 export const useCreatePersonnelMutation = () => {
   const queryClient = useQueryClient();
@@ -177,7 +353,7 @@ export const useCreatePersonnelMutation = () => {
       logger.personnel.create({ name: personnelData.name, type: personnelData.type });
       if (!activeTeam) throw new Error('No active team');
 
-      const { functionIds, pixKey, primaryFunctionId, ...restData } = personnelData;
+      const { functionIds, pixKey, primaryFunctionId, functionCaches, functionOvertimes, ...restData } = personnelData;
       
       // Usar utilitário centralizado de sanitização
       const sanitizedData = sanitizePersonnelData(restData);
@@ -199,10 +375,10 @@ export const useCreatePersonnelMutation = () => {
       // Handle PIX key if provided
       if (pixKey && pixKey.trim()) {
         try {
-          await supabase.functions.invoke('pix-key', {
+          await supabase.functions.invoke('pix-key/set', {
             body: {
-              personnelId: personnelResult.id,
-              pixKey: pixKey.trim()
+              personnel_id: personnelResult.id,
+              pix_key: pixKey.trim()
             }
           });
         } catch (pixError) {
@@ -213,11 +389,14 @@ export const useCreatePersonnelMutation = () => {
 
       // Associate functions if provided
       if (functionIds && functionIds.length > 0) {
-        const functionAssociations = functionIds.map(functionId => ({
+        const uniqueIds = Array.from(new Set(functionIds));
+        const functionAssociations = uniqueIds.map(functionId => ({
           personnel_id: personnelResult.id,
           function_id: functionId,
           team_id: activeTeam.id,
-          is_primary: primaryFunctionId ? functionId === primaryFunctionId : functionIds.length === 1 ? functionId === functionIds[0] : false
+          is_primary: primaryFunctionId ? functionId === primaryFunctionId : uniqueIds.length === 1 ? functionId === uniqueIds[0] : false,
+          custom_cache: functionCaches ? functionCaches[functionId] ?? null : null,
+          custom_overtime: functionOvertimes ? functionOvertimes[functionId] ?? null : null,
         }));
 
         const { error: functionsError } = await supabase
@@ -333,7 +512,7 @@ export const useUpdatePersonnelMutation = () => {
   return useMutation({
     mutationFn: async ({ id, ...personnelData }: { id: string } & Partial<PersonnelFormData>) => {
       logger.personnel.update({ id, changes: Object.keys(personnelData) });
-      const { functionIds, pixKey, primaryFunctionId, ...restData } = personnelData;
+      const { functionIds, pixKey, primaryFunctionId, functionCaches, functionOvertimes, ...restData } = personnelData;
 
       // Usar utilitário centralizado de sanitização
       const dataToUpdate = sanitizePersonnelData(restData);
@@ -352,10 +531,10 @@ export const useUpdatePersonnelMutation = () => {
       // Handle PIX key update if provided
       if (pixKey !== undefined) {
         try {
-          await supabase.functions.invoke('pix-key', {
+          await supabase.functions.invoke('pix-key/set', {
             body: {
-              personnelId: id,
-              pixKey: pixKey.trim() || null
+              personnel_id: id,
+              pix_key: pixKey.trim() || null
             }
           });
         } catch (pixError) {
@@ -365,6 +544,8 @@ export const useUpdatePersonnelMutation = () => {
 
       // Update function associations if provided
       if (functionIds !== undefined) {
+        const uniqueIds = Array.from(new Set(functionIds));
+
         // Remove existing associations
         await supabase
           .from('personnel_functions')
@@ -372,18 +553,40 @@ export const useUpdatePersonnelMutation = () => {
           .eq('personnel_id', id)
           .eq('team_id', activeTeam!.id);
 
-        // Add new associations
-        if (functionIds.length > 0) {
-          const functionAssociations = functionIds.map(functionId => ({
+        // Insert new associations
+        if (uniqueIds.length > 0) {
+          const functionAssociations = uniqueIds.map(functionId => ({
             personnel_id: id,
             function_id: functionId,
             team_id: activeTeam!.id,
-            is_primary: primaryFunctionId ? functionId === primaryFunctionId : functionIds.length === 1 ? functionId === functionIds[0] : false
+            is_primary: primaryFunctionId ? functionId === primaryFunctionId : uniqueIds.length === 1 ? functionId === uniqueIds[0] : false,
+            custom_cache: functionCaches ? functionCaches[functionId] ?? null : null,
+            custom_overtime: functionOvertimes ? functionOvertimes[functionId] ?? null : null,
           }));
 
           await supabase
             .from('personnel_functions')
             .insert(functionAssociations);
+        }
+      } else {
+        // Apenas atualizar caches/horas extras existentes quando funções não foram alteradas
+        const idsToUpdate = Array.from(new Set([
+          ...Object.keys(functionCaches || {}),
+          ...Object.keys(functionOvertimes || {}),
+        ]));
+
+        if (idsToUpdate.length > 0) {
+          const rows = idsToUpdate.map(functionId => ({
+            personnel_id: id,
+            function_id: functionId,
+            team_id: activeTeam!.id,
+            custom_cache: functionCaches ? functionCaches[functionId] ?? null : null,
+            custom_overtime: functionOvertimes ? functionOvertimes[functionId] ?? null : null,
+          }));
+
+          await supabase
+            .from('personnel_functions')
+            .upsert(rows, { onConflict: 'personnel_id,function_id' });
         }
       }
 

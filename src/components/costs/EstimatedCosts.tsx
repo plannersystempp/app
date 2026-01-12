@@ -41,7 +41,8 @@ export const EstimatedCosts: React.FC = () => {
 
         // Calculate base cost (cachê per work day)
         const workDays = assignment.work_days?.length || 0;
-        baseCost += workDays * (person.event_cache || 0);
+        const dailyRate = getDailyCacheRate([assignment], person);
+        baseCost += workDays * dailyRate;
 
         // Calculate overtime cost using work records
         const logsForPerson = workLogsMap.get(person.id) || [];

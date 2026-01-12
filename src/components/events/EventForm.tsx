@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useCheckSubscriptionLimits } from '@/hooks/useCheckSubscriptionLimits';
@@ -148,13 +148,13 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
 
   return (
   <Dialog open onOpenChange={onClose}>
-    <DialogContent className="w-[95vw] max-w-[500px]" aria-describedby="event-form-description">
+    <DialogContent className="w-[95vw] max-w-[500px]">
       <DialogHeader>
         <DialogTitle>{event ? 'Editar Evento' : 'Criar Novo Evento'}</DialogTitle>
-        <div id="event-form-description" className="sr-only">
+        <DialogDescription className="sr-only">
           Formulário para {event ? 'editar evento existente' : 'criar novo evento'}
-        </div>
-        </DialogHeader>
+        </DialogDescription>
+      </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">

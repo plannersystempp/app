@@ -2,8 +2,10 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useEnhancedData, type Personnel, type Func } from '@/contexts/EnhancedDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { usePersonnelQuery, useDeletePersonnelMutation } from '@/hooks/queries/usePersonnelQuery';
+import { usePersonnelPaginatedQuery, useDeletePersonnelMutation, fetchPersonnelPaginated, personnelKeys } from '@/hooks/queries/usePersonnelQuery';
 import { usePersonnelRealtime } from '@/hooks/queries/usePersonnelRealtime';
+import { useDebounce } from '@/hooks/use-debounce';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Search, Users } from 'lucide-react';
@@ -19,11 +21,27 @@ import { FreelancerRatingDialog } from './FreelancerRatingDialog';
 import { useCheckSubscriptionLimits } from '@/hooks/useCheckSubscriptionLimits';
 import { UpgradePrompt } from '@/components/subscriptions/UpgradePrompt';
 import { useTeam } from '@/contexts/TeamContext';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const ManagePersonnel: React.FC = () => {
   const { functions } = useEnhancedData();
-  const { data: personnel = [], isFetching, isLoading } = usePersonnelQuery();
   const deletePersonnelMutation = useDeletePersonnelMutation();
+  const queryClient = useQueryClient();
   
   // Hook de sincronização em tempo real
   usePersonnelRealtime();
@@ -33,6 +51,7 @@ export const ManagePersonnel: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingPersonnel, setEditingPersonnel] = useState<Personnel | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Debounce de 500ms
   const [filterType, setFilterType] = useState<'all' | 'fixo' | 'freelancer'>('all');
   const [filterFunction, setFilterFunction] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'rating_desc' | 'rating_asc'>('name_asc');
@@ -43,34 +62,60 @@ export const ManagePersonnel: React.FC = () => {
   const [limitCheckResult, setLimitCheckResult] = useState<any>(null);
   const checkLimits = useCheckSubscriptionLimits();
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(12);
+
+  // Fetch paginated data
+  const { 
+    data: paginatedResult, 
+    isLoading, 
+    isFetching 
+  } = usePersonnelPaginatedQuery({
+    page: currentPage,
+    perPage: itemsPerPage,
+    search: debouncedSearchTerm,
+    type: filterType,
+    functionId: filterFunction,
+    sortBy: sortBy
+  });
+
+  const personnel = paginatedResult?.data || [];
+  const totalCount = paginatedResult?.count || 0;
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+  // Prefetching da próxima página
+  const prefetchNextPage = () => {
+    if (currentPage < totalPages && activeTeam?.id) {
+      const nextPage = currentPage + 1;
+      const options = {
+        page: nextPage,
+        perPage: itemsPerPage,
+        search: debouncedSearchTerm,
+        type: filterType,
+        functionId: filterFunction,
+        sortBy: sortBy
+      };
+      
+      queryClient.prefetchQuery({
+        queryKey: personnelKeys.paginated(activeTeam.id, options),
+        queryFn: () => fetchPersonnelPaginated(activeTeam.id, options)
+      });
+    }
+  };
+
   // Force grid view on mobile for better responsiveness
   const effectiveViewMode = isMobile ? 'grid' : viewMode;
 
-  // Filter personnel based on search term, type, and function
+  // Reset pagination when filters change
   useEffect(() => {
-    const teamId = activeTeam?.id;
-    if (!teamId) return;
-    supabase
-      .from('freelancer_ratings')
-      .select('freelancer_id, rating')
-      .eq('team_id', teamId)
-      .then(({ data, error }) => {
-        if (error) return;
-        const acc: Record<string, { sum: number; count: number }> = {};
-        for (const row of (data || [])) {
-          const id = (row as any).freelancer_id as string;
-          const rating = (row as any).rating as number;
-          if (!acc[id]) acc[id] = { sum: 0, count: 0 };
-          acc[id].sum += rating || 0;
-          acc[id].count += 1;
-        }
-        const avg: Record<string, number> = {};
-        Object.keys(acc).forEach(id => {
-          avg[id] = acc[id].count > 0 ? acc[id].sum / acc[id].count : 0;
-        });
-        setRatingsAvg(avg);
-      });
-  }, [activeTeam]);
+    setCurrentPage(1);
+  }, [searchTerm, filterType, filterFunction, sortBy, itemsPerPage]);
+
+  // Scroll to top when page changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentPage]);
 
   // Atualização em tempo real das médias de avaliação
   useEffect(() => {
@@ -98,6 +143,9 @@ export const ManagePersonnel: React.FC = () => {
       setRatingsAvg(avg);
     };
 
+    // Initial fetch
+    refetchAverages();
+
     const channel = supabase
       .channel(`manage_personnel_ratings_${teamId}`)
       .on('postgres_changes', {
@@ -115,26 +163,7 @@ export const ManagePersonnel: React.FC = () => {
     };
   }, [activeTeam]);
 
-  const filteredPersonnel = useMemo(() => {
-    const term = searchTerm.toLowerCase().trim();
-    return personnel.filter(person => {
-      const matchesSearch = person.name.toLowerCase().includes(term) || person.email?.toLowerCase().includes(term);
-      const matchesType = filterType === 'all' || person.type === filterType;
-      const matchesFunction = filterFunction === 'all' || (person.functions && person.functions.some(f => f.id === filterFunction));
-      return matchesSearch && matchesType && matchesFunction;
-    });
-  }, [personnel, searchTerm, filterType, filterFunction]);
-
-  const sortedPersonnel = useMemo(() => {
-    const arr = [...filteredPersonnel];
-    const cmpNameAsc = (a: Personnel, b: Personnel) => a.name.localeCompare(b.name, 'pt-BR');
-    const getRating = (p: Personnel) => (p.type === 'freelancer' ? (ratingsAvg[p.id] ?? 0) : 0);
-    if (sortBy === 'name_asc') arr.sort(cmpNameAsc);
-    else if (sortBy === 'name_desc') arr.sort((a, b) => cmpNameAsc(b, a));
-    else if (sortBy === 'rating_desc') arr.sort((a, b) => getRating(b) - getRating(a) || cmpNameAsc(a, b));
-    else if (sortBy === 'rating_asc') arr.sort((a, b) => getRating(a) - getRating(b) || cmpNameAsc(a, b));
-    return arr;
-  }, [filteredPersonnel, sortBy, ratingsAvg]);
+  // Handle actions
   const handleEdit = (person: Personnel) => {
     setEditingPersonnel(person);
     setShowForm(true);
@@ -185,8 +214,9 @@ export const ManagePersonnel: React.FC = () => {
     }
   };
 
-  // Preparar dados para exportação
-  const exportData = filteredPersonnel.map(person => ({
+  // Preparar dados para exportação (apenas da página atual ou precisamos de um export total?)
+  // Para export, idealmente buscaríamos tudo. Mas por enquanto vamos exportar o que está visível.
+  const exportData = personnel.map(person => ({
     nome: person.name,
     email: person.email || '',
     telefone: person.phone || '',
@@ -197,6 +227,7 @@ export const ManagePersonnel: React.FC = () => {
     valor_hora_extra: person.overtime_rate || 0
   }));
   const exportHeaders = ['nome', 'email', 'telefone', 'tipo', 'funcoes', 'salario_mensal', 'cache_evento', 'valor_hora_extra'];
+  
   return <div className="min-h-screen w-full max-w-full p-3 sm:p-4 md:p-6 space-y-4 md:space-y-6 box-border py-[2px] px-[2px]">
       <div className="space-y-4">
         <div className="flex flex-col space-y-3">
@@ -210,8 +241,8 @@ export const ManagePersonnel: React.FC = () => {
             data={exportData}
             headers={exportHeaders}
             filename="pessoal_filtrado"
-            title="Relatório de Pessoal"
-            disabled={filteredPersonnel.length === 0}
+            title="Relatório de Pessoal (Página Atual)"
+            disabled={personnel.length === 0}
           />
         </div>
         {isAdminOrCoordinator && (
@@ -228,34 +259,96 @@ export const ManagePersonnel: React.FC = () => {
       <PersonnelFilters searchTerm={searchTerm} onSearchChange={setSearchTerm} filterType={filterType} onTypeChange={setFilterType} filterFunction={filterFunction} onFunctionChange={setFilterFunction} functions={functions} sortBy={sortBy} onSortChange={setSortBy} />
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
-        <div className="text-sm text-muted-foreground order-2 sm:order-1">
-          {filteredPersonnel.length} pessoa(s) encontrada(s)
-          {isFetching && !isLoading && (
-            <span className="ml-2 text-xs text-primary">
+        <div className="text-sm text-muted-foreground order-2 sm:order-1 flex items-center gap-2">
+          <span>{totalCount} pessoa(s) encontrada(s)</span>
+          {isFetching && (
+            <span className="text-xs text-primary animate-pulse">
               • Atualizando...
             </span>
           )}
         </div>
-        <div className="order-1 sm:order-2 w-full sm:w-auto">
+        <div className="order-1 sm:order-2 w-full sm:w-auto flex items-center gap-2">
+          <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(Number(v))}>
+            <SelectTrigger className="w-[140px] h-9">
+              <SelectValue placeholder="Itens" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="12">12 por página</SelectItem>
+              <SelectItem value="24">24 por página</SelectItem>
+              <SelectItem value="48">48 por página</SelectItem>
+            </SelectContent>
+          </Select>
           {!isMobile && (
             <PersonnelViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
           )}
         </div>
       </div>
 
-      {filteredPersonnel.length === 0 ? <EmptyState icon={<Users className="w-12 h-12" />} title="Nenhuma pessoa encontrada" description={searchTerm || filterType !== 'all' || filterFunction !== 'all' ? "Tente ajustar os filtros de busca" : "Cadastre a primeira pessoa para começar"} action={isAdminOrCoordinator ? {
+      {personnel.length === 0 && !isLoading ? <EmptyState icon={<Users className="w-12 h-12" />} title="Nenhuma pessoa encontrada" description={searchTerm || filterType !== 'all' || filterFunction !== 'all' ? "Tente ajustar os filtros de busca" : "Cadastre a primeira pessoa para começar"} action={isAdminOrCoordinator ? {
       label: "Cadastrar Primeira Pessoa",
       onClick: () => setShowForm(true)
-    } : undefined} /> : <div className="w-full">
+    } : undefined} /> : <div className="w-full space-y-4">
           <PersonnelList 
-            personnel={sortedPersonnel} 
+            personnel={personnel} 
             functions={functions} 
             viewMode={effectiveViewMode} 
+            isLoading={isLoading}
             onEdit={handleEdit} 
             onDelete={handleDelete} 
             canEdit={() => isAdminOrCoordinator}
             onRate={isAdminOrCoordinator ? handleRating : undefined}
           />
+
+          {totalPages > 1 && (
+            <Pagination className="mt-4">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+                
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                  if (
+                    page === 1 ||
+                    page === totalPages ||
+                    (page >= currentPage - 1 && page <= currentPage + 1)
+                  ) {
+                    return (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          isActive={currentPage === page}
+                          onClick={() => setCurrentPage(page)}
+                          className="cursor-pointer"
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  } else if (
+                    page === currentPage - 2 ||
+                    page === currentPage + 2
+                  ) {
+                    return (
+                      <PaginationItem key={page}>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    );
+                  }
+                  return null;
+                })}
+
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    onMouseEnter={prefetchNextPage}
+                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
         </div>}
 
       {showForm && <PersonnelForm personnel={editingPersonnel} onClose={handleCloseForm} onSuccess={handleCloseForm} />}

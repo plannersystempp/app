@@ -99,6 +99,8 @@ export interface Func {
   name: string;
   description?: string;
   created_at: string;
+  custom_cache?: number; // Cache específico para esta função (contexto de freelancer)
+  custom_overtime?: number; // Hora extra específica para esta função
 }
 
 export interface Division {
@@ -232,6 +234,8 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
           personnel_id,
           function_id,
           is_primary,
+          custom_cache,
+          custom_overtime,
           functions:function_id (
             id,
             name,
@@ -251,7 +255,15 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const primaryRow = pfRows.find(pf => pf.is_primary);
         const primaryFunctionId = primaryRow?.function_id as string | undefined;
         const personFunctions = pfRows
-          .map(pf => pf.functions)
+          .map(pf => {
+            const f = pf.functions as Func | null;
+            if (!f) return null;
+            return {
+              ...f,
+              custom_cache: pf.custom_cache != null ? Number(pf.custom_cache) : undefined,
+              custom_overtime: pf.custom_overtime != null ? Number(pf.custom_overtime) : undefined,
+            } as Func;
+          })
           .filter(f => f != null) as Func[];
 
         const orderedFunctions = primaryFunctionId

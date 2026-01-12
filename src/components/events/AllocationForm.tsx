@@ -24,6 +24,7 @@ import { usePersonnelRealtime } from '@/hooks/queries/usePersonnelRealtime';
 import { useFunctionsQuery } from '@/hooks/queries/useFunctionsQuery';
 import { useAllocationsQuery } from '@/hooks/queries/useAllocationsQuery';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { getDailyCacheRate } from '@/components/payroll/payrollCalculations';
 
 interface AllocationFormProps {
   eventId: string;
@@ -400,8 +401,31 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
               {/* Show default rate for comparison */}
               {selectionMode === 'individual' && selectedPersonnel && (
                 <div className="text-sm text-muted-foreground">
-                  <span className="font-medium">Valor padrão: </span>
-                  {formatCurrency(personnel.find(p => p.id === selectedPersonnel)?.event_cache || 0)}/dia
+                  <span className="font-medium">Cache base: </span>
+                  {(() => {
+                    const person = personnel.find(p => p.id === selectedPersonnel);
+                    if (!person) return null;
+                    
+                    // Check base rate (without event specific override)
+                    const rate = getDailyCacheRate([{
+                      id: 'temp',
+                      personnel_id: person.id,
+                      event_id: eventId,
+                      work_days: [],
+                      event_specific_cache: null,
+                      function_name: selectedFunction
+                    }], person);
+                    
+                    const isFunctionCache = person.functions?.some(f => f.name === selectedFunction && f.custom_cache === rate && rate > (person.event_cache || 0));
+
+                    return (
+                      <span className={isFunctionCache ? "text-purple-600 font-bold" : ""}>
+                        {formatCurrency(rate)}/dia
+                        {isFunctionCache && " (Cache de Função ✨)"}
+                        {!isFunctionCache && " (Padrão)"}
+                      </span>
+                    );
+                  })()}
                 </div>
               )}
               

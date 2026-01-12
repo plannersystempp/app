@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
+import type { Personnel } from '@/contexts/EnhancedDataContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { EventData, PayrollDetails } from './types';
@@ -16,6 +17,7 @@ export const usePayrollData = (selectedEventId: string) => {
   const [loading, setLoading] = useState(false);
   const [teamOvertimeConfig, setTeamOvertimeConfig] = useState({ default_convert_overtime_to_daily: false, default_overtime_threshold_hours: 8 });
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
+  const [extraPersonnel, setExtraPersonnel] = useState<Personnel[]>([]);
 
   // Buscar configuração global de HE da equipe
   useEffect(() => {
@@ -47,7 +49,7 @@ export const usePayrollData = (selectedEventId: string) => {
 
   useEffect(() => {
     const fetchEventData = async () => {
-      if (!selectedEventId) {
+      if (!selectedEventId || !activeTeam?.id) {
         setEventData({ allocations: [], workLogs: [], closings: [], absences: [] });
         return;
       }
@@ -60,19 +62,23 @@ export const usePayrollData = (selectedEventId: string) => {
           supabase
             .from('personnel_allocations')
             .select('id, event_id, personnel_id, division_id, team_id, work_days, event_specific_cache, function_name, created_at')
-            .eq('event_id', selectedEventId),
+            .eq('event_id', selectedEventId)
+            .eq('team_id', activeTeam.id),
           supabase
             .from('work_records')
             .select('id, event_id, employee_id, work_date, hours_worked, overtime_hours, total_pay, team_id, created_at')
-            .eq('event_id', selectedEventId),
+            .eq('event_id', selectedEventId)
+            .eq('team_id', activeTeam.id),
           supabase
             .from('payroll_closings')
             .select('id, event_id, personnel_id, team_id, total_amount_paid, paid_at, paid_by_id, notes, created_at')
-            .eq('event_id', selectedEventId),
+            .eq('event_id', selectedEventId)
+            .eq('team_id', activeTeam.id),
           supabase
             .from('absences')
-            .select('id, assignment_id, team_id, work_date, notes, logged_by_id, created_at, personnel_allocations!inner(event_id)')
+            .select('id, assignment_id, team_id, work_date, notes, logged_by_id, created_at, personnel_allocations!inner(event_id, team_id)')
             .eq('personnel_allocations.event_id', selectedEventId)
+            .eq('personnel_allocations.team_id', activeTeam.id)
         ]);
 
         setEventData({
@@ -99,7 +105,72 @@ export const usePayrollData = (selectedEventId: string) => {
     };
 
     fetchEventData();
-  }, [selectedEventId, toast, isAdmin]);
+  }, [selectedEventId, toast, isAdmin, activeTeam]);
+
+  // Fallback: buscar pessoal necessário para este evento que não está no contexto
+  useEffect(() => {
+    const fetchMissingPersonnel = async () => {
+      try {
+        const ids = Array.from(new Set((eventData.allocations || []).map(a => a.personnel_id)));
+        const knownIds = new Set(personnel.map(p => p.id));
+        const missingIds = ids.filter(id => !knownIds.has(id));
+        if (!activeTeam?.id || missingIds.length === 0) {
+          setExtraPersonnel([]);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('personnel')
+          .select(`
+            *,
+            personnel_functions!left(
+              function_id,
+              is_primary,
+              custom_cache,
+              custom_overtime,
+              functions(id, name, description)
+            )
+          `)
+          .in('id', missingIds)
+          .eq('team_id', activeTeam.id);
+
+        if (error) throw error;
+
+        const transformed: Personnel[] = (data || []).map((person: any) => {
+          const personFunctions = (person.personnel_functions || [])
+            .map((pf: any) => {
+              const f = pf.functions;
+              if (!f) return null;
+              return {
+                ...f,
+                custom_cache: pf.custom_cache != null ? Number(pf.custom_cache) : undefined,
+                custom_overtime: pf.custom_overtime != null ? Number(pf.custom_overtime) : undefined,
+              };
+            })
+            .filter((f: any) => f != null);
+
+          const primaryFunctionData = (person.personnel_functions || []).find((pf: any) => pf.is_primary);
+
+          return {
+            ...person,
+            functions: personFunctions,
+            primaryFunctionId: primaryFunctionData?.function_id,
+            type: (person.type === 'fixo' || person.type === 'freelancer') ? person.type : 'freelancer',
+            monthly_salary: person.monthly_salary || 0,
+            event_cache: person.event_cache || 0,
+            overtime_rate: person.overtime_rate || 0,
+          } as Personnel;
+        });
+
+        setExtraPersonnel(transformed);
+      } catch (err) {
+        console.error('Error fetching missing personnel for payroll:', err);
+        setExtraPersonnel([]);
+      }
+    };
+
+    fetchMissingPersonnel();
+  }, [eventData.allocations, personnel, activeTeam]);
 
   const fetchPixKeys = async (personnelIds: string[]) => {
     try {
@@ -134,8 +205,10 @@ export const usePayrollData = (selectedEventId: string) => {
       return acc;
     }, {} as Record<string, any[]>);
 
+    const combinedPersonnel = [...personnel, ...extraPersonnel];
+
     return Object.entries(groupedAllocations).map(([personnelId, allocations]) => {
-      const person = personnel.find(p => p.id === personnelId);
+      const person = combinedPersonnel.find(p => p.id === personnelId);
       if (!person) return null;
       // Skip fixed employees on event payroll
       if (person.type === 'fixo') return null;
@@ -165,8 +238,8 @@ export const usePayrollData = (selectedEventId: string) => {
       const cachePay = PayrollCalc.calculateCachePay(allocationsData, person, absencesData);
       
       // Calcular pagamento de horas extras com conversão DIA A DIA (se configurado)
-      const overtimeRate = person.overtime_rate || 0;
       const dailyCache = PayrollCalc.getDailyCacheRate(allocationsData, person);
+      const overtimeRate = PayrollCalc.getOvertimeRate(allocationsData, person);
       
       // Usar apenas configuração global da equipe
       const convertEnabled = teamOvertimeConfig.default_convert_overtime_to_daily ?? false;
@@ -178,7 +251,7 @@ export const usePayrollData = (selectedEventId: string) => {
           threshold: overtimeThreshold,
           convertEnabled,
           dailyCache,
-          overtimeRate
+        overtimeRate
         }
       );
       
@@ -214,7 +287,7 @@ export const usePayrollData = (selectedEventId: string) => {
         overtimePay: overtimeResult.payAmount,
         totalPay,
         cacheRate: person.event_cache || 0,
-        overtimeRate: person.overtime_rate || 0,
+        overtimeRate,
         paid: isPaid,
         paidAmount: totalPaidAmount,
         pendingAmount,

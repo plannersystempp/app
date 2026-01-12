@@ -38,7 +38,12 @@ const fetchEvents = async (teamId: string): Promise<Event[]> => {
     end_date: event.end_date || '',
     status: event.status as Event['status'] || 'planejado',
     user_id: '',
-    created_at: event.created_at || ''
+    created_at: event.created_at || '',
+    location: event.location || '',
+    client_contact_phone: event.client_contact_phone || '',
+    payment_due_date: event.payment_due_date || '',
+    setup_start_date: event.setup_start_date || '',
+    setup_end_date: event.setup_end_date || ''
   }));
 };
 
@@ -154,6 +159,11 @@ export const useUpdateEventMutation = () => {
           description: event.description,
           start_date: event.start_date,
           end_date: event.end_date,
+          payment_due_date: event.payment_due_date,
+          location: event.location,
+          client_contact_phone: event.client_contact_phone,
+          setup_start_date: event.setup_start_date,
+          setup_end_date: event.setup_end_date,
           status: event.status,
         })
         .eq('id', event.id)

@@ -15,6 +15,8 @@ import { AllocationListView } from './AllocationListView';
 import { DivisionCard } from './DivisionCard';
 import { DivisionForm } from './DivisionForm';
 import { AllocationSearchFilter } from './allocation/AllocationSearchFilter';
+import { PersonnelForm } from '@/components/personnel/PersonnelForm';
+import { Personnel } from '@/contexts/EnhancedDataContext';
 
 interface AllocationManagerProps {
   eventId: string;
@@ -41,6 +43,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   const [showWorkLogManager, setShowWorkLogManager] = useState(false);
   const [preselectedDivisionId, setPreselectedDivisionId] = useState<string | undefined>(undefined);
   const [divisionToEdit, setDivisionToEdit] = useState<any>(null);
+  const [personnelToEdit, setPersonnelToEdit] = useState<Personnel | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Persist form open state changes
@@ -135,6 +138,10 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
     setDivisionToEdit(division);
   };
 
+  const handleEditPerson = (person: Personnel) => {
+    setPersonnelToEdit(person);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -212,6 +219,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
             onLaunchHours={handleLaunchHours}
             onEditAssignment={handleEditAssignment}
             onDeleteAssignment={(assignmentId) => deleteAssignment(assignmentId)}
+            onEditPerson={handleEditPerson}
           />
         </div>
       ) : (
@@ -228,6 +236,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
                 onAddAllocation={handleAddAllocation}
                 onEditAssignment={handleEditAssignment}
                 onEditDivision={handleEditDivision}
+                onEditPerson={handleEditPerson}
               />
             );
           })}
@@ -270,6 +279,16 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
           if (!open) setDivisionToEdit(null);
         }}
       />
+
+      {personnelToEdit && (
+        <PersonnelForm
+          personnel={personnelToEdit}
+          onClose={() => setPersonnelToEdit(null)}
+          onSuccess={() => {
+            setPersonnelToEdit(null);
+          }}
+        />
+      )}
     </div>
   );
 };

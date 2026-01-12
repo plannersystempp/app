@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { DollarSign } from 'lucide-react';
 import { NoTeamSelected } from '@/components/shared/NoTeamSelected';
 import { EventSelector } from './EventSelector';
-
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export const PayrollManager: React.FC = () => {
   const { events } = useEnhancedData();
@@ -64,7 +64,6 @@ export const PayrollManager: React.FC = () => {
         </p>
       </div>
 
-      {/* Seleção de Evento */}
       <EventSelector
         events={events as any}
         selectedEventId=""

@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getSimplifiedName } from '@/utils/nameUtils';
-import { type Assignment, type Division } from '@/contexts/EnhancedDataContext';
+import { type Assignment, type Division, type Personnel } from '@/contexts/EnhancedDataContext';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -29,6 +29,7 @@ interface DivisionCardProps {
   onAddAllocation: (divisionId: string) => void;
   onEditAssignment: (assignment: Assignment) => void;
   onEditDivision: (division: Division) => void;
+  onEditPerson?: (person: Personnel) => void;
 }
 
 export const DivisionCard: React.FC<DivisionCardProps> = ({
@@ -38,7 +39,8 @@ export const DivisionCard: React.FC<DivisionCardProps> = ({
   onLaunchHours,
   onAddAllocation,
   onEditAssignment,
-  onEditDivision
+  onEditDivision,
+  onEditPerson
 }) => {
   const { personnel, workLogs, deleteAssignment, deleteDivision } = useEnhancedData();
   const { toast } = useToast();
@@ -168,9 +170,15 @@ export const DivisionCard: React.FC<DivisionCardProps> = ({
                         <User className="w-4 h-4 sm:w-3 sm:h-3 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">
+                        <button
+                          type="button"
+                          className="font-medium text-sm truncate hover:underline text-left cursor-pointer"
+                          onClick={() => {
+                            if (person && onEditPerson) onEditPerson(person);
+                          }}
+                        >
                           {person ? getSimplifiedName(person.name) : 'Pessoa não encontrada'}
-                        </div>
+                        </button>
                         <div className="text-xs text-muted-foreground truncate">
                           {assignment.function_name}
                         </div>

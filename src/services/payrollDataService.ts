@@ -1,0 +1,432 @@
+import { supabase } from '@/integrations/supabase/client';
+import * as PayrollCalc from '@/components/payroll/payrollCalculations';
+import { PayrollDetails, PaymentHistoryItem, AbsenceDetail } from '@/components/payroll/types';
+
+// Types for raw data fetched from Supabase
+export interface RawAllocation {
+  id: string;
+  event_id: string;
+  personnel_id: string;
+  division_id?: string;
+  team_id?: string;
+  work_days: string[];
+  event_specific_cache?: number | null;
+  function_name?: string;
+  created_at?: string;
+  events?: {
+    id: string;
+    name: string;
+    start_date: string;
+    end_date: string;
+    status: string;
+  };
+  personnel?: {
+    id: string;
+    name: string;
+    type: string;
+    event_cache?: number;
+    monthly_salary?: number;
+    overtime_rate?: number;
+  };
+}
+
+export interface RawWorkLog {
+  id: string;
+  event_id: string;
+  employee_id: string;
+  work_date: string;
+  hours_worked: number;
+  overtime_hours: number;
+  total_pay?: number;
+  team_id?: string;
+  created_at?: string;
+}
+
+export interface RawPayrollClosing {
+  id: string;
+  event_id: string;
+  personnel_id: string;
+  total_amount_paid: number;
+  paid_at: string;
+  paid_by_id?: string;
+  team_id?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface RawAbsence {
+  id: string;
+  assignment_id: string;
+  team_id?: string;
+  work_date: string;
+  notes?: string;
+  logged_by_id?: string;
+  created_at: string;
+  personnel_allocations?: {
+    event_id: string;
+  };
+}
+
+export interface RawPersonnelPayment {
+  id: string;
+  amount: number;
+  paid_at: string;
+  notes?: string;
+  created_at: string;
+  personnel_id: string;
+  related_events?: string[];
+  payment_status?: string;
+  team_id?: string;
+}
+
+export interface TeamOvertimeConfig {
+  default_convert_overtime_to_daily: boolean;
+  default_overtime_threshold_hours: number;
+}
+
+/**
+ * Service to centralize payroll data fetching and calculation.
+ * Implements the Single Source of Truth for payment status.
+ */
+export const payrollDataService = {
+  /**
+   * Fetches and calculates payroll for a specific event
+   */
+  async getEventPayroll(eventId: string, teamConfig?: TeamOvertimeConfig, existingPersonnel?: any[]) {
+    console.log('[PayrollService] Fetching data for event:', eventId);
+
+    const [allocationsData, workLogsData, closingsData, absencesData, paymentsData] = await Promise.all([
+      supabase
+        .from('personnel_allocations')
+        .select('id, event_id, personnel_id, division_id, team_id, work_days, event_specific_cache, function_name, created_at')
+        .eq('event_id', eventId),
+      supabase
+        .from('work_records')
+        .select('id, event_id, employee_id, work_date, hours_worked, overtime_hours, total_pay, team_id, created_at')
+        .eq('event_id', eventId),
+      supabase
+        .from('payroll_closings')
+        .select('id, event_id, personnel_id, team_id, total_amount_paid, paid_at, paid_by_id, notes, created_at')
+        .eq('event_id', eventId),
+      supabase
+        .from('absences')
+        .select('id, assignment_id, team_id, work_date, notes, logged_by_id, created_at, personnel_allocations!inner(event_id)')
+        .eq('personnel_allocations.event_id', eventId),
+      supabase
+        .from('personnel_payments')
+        .select('id, amount, paid_at, notes, created_at, personnel_id, related_events')
+        .eq('payment_status', 'paid')
+        .contains('related_events', [eventId])
+    ]);
+    
+    const personnelIds = [...new Set((allocationsData.data || []).map(a => a.personnel_id))];
+    
+    let personnelMap = new Map<string, any>();
+    
+    if (existingPersonnel && existingPersonnel.length > 0) {
+      existingPersonnel.forEach(p => personnelMap.set(p.id, p));
+    } else if (personnelIds.length > 0) {
+      const { data: personnelData } = await supabase
+        .from('personnel')
+        .select('id, name, type, event_cache, monthly_salary, overtime_rate')
+        .in('id', personnelIds);
+        
+      personnelData?.forEach(p => personnelMap.set(p.id, p));
+    }
+
+    const rawData = {
+      allocations: (allocationsData.data || []) as RawAllocation[],
+      workLogs: (workLogsData.data || []) as RawWorkLog[],
+      closings: (closingsData.data || []) as RawPayrollClosing[],
+      absences: (absencesData.data || []) as RawAbsence[],
+      payments: (paymentsData.data || []) as RawPersonnelPayment[]
+    };
+
+    return {
+      details: this.calculatePayrollDetails(rawData, personnelMap, teamConfig, eventId),
+      rawData // Return raw data as well because usePayrollQuery returns it
+    };
+  },
+
+  /**
+   * Fetches and calculates pending payments for the entire team
+   */
+  async getTeamPendingPayments(teamId: string, teamConfig?: TeamOvertimeConfig) {
+    // Fetch allocations for relevant events
+    const today = new Date().toISOString().split('T')[0];
+    const { data: allocations, error: allocError } = await supabase
+        .from('personnel_allocations')
+        .select(`
+          id,
+          personnel_id,
+          event_id,
+          work_days,
+          event_specific_cache,
+          events!inner (
+            id,
+            name,
+            start_date,
+            end_date,
+            status,
+            team_id
+          ),
+          personnel (
+            id,
+            name,
+            type,
+            event_cache,
+            monthly_salary,
+            overtime_rate
+          )
+        `)
+        .eq('events.team_id', teamId)
+        .neq('events.status', 'cancelado');
+
+    if (allocError) throw allocError;
+    if (!allocations || allocations.length === 0) return [];
+
+    // Client-side filter to avoid PostgREST OR on joined columns (causes 400)
+    // FIX: Expanded logic to include ongoing events (started but not finished)
+    const filteredAllocations = allocations.filter(a => {
+      const event = (a as any).events;
+      if (!event) return false;
+
+      const status = event.status;
+      const startDate = event.start_date;
+      
+      // Include if:
+      // 1. Explicitly marked as concluded/pending payment
+      // 2. OR has already started (covers ongoing events and past events not yet marked as concluded)
+      
+      const isConcluded = status === 'concluido' || status === 'concluido_pagamento_pendente';
+      const hasStarted = startDate && startDate <= today;
+
+      return isConcluded || hasStarted;
+    });
+
+    if (filteredAllocations.length === 0) return [];
+
+    const eventIds = [...new Set(filteredAllocations.map(a => a.event_id))];
+    const allocationIds = filteredAllocations.map(a => a.id);
+
+    // Fetch related data in parallel
+    const [closingsData, paymentsData, absencesData, workLogsData] = await Promise.all([
+      supabase
+        .from('payroll_closings')
+        .select('id, event_id, personnel_id, total_amount_paid, paid_at, paid_by_id, notes, created_at, team_id')
+        .eq('team_id', teamId),
+      supabase
+        .from('personnel_payments')
+        .select('id, amount, paid_at, notes, created_at, personnel_id, related_events')
+        .eq('team_id', teamId)
+        .eq('payment_status', 'paid'),
+      supabase
+        .from('absences')
+        .select('id, assignment_id, team_id, work_date, notes, logged_by_id, created_at, personnel_allocations!inner(event_id)')
+        .in('assignment_id', allocationIds),
+      supabase
+        .from('work_records')
+        .select('id, event_id, employee_id, work_date, hours_worked, overtime_hours, total_pay, team_id, created_at')
+        .in('event_id', eventIds)
+    ]);
+
+    // Prepare Personnel Map from the joined query
+    const personnelMap = new Map<string, any>();
+    filteredAllocations.forEach(a => {
+        if (a.personnel) {
+            personnelMap.set(a.personnel.id, a.personnel);
+        }
+    });
+
+    // We need to group by Event to calculate correctly per event
+    const results = [];
+    
+    // Group allocations by event
+    const allocationsByEvent = new Map<string, RawAllocation[]>();
+    filteredAllocations.forEach(a => {
+        const list = allocationsByEvent.get(a.event_id) || [];
+        list.push(a as any as RawAllocation); // Cast because of the joined structure
+        allocationsByEvent.set(a.event_id, list);
+    });
+
+    for (const [eventId, eventAllocations] of allocationsByEvent) {
+        // Filter data for this event
+        const eventRawData = {
+            allocations: eventAllocations,
+            workLogs: (workLogsData.data || []).filter(l => l.event_id === eventId) as RawWorkLog[],
+            closings: (closingsData.data || []).filter(c => c.event_id === eventId) as RawPayrollClosing[],
+            absences: (absencesData.data || []).filter(a => eventAllocations.some(ea => ea.id === a.assignment_id)) as RawAbsence[],
+            // Payments are trickier because they can be multi-event. We pass all and let the calculator filter.
+            payments: (paymentsData.data || []) as RawPersonnelPayment[]
+        };
+
+        const details = this.calculatePayrollDetails(eventRawData, personnelMap, teamConfig, eventId);
+        
+        // Filter only those with pending amount
+        const pendingDetails = details.filter(d => d.pendingAmount > 1.0); // Tolerance
+        
+        // Enrich with event info
+        const eventInfo = (eventAllocations[0] as any).events;
+        
+        results.push(...pendingDetails.map(d => ({
+            personnelId: d.personnelId,
+            personnelName: d.personName,
+            eventId,
+            eventName: eventInfo?.name || '',
+            eventStartDate: eventInfo?.start_date || '',
+            eventEndDate: eventInfo?.end_date || '',
+            pendingAmount: d.pendingAmount,
+            totalAmount: d.totalPay,
+            paidAmount: d.paidAmount
+        })));
+    }
+
+    return results;
+  },
+
+  /**
+   * Core logic to calculate payroll details from raw data
+   */
+  calculatePayrollDetails(
+    data: {
+      allocations: RawAllocation[];
+      workLogs: RawWorkLog[];
+      closings: RawPayrollClosing[];
+      absences: RawAbsence[];
+      payments: RawPersonnelPayment[];
+    },
+    personnelMap: Map<string, any>,
+    teamConfig: TeamOvertimeConfig | undefined,
+    eventId: string
+  ): PayrollDetails[] {
+    const teamOvertimeConfig = {
+      default_convert_overtime_to_daily: teamConfig?.default_convert_overtime_to_daily ?? false,
+      default_overtime_threshold_hours: teamConfig?.default_overtime_threshold_hours ?? 8,
+    };
+
+    // Group allocations by personnel_id
+    const groupedAllocations = data.allocations.reduce((acc, allocation) => {
+      const personnelId = allocation.personnel_id;
+      if (!acc[personnelId]) {
+        acc[personnelId] = [];
+      }
+      acc[personnelId].push(allocation);
+      return acc;
+    }, {} as Record<string, RawAllocation[]>);
+
+    return Object.entries(groupedAllocations).map(([personnelId, allocations]) => {
+      const person = personnelMap.get(personnelId);
+      if (!person) return null;
+
+      // Filter Fixed Employees (usually paid monthly, not per event)
+      if (person.type === 'fixo') return null;
+
+      // Filter logs and absences for this person
+      const personWorkLogs = data.workLogs.filter(log => log.employee_id === personnelId);
+      const personAbsences = data.absences.filter(absence => 
+        allocations.some(allocation => allocation.id === absence.assignment_id)
+      );
+
+      // --- UNIFIED PAYMENT LOGIC ---
+      
+      // 1. Historical Payments (payroll_closings)
+      const historicalPayments = data.closings.filter(
+        closing => closing.personnel_id === personnelId
+      ).map(closing => ({
+        id: closing.id,
+        personnel_id: closing.personnel_id,
+        total_amount_paid: Number(closing.total_amount_paid),
+        paid_at: closing.paid_at,
+        created_at: closing.created_at,
+        notes: closing.notes
+      })) as PayrollCalc.PaymentRecord[];
+
+      // 2. New Payments (personnel_payments)
+      const newPayments = data.payments.filter(
+        payment => {
+            // Check if this payment belongs to this person
+            if (payment.personnel_id !== personnelId) return false;
+            
+            // Check if this payment is related to this event
+            const relatedEvents = this.parseRelatedEvents(payment.related_events);
+            return relatedEvents.includes(eventId);
+        }
+      ).map(payment => {
+        // Distribute amount if multiple events
+        const events = this.parseRelatedEvents(payment.related_events);
+        const amount = events.length > 0 ? Number(payment.amount) / events.length : Number(payment.amount);
+        
+        return {
+          id: payment.id,
+          personnel_id: payment.personnel_id,
+          total_amount_paid: amount,
+          paid_at: payment.paid_at,
+          created_at: payment.created_at,
+          notes: payment.notes
+        };
+      }) as PayrollCalc.PaymentRecord[];
+
+      const paymentRecords = [...historicalPayments, ...newPayments];
+
+      // Cast to PayrollCalc types
+      const allocationsData = allocations as unknown as PayrollCalc.AllocationData[];
+      const workLogsData = personWorkLogs as unknown as PayrollCalc.WorkLogData[];
+      const absencesData = personAbsences as unknown as PayrollCalc.AbsenceData[];
+
+      // --- CALCULATIONS ---
+      const totalWorkDays = PayrollCalc.calculateWorkedDays(allocationsData, absencesData);
+      const regularHours = PayrollCalc.calculateTotalRegularHours(workLogsData);
+      const baseSalary = PayrollCalc.calculateBaseSalary(person);
+      const cachePay = PayrollCalc.calculateCachePay(allocationsData, person, absencesData);
+      
+      const overtimeRate = person.overtime_rate || 0;
+      const dailyCache = PayrollCalc.getDailyCacheRate(allocationsData, person);
+      
+      const overtimeResult = PayrollCalc.calculateOvertimePayWithDailyConversion(
+        workLogsData,
+        {
+          threshold: teamOvertimeConfig.default_overtime_threshold_hours,
+          convertEnabled: teamOvertimeConfig.default_convert_overtime_to_daily,
+          dailyCache,
+          overtimeRate
+        }
+      );
+      
+      const totalPay = baseSalary + cachePay + overtimeResult.payAmount;
+      const totalPaidAmount = PayrollCalc.calculateTotalPaid(paymentRecords);
+      const pendingAmount = PayrollCalc.calculatePendingAmount(totalPay, totalPaidAmount);
+      const isPaid = PayrollCalc.isPaymentComplete(totalPaidAmount, pendingAmount);
+
+      const absenceDetails = PayrollCalc.processAbsences(absencesData);
+      const paymentHistory = PayrollCalc.processPaymentHistory(paymentRecords);
+      const hasEventCache = PayrollCalc.hasEventSpecificCache(allocationsData);
+
+      return {
+        id: allocations[0].id,
+        personnelId: person.id,
+        personName: person.name,
+        personType: person.type,
+        workDays: totalWorkDays,
+        regularHours,
+        totalOvertimeHours: overtimeResult.displayHours,
+        baseSalary,
+        cachePay,
+        overtimePay: overtimeResult.payAmount,
+        totalPay,
+        cacheRate: person.event_cache || 0,
+        overtimeRate: person.overtime_rate || 0,
+        paid: isPaid,
+        paidAmount: totalPaidAmount,
+        pendingAmount,
+        paymentHistory,
+        absencesCount: absencesData.length,
+        absences: absenceDetails,
+        hasEventSpecificCache: hasEventCache,
+        eventSpecificCacheRate: dailyCache,
+        overtimeConversionApplied: overtimeResult.conversionApplied,
+        overtimeCachesUsed: overtimeResult.dailyCachesUsed,
+        overtimeRemainingHours: overtimeResult.remainingHours
+      };
+    }).filter(Boolean) as PayrollDetails[];
+  }
+};

@@ -1,15 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Search, Calendar, ChevronRight, Clock, DollarSign, AlertCircle } from 'lucide-react';
+import { Search, Calendar, ChevronRight, Clock, DollarSign, AlertTriangle, CheckCircle, MapPin } from 'lucide-react';
 import { formatDateBR } from '@/utils/dateUtils';
 import { formatCurrency } from '@/utils/formatters';
 import type { Event } from '@/contexts/DataContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { getCachedEventStatus } from './eventStatusCache';
+import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
 
 interface EventSelectorProps {
   events: Event[];
@@ -39,34 +41,22 @@ const isDueTodayOrPast = (dateStr?: string) => {
   return dueOnly.getTime() <= today.getTime();
 };
 
-// Retorna true se está dentro dos próximos 15 dias (inclui hoje)
-const isDueWithin15Days = (dateStr?: string) => {
-  const due = normalizeDate(dateStr);
-  if (!due) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const limit = new Date(today);
-  limit.setDate(today.getDate() + 15);
-  limit.setHours(23, 59, 59, 999);
-  return due <= limit;
-};
-
 const getStatusConfig = (status: string) => {
   if (status === 'em_andamento') {
     return {
       label: 'Em Andamento',
-      className: 'bg-indigo-500 text-white'
+      className: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border-indigo-200'
     };
   }
   if (status === 'concluido' || status === 'concluido_pagamento_pendente') {
     return {
       label: 'Concluído',
-      className: 'bg-gray-400 text-white'
+      className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200'
     };
   }
   return {
     label: 'Planejado',
-    className: 'border-gray-300 text-gray-600'
+    className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200'
   };
 };
 
@@ -183,11 +173,13 @@ export const EventSelector: React.FC<EventSelectorProps> = ({
           const dueStr = getEffectiveDueDate(event);
           const isDue = isDueTodayOrPast(dueStr);
           
-          // Usar dados reais de alocação/pagamento
           const hasPendingPayments = statusInfo?.has_pending_payments ?? false;
-          const showPendingBadge = hasPendingPayments && (statusInfo?.allocated_count ?? 0) > 0;
           
-          // Sinalizar quando há pagamento pendente ou vencimento atrasado
+          // Cálculo de progresso de pagamentos
+          const totalAllocated = statusInfo?.allocated_count || 0;
+          const totalPaid = statusInfo?.paid_count || 0;
+          const progressPercent = totalAllocated > 0 ? (totalPaid / totalAllocated) * 100 : 0;
+          
           const showDueWarning = (
             event.status === 'concluido_pagamento_pendente' ||
             hasPendingPayments ||
@@ -197,23 +189,35 @@ export const EventSelector: React.FC<EventSelectorProps> = ({
           return (
             <Card 
               key={event.id}
-              className={`cursor-pointer transition-all hover:shadow-lg hover:border-primary/50 ${
-                selectedEventId === event.id ? 'ring-2 ring-primary border-primary' : 'border-border'
-              }`}
+              className={cn(
+                "cursor-pointer transition-all hover:shadow-lg border-l-4 animate-in fade-in duration-300",
+                selectedEventId === event.id ? 'ring-2 ring-primary border-primary' : '',
+                hasPendingPayments ? 'border-l-amber-500' : 'border-l-green-500'
+              )}
               onClick={() => navigate(`/app/folha/${event.id}`)}
             >
-              <CardContent className="p-3 space-y-2.5">
-                {/* Event Name with Chevron */}
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-semibold text-base line-clamp-2 flex-1 text-foreground">
-                    {event.name}
-                  </h3>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                </div>
+              <CardHeader className="p-4 pb-2">
+                 <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                        <h3 className="font-semibold text-base line-clamp-1" title={event.name}>
+                            {event.name}
+                        </h3>
+                        {event.location && (
+                            <div className="flex items-center text-xs text-muted-foreground">
+                                <MapPin className="h-3 w-3 mr-1" />
+                                <span className="line-clamp-1">{event.location}</span>
+                            </div>
+                        )}
+                    </div>
+                    <Badge variant="outline" className={cn("ml-2 whitespace-nowrap text-[10px]", statusConfig.className)}>
+                        {statusConfig.label}
+                    </Badge>
+                 </div>
+              </CardHeader>
 
-                {/* Date */}
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Calendar className="h-3.5 w-3.5" />
+              <CardContent className="p-4 py-2 space-y-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/30 p-2 rounded-md">
+                  <Calendar className="h-4 w-4" />
                   <span>
                     {event.start_date && formatDateBR(event.start_date)}
                     {event.end_date && event.start_date !== event.end_date && 
@@ -221,53 +225,31 @@ export const EventSelector: React.FC<EventSelectorProps> = ({
                   </span>
                 </div>
 
-                {/* Status Badges - Horizontal */}
-                <div className="flex flex-wrap gap-1.5">
-                  <Badge className={statusConfig.className}>
-                    {statusConfig.label}
-                  </Badge>
-                  {showPendingBadge && (
-                    <Badge className="bg-red-600 text-white">
-                      <DollarSign className="h-3 w-3 mr-1" />
-                      {statusInfo?.allocated_count && statusInfo?.paid_count 
-                        ? `${statusInfo.paid_count}/${statusInfo.allocated_count} pagos`
-                        : 'Pendente'}
-                    </Badge>
-                  )}
-                </div>
-
-                {/* Additional Info */}
-                {(event.location || event.client_contact_phone) && (
-                  <div className="text-xs text-muted-foreground space-y-0.5 pt-1">
-                    {event.location && (
-                      <p className="line-clamp-1">📍 {event.location}</p>
-                    )}
-                    {event.client_contact_phone && (
-                      <p className="line-clamp-1">📞 {event.client_contact_phone}</p>
-                    )}
-                  </div>
-                )}
-
-                {/* Payment Due Date - Highlighted */}
-                {dueStr && (
-                  <div className={`flex items-center gap-1.5 text-xs pt-1 ${
-                    showDueWarning ? 'text-red-600 font-bold' : 'text-muted-foreground'
-                  }`}>
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>
-                      {`Vence: ${formatDateBR(dueStr)}`}
-                    </span>
-                  </div>
-                )}
-
-                {/* Click Action */}
-                <div className="pt-1 border-t border-border/50">
-                  <p className="text-xs text-primary flex items-center gap-1">
-                    Clique para abrir folha
-                    <ChevronRight className="h-3 w-3" />
-                  </p>
+                {/* Seção Financeira */}
+                <div className="space-y-1.5">
+                    <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Pagamentos Realizados</span>
+                        <span className="font-medium">
+                            {totalPaid}/{totalAllocated}
+                        </span>
+                    </div>
+                    <Progress value={progressPercent} className="h-2" indicatorClassName={hasPendingPayments ? "bg-amber-500" : "bg-green-500"} />
                 </div>
               </CardContent>
+
+              <CardFooter className="p-4 pt-2 border-t bg-muted/10 flex justify-between items-center">
+                 {dueStr && (
+                    <div className={cn("flex items-center gap-1.5 text-xs font-medium", showDueWarning ? "text-red-600" : "text-muted-foreground")}>
+                       <Clock className="h-3.5 w-3.5" />
+                       <span>Vence: {formatDateBR(dueStr)}</span>
+                    </div>
+                 )}
+                 
+                 <div className="text-xs text-primary font-medium flex items-center ml-auto">
+                    Gerenciar Folha
+                    <ChevronRight className="h-3 w-3 ml-1" />
+                 </div>
+              </CardFooter>
             </Card>
           );
         })}
