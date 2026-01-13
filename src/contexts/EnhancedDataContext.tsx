@@ -179,6 +179,8 @@ interface EnhancedDataContextType {
   deleteDivision: (id: string) => Promise<void>;
   addAssignment: (assignment: Omit<Assignment, 'id' | 'created_at' | 'team_id'>) => Promise<void>;
   deleteAssignment: (id: string) => Promise<void>;
+  updateAssignment: (assignment: Assignment) => Promise<void>;
+  refreshAssignments: () => Promise<void>;
   addWorkLog: (workLog: Omit<WorkRecord, 'id' | 'created_at' | 'team_id'>) => Promise<void>;
   updateWorkLog: (workLog: WorkRecord) => Promise<void>;
   deleteWorkLog: (id: string) => Promise<void>;
@@ -1190,6 +1192,82 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  const updateAssignment = async (assignment: Assignment): Promise<void> => {
+    if (!activeTeam) return;
+
+    try {
+      const { error } = await supabase
+        .from('personnel_allocations')
+        .update({
+          personnel_id: assignment.personnel_id,
+          function_name: assignment.function_name,
+          work_days: assignment.work_days,
+          division_id: assignment.division_id,
+          event_specific_cache: assignment.event_specific_cache ?? null
+        })
+        .eq('id', assignment.id)
+        .eq('team_id', activeTeam.id);
+
+      if (error) throw error;
+
+      setAssignments(prev => prev.map(a => (
+        a.id === assignment.id
+          ? { ...a, ...assignment }
+          : a
+      )));
+
+      toast({
+        title: "Sucesso",
+        description: "Alocação atualizada com sucesso!",
+      });
+    } catch (error) {
+      console.error('Error updating assignment:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao atualizar alocação",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const refreshAssignments = async (): Promise<void> => {
+    try {
+      const isSuperAdmin = user?.role === 'superadmin';
+      const { data, error } = isSuperAdmin
+        ? await supabase.from('personnel_allocations').select('*')
+        : await supabase.from('personnel_allocations').select('*').eq('team_id', activeTeam!.id);
+
+      if (error) throw error;
+
+      if (data && Array.isArray(data)) {
+        const validAssignments: Assignment[] = [];
+        for (const assignment of data) {
+          if (isValidDataObject(assignment)) {
+            validAssignments.push({
+              id: assignment.id || '',
+              team_id: assignment.team_id || (activeTeam?.id || ''),
+              event_id: assignment.event_id || '',
+              division_id: assignment.division_id || '',
+              personnel_id: assignment.personnel_id || '',
+              function_name: assignment.function_name || '',
+              work_days: assignment.work_days || [],
+              event_specific_cache: assignment.event_specific_cache || undefined,
+              created_at: assignment.created_at || ''
+            });
+          }
+        }
+        setAssignments(validAssignments);
+      }
+    } catch (error) {
+      console.error('Error refreshing allocations:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao atualizar alocações",
+        variant: "destructive"
+      });
+    }
+  };
+
   const addWorkLog = async (workLog: Omit<WorkRecord, 'id' | 'created_at' | 'team_id'>): Promise<void> => {
     if (!user || !activeTeam) return;
 
@@ -1543,6 +1621,8 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     deleteDivision,
     addAssignment,
     deleteAssignment,
+    updateAssignment,
+    refreshAssignments,
     addWorkLog,
     updateWorkLog,
     deleteWorkLog,

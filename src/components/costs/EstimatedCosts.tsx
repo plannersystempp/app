@@ -1,13 +1,17 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, TrendingUp, Calendar, Users, Package } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DollarSign, TrendingUp, Calendar, Users, Package, Filter } from 'lucide-react';
 import { CostChart } from './CostChart';
+import { getDailyCacheRate } from '@/components/payroll/payrollCalculations';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
+import { startOfMonth, subMonths, startOfYear, parseISO, isAfter, isBefore } from 'date-fns';
 
 export const EstimatedCosts: React.FC = () => {
   const { events, assignments, personnel, workLogs, eventSupplierCosts, loading } = useEnhancedData();
+  const [period, setPeriod] = useState('current_month');
 
   if (loading) {
     return <LoadingSpinner />;
@@ -15,6 +19,33 @@ export const EstimatedCosts: React.FC = () => {
 
   const costData = useMemo(() => {
     if (loading || !events.length) return [];
+
+    // Filter events based on selected period
+    const now = new Date();
+    const filteredEvents = events.filter(event => {
+      if (period === 'all') return true;
+      if (!event.start_date) return false;
+      
+      const date = parseISO(event.start_date);
+      
+      if (period === 'current_month') {
+        return isAfter(date, startOfMonth(now)) || date.getTime() === startOfMonth(now).getTime();
+      }
+      if (period === 'last_month') {
+        const start = startOfMonth(subMonths(now, 1));
+        const end = startOfMonth(now);
+        return (isAfter(date, start) || date.getTime() === start.getTime()) && isBefore(date, end);
+      }
+      if (period === 'last_3_months') {
+        const start = startOfMonth(subMonths(now, 3));
+        return isAfter(date, start) || date.getTime() === start.getTime();
+      }
+      if (period === 'current_year') {
+        const start = startOfYear(now);
+        return isAfter(date, start) || date.getTime() === start.getTime();
+      }
+      return true;
+    });
 
     // Create maps for faster lookups
     const personnelMap = new Map(personnel.map(p => [p.id, p]));
@@ -28,7 +59,7 @@ export const EstimatedCosts: React.FC = () => {
       workLogsMap.get(log.employee_id).push(log);
     });
 
-    const data = events.map(event => {
+    const data = filteredEvents.map(event => {
       let baseCost = 0;
       let overtimeCost = 0;
       let supplierCost = 0;
@@ -69,8 +100,11 @@ export const EstimatedCosts: React.FC = () => {
       };
     });
     
-    return data.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()).slice(-10);
-  }, [events, personnel, assignments, workLogs, eventSupplierCosts, loading]);
+    const sortedData = data.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+    
+    // Only slice if viewing "all" to avoid performance issues, otherwise show all filtered
+    return period === 'all' ? sortedData.slice(-12) : sortedData;
+  }, [events, personnel, assignments, workLogs, eventSupplierCosts, loading, period]);
 
   const chartData = costData.map(event => ({
     name: event.name,
@@ -94,78 +128,97 @@ export const EstimatedCosts: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold">Custos Estimados</h1>
-        <p className="text-xs sm:text-sm text-muted-foreground">Análise financeira dos eventos</p>
+    <div className="space-y-3 sm:space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div>
+          <h1 className="text-lg sm:text-xl font-bold">Custos Estimados</h1>
+          <p className="text-[11px] sm:text-xs text-muted-foreground">Análise financeira dos eventos</p>
+        </div>
+        <div className="w-full sm:w-auto">
+          <Select value={period} onValueChange={setPeriod}>
+            <SelectTrigger className="w-full sm:w-[180px] h-8 sm:h-9 text-xs sm:text-sm">
+              <div className="flex items-center gap-2">
+                <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                <SelectValue placeholder="Selecione o período" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="current_month">Mês Atual</SelectItem>
+              <SelectItem value="last_month">Mês Passado</SelectItem>
+              <SelectItem value="last_3_months">Últimos 3 Meses</SelectItem>
+              <SelectItem value="current_year">Ano Atual</SelectItem>
+              <SelectItem value="all">Todos (Últimos 12)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="min-h-[100px]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-green-500 flex-shrink-0" />
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
+        <Card className="min-h-[72px] sm:min-h-[90px]">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-xs sm:text-sm font-medium flex items-center gap-1.5">
+              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500 flex-shrink-0" />
               <span className="truncate">Total</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <p className="text-sm sm:text-lg lg:text-2xl font-bold text-green-600 leading-tight">
+            <p className="text-base sm:text-lg lg:text-xl font-bold text-green-600 leading-tight">
               {formatCurrency(totalCost)}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="min-h-[100px]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Users className="w-4 h-4 text-blue-500 flex-shrink-0" />
+        <Card className="min-h-[72px] sm:min-h-[90px]">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-xs sm:text-sm font-medium flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 flex-shrink-0" />
               <span className="truncate">Cachês</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <p className="text-sm sm:text-lg lg:text-2xl font-bold text-blue-600 leading-tight">
+            <p className="text-base sm:text-lg lg:text-xl font-bold text-blue-600 leading-tight">
               {formatCurrency(totalBaseCost)}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="min-h-[100px]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-orange-500 flex-shrink-0" />
+        <Card className="min-h-[72px] sm:min-h-[90px]">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-xs sm:text-sm font-medium flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-500 flex-shrink-0" />
               <span className="truncate">H. Extras</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <p className="text-sm sm:text-lg lg:text-2xl font-bold text-orange-600 leading-tight">
+            <p className="text-base sm:text-lg lg:text-xl font-bold text-orange-600 leading-tight">
               {formatCurrency(totalOvertimeCost)}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="min-h-[100px]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Package className="w-4 h-4 text-pink-500 flex-shrink-0" />
+        <Card className="min-h-[72px] sm:min-h-[90px]">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-xs sm:text-sm font-medium flex items-center gap-1.5">
+              <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-pink-500 flex-shrink-0" />
               <span className="truncate">Fornecedores</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <p className="text-sm sm:text-lg lg:text-2xl font-bold text-pink-600 leading-tight">
+            <p className="text-base sm:text-lg lg:text-xl font-bold text-pink-600 leading-tight">
               {formatCurrency(totalSupplierCost)}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="min-h-[100px]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-purple-500 flex-shrink-0" />
+        <Card className="min-h-[72px] sm:min-h-[90px]">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-xs sm:text-sm font-medium flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-500 flex-shrink-0" />
               <span className="truncate">Eventos</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <p className="text-sm sm:text-lg lg:text-2xl font-bold text-purple-600 leading-tight">
+            <p className="text-base sm:text-lg lg:text-xl font-bold text-purple-600 leading-tight">
               {chartData.length}
             </p>
           </CardContent>
@@ -173,10 +226,13 @@ export const EstimatedCosts: React.FC = () => {
       </div>
 
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base sm:text-lg">Análise por Evento</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Últimos {chartData.length} eventos com decomposição de custos
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm sm:text-base">Análise por Evento</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            {period === 'all' 
+              ? `Últimos ${chartData.length} eventos com decomposição de custos`
+              : `Visualizando ${chartData.length} eventos no período selecionado`
+            }
           </p>
         </CardHeader>
         <CardContent className="pt-0">
@@ -185,21 +241,21 @@ export const EstimatedCosts: React.FC = () => {
       </Card>
 
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base sm:text-lg">Legenda</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm sm:text-base">Legenda</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 sm:w-4 sm:h-4 bg-blue-500 rounded flex-shrink-0"></div>
+              <div className="w-3 h-3 sm:w-3.5 sm:h-3.5 bg-blue-500 rounded flex-shrink-0"></div>
               <span>Custo Base (Cachês por dia)</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 sm:w-4 sm:h-4 bg-orange-500 rounded flex-shrink-0"></div>
+              <div className="w-3 h-3 sm:w-3.5 sm:h-3.5 bg-orange-500 rounded flex-shrink-0"></div>
               <span>Custo de Horas Extras</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 sm:w-4 sm:h-4 bg-pink-500 rounded flex-shrink-0"></div>
+              <div className="w-3 h-3 sm:w-3.5 sm:h-3.5 bg-pink-500 rounded flex-shrink-0"></div>
               <span>Custos de Fornecedores (incluídos no total)</span>
             </div>
           </div>

@@ -24,6 +24,7 @@ import { usePersonnelRealtime } from '@/hooks/queries/usePersonnelRealtime';
 import { useFunctionsQuery } from '@/hooks/queries/useFunctionsQuery';
 import { useAllocationsQuery } from '@/hooks/queries/useAllocationsQuery';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { getDailyCacheRate } from '@/components/payroll/payrollCalculations';
 
 interface AllocationFormProps {
@@ -45,6 +46,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   const { data: assignments = [] } = useAllocationsQuery();
   const createAllocation = useCreateAllocationMutation();
   const createDivision = useCreateDivisionMutation();
+  const { refreshAssignments } = useEnhancedData();
   usePersonnelRealtime();
   const { userRole } = useTeam();
   const { toast } = useToast();
@@ -266,7 +268,9 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
           })
         );
 
-        await Promise.all(promises);
+        const created = await Promise.all(promises);
+
+        await refreshAssignments();
 
         toast({
           title: "Sucesso!",

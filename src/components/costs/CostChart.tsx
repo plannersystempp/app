@@ -35,15 +35,15 @@ export const CostChart: React.FC<CostChartProps> = ({ data }) => {
   };
 
   return (
-    <div className="w-full h-[300px] sm:h-[400px]">
+    <div className="w-full h-[240px] sm:h-[320px]">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={data}
           margin={{
-            top: 20,
-            right: 10,
-            left: 10,
-            bottom: 80,
+            top: 12,
+            right: 8,
+            left: 8,
+            bottom: 60,
           }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -51,17 +51,17 @@ export const CostChart: React.FC<CostChartProps> = ({ data }) => {
             dataKey="name" 
             angle={-45}
             textAnchor="end"
-            height={80}
+            height={60}
             interval={0}
-            fontSize={10}
+            fontSize={9}
             tickFormatter={formatLabel}
-            tick={{ fontSize: 10 }}
+            tick={{ fontSize: 9 }}
           />
           <YAxis 
             tickFormatter={(value) => formatCurrency(value)}
-            fontSize={10}
-            tick={{ fontSize: 10 }}
-            width={80}
+            fontSize={9}
+            tick={{ fontSize: 9 }}
+            width={68}
           />
           <Tooltip 
             formatter={formatTooltip}
@@ -70,11 +70,11 @@ export const CostChart: React.FC<CostChartProps> = ({ data }) => {
               backgroundColor: '#fff',
               border: '1px solid #e2e8f0',
               borderRadius: '6px',
-              fontSize: '12px'
+              fontSize: '11px'
             }}
           />
           <Legend 
-            wrapperStyle={{ fontSize: '12px' }}
+            wrapperStyle={{ fontSize: '11px' }}
           />
           <Bar 
             dataKey="baseCost" 

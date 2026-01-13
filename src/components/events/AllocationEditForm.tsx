@@ -26,7 +26,7 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
   open,
   onOpenChange
 }) => {
-  const { personnel, functions, assignments, divisions } = useEnhancedData();
+  const { personnel, functions, assignments, divisions, updateAssignment } = useEnhancedData();
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -84,26 +84,15 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
                                    functions.find(f => f.id === selectedFunction);
       const functionName = selectedFunctionObj ? selectedFunctionObj.name : selectedFunction;
 
-      // Use supabase directly for update
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { error } = await supabase
-        .from('personnel_allocations')
-        .update({
-          personnel_id: selectedPersonnel,
-          function_name: functionName,
-          work_days: selectedDays,
-          division_id: selectedDivisionId,
-          event_specific_cache: eventSpecificCache > 0 ? eventSpecificCache : null
-        })
-        .eq('id', assignment.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Sucesso",
-        description: "Alocação atualizada com sucesso!",
+      await updateAssignment({
+        ...assignment,
+        personnel_id: selectedPersonnel,
+        function_name: functionName,
+        work_days: selectedDays,
+        division_id: selectedDivisionId,
+        event_specific_cache: eventSpecificCache > 0 ? eventSpecificCache : undefined
       });
-      
+
       onOpenChange(false);
     } catch (error) {
       console.error('Error updating assignment:', error);

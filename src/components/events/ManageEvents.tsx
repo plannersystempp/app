@@ -421,23 +421,37 @@ export const ManageEvents: React.FC = () => {
                       {canManageEvents && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setEditingEvent(event)}>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingEvent(event);
+                              }}
+                            >
                               <Edit className="mr-2 h-4 w-4" />
                               Editar
                             </DropdownMenuItem>
                             <AlertDialog onOpenChange={(open) => { if (!open) setConfirmPermanent(false); }}>
                               <AlertDialogTrigger asChild>
-                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                <DropdownMenuItem
+                                  onSelect={(e) => e.preventDefault()}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-destructive"
+                                >
                                   <Trash2 className="mr-2 h-4 w-4" />
                                   Excluir
                                 </DropdownMenuItem>
                               </AlertDialogTrigger>
-                              <AlertDialogContent>
+                              <AlertDialogContent onClick={(e) => e.stopPropagation()}>
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Excluir Evento</AlertDialogTitle>
                                   <AlertDialogDescription>
@@ -456,9 +470,12 @@ export const ManageEvents: React.FC = () => {
                                   </label>
                                 </div>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
                                   <AlertDialogAction 
-                                    onClick={() => handleDeleteEvent(event.id, event.name)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteEvent(event.id, event.name);
+                                    }}
                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     disabled={!confirmPermanent}
                                   >
