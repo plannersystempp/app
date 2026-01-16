@@ -31,7 +31,7 @@ import { TeamManagement } from './components/teams/TeamManagement';
 import { ManageSuppliers } from './components/suppliers/ManageSuppliers';
 import { Card, CardContent } from './components/ui/card';
 import { Button } from './components/ui/button';
-import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { RouteErrorBoundary } from '@/components/shared/RouteErrorBoundary';
 import { DashboardErrorBoundary } from '@/components/shared/DashboardErrorBoundary';
@@ -41,6 +41,7 @@ import { TermsAcceptanceModal } from './components/shared/TermsAcceptanceModal';
 import { supabase } from './integrations/supabase/client';
 import './App.css';
 import { EnhancedAdminSettings } from './components/admin/EnhancedAdminSettings';
+import { useStripeCheckout } from './hooks/useStripeCheckout';
 import SuperAdmin from './pages/SuperAdmin';
 import UpgradePlan from './pages/UpgradePlan';
 import PlansPage from './pages/PlansPage';
@@ -56,7 +57,7 @@ import { canShowSuppliersModule } from './lib/permissions';
 
 
 
-// Removed Lovable badge remover hook to avoid unintended DOM side effects that hid the UI
+
 
 
 // Componente para salvar a rota atual
@@ -143,6 +144,9 @@ const RealtimeSyncInitializer = () => {
 
 const AppContent = () => {
   const { user, isLoading } = useAuth();
+  const stripeCheckout = useStripeCheckout();
+  const [attemptedAutoCheckout, setAttemptedAutoCheckout] = useState(false);
+  const [autoCheckoutStarting, setAutoCheckoutStarting] = useState(false);
   const [teamApprovalStatus, setTeamApprovalStatus] = useState<{
     loading: boolean;
     status: 'approved' | 'pending' | 'rejected' | null;
@@ -259,6 +263,41 @@ const AppContent = () => {
     checkTeamApprovalStatus();
   }, [user]);
 
+  useEffect(() => {
+    const runAutoCheckout = async () => {
+      if (!user || attemptedAutoCheckout) return;
+      let pendingPlan: string | null = null;
+      try {
+        pendingPlan = localStorage.getItem('pendingSignupPlan');
+      } catch {}
+      if (!pendingPlan) return;
+
+      try {
+        setAutoCheckoutStarting(true);
+        const { data: ownedTeams, error } = await supabase
+          .from('teams')
+          .select('id, name')
+          .eq('owner_id', user.id)
+          .limit(1);
+        if (error || !ownedTeams || ownedTeams.length === 0) {
+          setAttemptedAutoCheckout(true);
+          setAutoCheckoutStarting(false);
+          return;
+        }
+        const teamId = ownedTeams[0].id as string;
+        const result = await stripeCheckout.mutateAsync({ planId: pendingPlan, teamId });
+        if (result?.url) {
+          try { localStorage.removeItem('pendingSignupPlan'); } catch {}
+          window.location.href = result.url;
+        }
+      } catch (err) {
+        setAttemptedAutoCheckout(true);
+        setAutoCheckoutStarting(false);
+      }
+    };
+    runAutoCheckout();
+  }, [user, attemptedAutoCheckout, stripeCheckout]);
+
   if (isLoading || (user && teamApprovalStatus.loading)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
@@ -296,6 +335,16 @@ const AppContent = () => {
           <RouteRestorer />
           <TermsAcceptanceModal />
           <Layout>
+            {autoCheckoutStarting && (
+              <div className="fixed bottom-4 right-4 z-50">
+                <Card>
+                  <CardContent className="p-3 flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-sm">Iniciando checkout…</span>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
             <Routes>
               <Route path="/" element={
                 <RouteErrorBoundary routeName="Dashboard" fallbackRoute="/app/eventos">
@@ -463,6 +512,7 @@ function App() {
             {/* Redirecionar rota raiz diretamente para /auth (Login) ao invés de /app */}
             <Route path="/" element={<Navigate to="/auth" replace />} />
             <Route path="/auth" element={<LoginScreen />} />
+            <Route path="/auth/signup" element={<LoginScreen />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
             <Route path="/app/*" element={

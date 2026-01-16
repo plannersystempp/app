@@ -1,5 +1,3 @@
-import '@testing-library/jest-dom'
-
 // Polyfill básico para ResizeObserver requerido por cmdk/radix em testes jsdom
 class ResizeObserverMock {
   observe() {}

@@ -113,7 +113,7 @@ function parseSqlValues(parts: string[]): any[] {
   let buffer = ''
   let inString = false
   for (let i=0;i<parts.length;i++) {
-    let p = parts[i]
+    const p = parts[i]
     if (inString) {
       buffer += ',' + p
       if (/\'$/.test(p.trim()) || /\'\s*$/.test(p)) inString = false

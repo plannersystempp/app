@@ -3,31 +3,16 @@ import { company } from '@/config/company';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check, Zap, Star, Crown, Loader2 } from 'lucide-react';
+import { Check, Zap, Star, Crown, Loader2, ArrowRight, Shield, Clock, MessageCircle, Phone, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useStripeCheckout } from '@/hooks/useStripeCheckout';
+import { useStripeCheckoutEnhanced } from '@/hooks/useStripeCheckoutEnhanced';
 import { toast } from '@/hooks/use-toast';
-
-interface Plan {
-  id: string;
-  name: string;
-  display_name: string;
-  description: string;
-  price: number;
-  billing_cycle: 'monthly' | 'annually';
-  features: string[];
-  limits: {
-    max_team_members: number | null;
-    max_events_per_month: number | null;
-    max_personnel: number | null;
-  };
-  sort_order: number;
-  is_popular?: boolean;
-}
+import { SubscriptionPlan } from '@/types/subscription';
+import { usePlans } from '@/hooks/usePlans';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+interface Plan extends SubscriptionPlan {}
 
 export default function PlansPage() {
   const navigate = useNavigate();
@@ -36,7 +21,7 @@ export default function PlansPage() {
   // SEO: Update document metadata
   useEffect(() => {
     // Update page title
-    document.title = 'Planos e Preços - PlannerSystem | Sistema de Gestão de Eventos';
+    document.title = 'Planos e Preços - PlannerSystem | Gestão de Eventos e Equipes';
     
     // Update or create meta tags
     const updateMetaTag = (name: string, content: string, isProperty = false) => {
@@ -69,24 +54,6 @@ export default function PlansPage() {
     }
     canonical.setAttribute('href', window.location.origin + '/plans');
 
-    // Add structured data for pricing
-    const structuredData = {
-      "@context": "https://schema.org",
-      "@type": "ItemList",
-      "name": "Planos de Assinatura PlannerSystem",
-      "description": "Planos de assinatura para o Sistema de Gestão de Eventos PlannerSystem",
-      "itemListElement": []
-    };
-
-    let script = document.querySelector('script[type="application/ld+json"]#plans-schema');
-    if (!script) {
-      script = document.createElement('script');
-      script.setAttribute('type', 'application/ld+json');
-      script.setAttribute('id', 'plans-schema');
-      document.head.appendChild(script);
-    }
-    script.textContent = JSON.stringify(structuredData);
-
     // Cleanup function
     return () => {
       document.title = 'PlannerSystem - Sistema de Gestão de Eventos';
@@ -94,19 +61,10 @@ export default function PlansPage() {
     };
   }, []);
 
-  const { data: plans, isLoading } = useQuery({
-    queryKey: ['public-plans'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('subscription_plans')
-        .select('*')
-        .eq('is_active', true)
-        .eq('is_hidden', false)
-        .order('sort_order');
-      
-      if (error) throw error;
-      return data as unknown as Plan[];
-    }
+  const { plans, isLoading, error } = usePlans({ 
+    includeInactive: false, 
+    orderBy: 'price', 
+    orderDirection: 'asc' 
   });
 
   const getPlanIcon = (planName: string) => {
@@ -116,60 +74,87 @@ export default function PlansPage() {
     return <Check className="h-8 w-8 text-primary" />;
   };
 
-  const { mutate: createCheckout, isPending: isCreatingCheckout } = useStripeCheckout();
+  const { createCheckout, isLoading: isCreatingCheckout, error: checkoutError, resetError } = useStripeCheckoutEnhanced();
 
   const handleSelectPlan = async (planId: string, planName: string) => {
+    // Resetar erro anterior
+    resetError();
+    
     if (!user) {
       navigate('/auth', { state: { redirectTo: '/plans', planId } });
       return;
     }
 
-    // Buscar team_id do usuário
-    const { data: membership, error } = await supabase
-      .from('team_members')
-      .select('team_id, role, status, teams(name)')
-      .eq('user_id', user.id)
-      .eq('status', 'approved')
-      .eq('role', 'admin')
-      .maybeSingle();
+    try {
+      // Buscar team_id do usuário
+      const { data: membership, error } = await supabase
+        .from('team_members')
+        .select('team_id, role, status, teams(name)')
+        .eq('user_id', user.id)
+        .eq('status', 'approved')
+        .eq('role', 'admin')
+        .maybeSingle();
 
-    if (error || !membership) {
-      toast({
-        title: 'Erro',
-        description: 'Você precisa ser admin de uma equipe para assinar um plano',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    // Se for trial, redirecionar para a antiga lógica
-    if (planName === 'trial') {
-      navigate(`/app/upgrade?plan=${planId}`);
-      return;
-    }
-
-    // Confirmar com usuário
-    if (!window.confirm(
-      `Você será redirecionado para o checkout do plano "${planName}". Deseja continuar?`
-    )) {
-      return;
-    }
-
-    // Criar checkout session
-    createCheckout(
-      { 
-        planId, 
-        teamId: membership.team_id 
-      },
-      {
-        onSuccess: (data) => {
-          console.log('Redirecionando para Stripe Checkout...');
-          window.location.href = data.url;
-        }
+      if (error || !membership) {
+        toast({
+          title: 'Erro',
+          description: 'Você precisa ser admin de uma equipe para assinar um plano',
+          variant: 'destructive'
+        });
+        return;
       }
-    );
+
+      // Se for trial, redirecionar para a antiga lógica
+      if (planName === 'trial') {
+        navigate(`/app/upgrade?plan=${planId}`);
+        return;
+      }
+
+      // Confirmar com usuário
+      if (!window.confirm(
+        `Você será redirecionado para o checkout do plano "${planName}". Deseja continuar?`
+      )) {
+        return;
+      }
+
+      // Criar checkout session
+      await createCheckout({
+        planId,
+        teamId: membership.team_id
+      });
+      
+    } catch (error) {
+      console.error('Erro ao selecionar plano:', error);
+      // O erro já será tratado pelo hook useStripeCheckoutEnhanced
+    }
   };
 
+  // Estado de erro
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+        <div className="container mx-auto px-4 py-12">
+          <div className="text-center max-w-2xl mx-auto">
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {error.message || 'Erro ao carregar planos. Por favor, tente novamente.'}
+              </AlertDescription>
+            </Alert>
+            <Button 
+              onClick={() => window.location.reload()} 
+              variant="outline"
+              size="lg"
+            >
+              Tentar Novamente
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Estado de loading
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
@@ -229,6 +214,33 @@ export default function PlansPage() {
           </div>
         </div>
 
+        {/* Trust Badges - Novo */}
+        <div className="max-w-4xl mx-auto mb-8 sm:mb-12">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+            <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-gradient-to-br from-green-50 to-green-100 border border-green-200">
+              <Shield className="h-8 w-8 text-green-600" />
+              <div>
+                <p className="font-semibold text-green-900">100% Seguro</p>
+                <p className="text-sm text-green-700">SSL e criptografia de ponta</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">
+              <Clock className="h-8 w-8 text-blue-600" />
+              <div>
+                <p className="font-semibold text-blue-900">Suporte 24/7</p>
+                <p className="text-sm text-blue-700">Equipe pronta para ajudar</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200">
+              <Star className="h-8 w-8 text-purple-600" />
+              <div>
+                <p className="font-semibold text-purple-900">99.9% Uptime</p>
+                <p className="text-sm text-purple-700">Sistema sempre disponível</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Pricing Cards - Grid para 4 Planos com altura flexível */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 max-w-7xl mx-auto mb-8 sm:mb-12 items-start">
           {plans?.map((plan, index) => (
@@ -281,7 +293,7 @@ export default function PlansPage() {
                       R$ {plan.price.toFixed(2)}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      /{plan.billing_cycle === 'monthly' ? 'mês' : 'ano'}
+                      /{plan.billing_cycle === 'monthly' ? 'mês' : plan.billing_cycle === 'annually' ? 'ano' : 'vitalício'}
                     </span>
                   </div>
                   {plan.billing_cycle === 'annually' && (
@@ -329,6 +341,14 @@ export default function PlansPage() {
                         <span>Até <strong>{plan.limits.max_events_per_month}</strong> eventos/mês</span>
                       )}
                     </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1 h-1 rounded-full bg-primary/60"></div>
+                      {plan.limits.max_personnel === null ? (
+                        <span className="text-green-600 font-medium">Pessoal ilimitado</span>
+                      ) : (
+                        <span>Até <strong>{plan.limits.max_personnel}</strong> cadastros</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -371,29 +391,7 @@ export default function PlansPage() {
           ))}
         </div>
 
-        {/* Trust Indicators - Mais Compacto */}
-        <div className="text-center mb-8 sm:mb-10">
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 text-xs sm:text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
-                <Check className="h-3 w-3 text-green-600" />
-              </div>
-              <span>SSL Seguro</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
-                <Crown className="h-3 w-3 text-blue-600" />
-              </div>
-              <span>Suporte 24/7</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
-                <Star className="h-3 w-3 text-purple-600" />
-              </div>
-              <span>99.9% Uptime</span>
-            </div>
-          </div>
-        </div>
+        {/* Trust Indicators - Removido pois agora está no hero */}
 
         {/* FAQ Section - Reduzido para 3 perguntas principais */}
         <div className="mt-12 sm:mt-16 max-w-3xl mx-auto">
@@ -479,7 +477,7 @@ export default function PlansPage() {
                   className="hover:bg-primary/5 hover:border-primary/50 transition-all duration-300"
                   onClick={() => window.open(company.contact.whatsapp.link, '_blank')}
                 >
-                  <Zap className="mr-2 h-3 w-3" />
+                  <Phone className="mr-2 h-3 w-3" />
                   WhatsApp
                 </Button>
               </CardFooter>

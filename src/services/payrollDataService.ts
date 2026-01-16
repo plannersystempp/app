@@ -121,7 +121,7 @@ export const payrollDataService = {
     
     const personnelIds = [...new Set((allocationsData.data || []).map(a => a.personnel_id))];
     
-    let personnelMap = new Map<string, any>();
+    const personnelMap = new Map<string, any>();
     
     if (existingPersonnel && existingPersonnel.length > 0) {
       existingPersonnel.forEach(p => personnelMap.set(p.id, p));

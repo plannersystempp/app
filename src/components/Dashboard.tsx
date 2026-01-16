@@ -38,6 +38,8 @@ import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { logger } from '@/utils/logger';
 import { getAverageEventsPerWeek, getAverageEventsPerMonth, getAverageEventsPerYear } from '@/utils/dashboardData';
 import { AnalyticsCharts } from '@/components/dashboard/AnalyticsCharts';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { subMonths, isAfter, parseISO } from 'date-fns';
 
 
 const Dashboard = () => {
@@ -55,6 +57,7 @@ const Dashboard = () => {
   const [superAdminPersonnelCount, setSuperAdminPersonnelCount] = useState<number | null>(null);
   const [eventsWithCompletePayments, setEventsWithCompletePayments] = useState<string[]>([]);
   const [showSupplierDetails, setShowSupplierDetails] = useState(false);
+  const [suppliersPeriod, setSuppliersPeriod] = useState<string>("6");
   const { value: eventsRange, setValue: setEventsRange } = usePersistentFilter<DateRange>({
     filterName: 'eventsRange',
     defaultValue: '7dias',
@@ -186,12 +189,35 @@ const Dashboard = () => {
     countPaymentsByRanges(upcomingPaymentsFormatted, currentDate), 
     [upcomingPaymentsFormatted, nowKey]
   );
-  const filteredSupplierCosts = useMemo(() => (
-    // KPIs continuam em todo o período; para última N apenas na lista detalhada
-    filterSupplierCostsByDateRange(eventSupplierCosts as any, 'todos', currentDate)
-  ), [eventSupplierCosts, nowKey]);
+  
+  const filteredSupplierCosts = useMemo(() => {
+    // 1. Filtrar por período selecionado (suppliersPeriod)
+    const months = parseInt(suppliersPeriod);
+    const cutoffDate = subMonths(new Date(), months);
+    
+    // Create a map of event dates for faster lookup
+    const eventDateMap = new Map<string, Date>();
+    if (events) {
+      events.forEach(e => {
+        if (e.start_date) {
+          eventDateMap.set(e.id, parseISO(e.start_date));
+        }
+      });
+    }
+
+    const costsFilteredByPeriod = eventSupplierCosts.filter(cost => {
+      // Prioritize event date, fallback to cost creation date
+      const dateToCheck = eventDateMap.get(cost.event_id) || (cost.created_at ? parseISO(cost.created_at) : new Date());
+      return isAfter(dateToCheck, cutoffDate);
+    });
+
+    // 2. Aplicar filtro de DataRange para lista detalhada (opcional, mantendo lógica original para não quebrar compatibilidade)
+    // Mas para os KPIs do card, queremos usar costsFilteredByPeriod
+    return costsFilteredByPeriod;
+  }, [eventSupplierCosts, events, suppliersPeriod]);
+
   const supplierGroups = useSupplierCostsByEvent(
-    eventSupplierCosts as any,
+    filteredSupplierCosts as any, // Usar custos já filtrados por período
     events as any,
     'todos',
     supplierStatusSafe
@@ -288,7 +314,7 @@ const Dashboard = () => {
                   <Button 
                     size="sm" 
                     className="mt-3"
-                    onClick={() => navigate(subscription.status === 'trial' ? '/plans' : '/upgrade')}
+                    onClick={() => navigate(subscription.status === 'trial' ? '/app/plans' : '/app/upgrade')}
                   >
                     {subscription.status === 'trial' ? 'Escolher Plano' : 'Renovar Assinatura'}
                   </Button>
@@ -305,7 +331,11 @@ const Dashboard = () => {
 
       {/* KPIs organizados por grupos: Atividade, Cadastro e Financeiro */}
       <div className="space-y-4 sm:space-y-6">
-        <KpiGroup title="Atividade" icon={<AlertCircle className="h-4 w-4 text-yellow-600" />}> 
+        <KpiGroup 
+          title="Atividade" 
+          description="Dados referentes a eventos"
+          icon={<AlertCircle className="h-4 w-4 text-yellow-600" />}
+        > 
           <div className="col-span-1">
             <KpiCard
               title="Em Andamento"
@@ -336,7 +366,11 @@ const Dashboard = () => {
           />
         </KpiGroup>
 
-        <AnalyticsCharts events={events as any} personnel={personnel as any} costs={eventSupplierCosts as any} />
+        <AnalyticsCharts 
+          events={events as any} 
+          personnel={personnel as any} 
+          costs={eventSupplierCosts as any} 
+        />
 
         <KpiGroup title="Cadastro" icon={<Users className="h-4 w-4 text-muted-foreground" />}> 
           <KpiCard
@@ -366,11 +400,25 @@ const Dashboard = () => {
       {!isSuperAdmin && userRole === 'admin' && (
         <Card className="bg-muted/30 dark:bg-muted/20">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Package className="h-4 w-4" />
-              Fornecedores
-            </CardTitle>
-            <CardDescription className="text-xs">Resumo dos fornecedores e custos por evento</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Package className="h-4 w-4" />
+                  Fornecedores
+                </CardTitle>
+                <CardDescription className="text-xs">Resumo dos fornecedores e custos por evento (Últimos {suppliersPeriod} meses)</CardDescription>
+              </div>
+              <Select value={suppliersPeriod} onValueChange={setSuppliersPeriod}>
+                <SelectTrigger className="w-[85px] h-8 text-xs">
+                  <SelectValue placeholder="Período" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3">3 m</SelectItem>
+                  <SelectItem value="6">6 m</SelectItem>
+                  <SelectItem value="12">12 m</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent className="pt-0">
             <Separator className="my-2" />

@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, UserCheck, UserX, Trash2, Mail, UserCog, Shield, UserPlus, UserMinus, Menu, Bug, LayoutDashboard, Search, TrendingUp, Edit2, Loader2, Filter, Building2, DollarSign, Database, HardDriveDownload } from 'lucide-react';
+import { Users, UserCheck, UserX, Trash2, Mail, UserCog, Shield, UserPlus, UserMinus, Menu, Bug, LayoutDashboard, Search, TrendingUp, Edit2, Loader2, Filter, Building2, DollarSign, Database, HardDriveDownload, Download, Copy } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useDebounce } from '@/hooks/use-debounce';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
@@ -103,6 +103,9 @@ export default function SuperAdmin() {
   const [currentPage, setCurrentPage] = useState(1);
   const debouncedUserSearch = useDebounce(userSearchQuery, 300);
   const itemsPerPage = 20;
+  const [sortField, setSortField] = useState<'name'|'team'|'status'|'last_sign_in_at'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc'|'desc'>('asc');
+  const [searchInputEl, setSearchInputEl] = useState<HTMLInputElement | null>(null);
   
   // Management dialog state
   const [managementDialog, setManagementDialog] = useState<{
@@ -306,7 +309,28 @@ export default function SuperAdmin() {
       );
     }
 
-    return filtered;
+    const sorted = [...filtered].sort((a, b) => {
+      const dir = sortOrder === 'asc' ? 1 : -1;
+      if (sortField === 'name') return a.name.localeCompare(b.name) * dir;
+      if (sortField === 'team') return (a.team_name || '').localeCompare(b.team_name || '') * dir;
+      if (sortField === 'status') return (Number(a.is_approved) - Number(b.is_approved)) * dir;
+      if (sortField === 'last_sign_in_at') {
+        const av = a.last_sign_in_at ? new Date(a.last_sign_in_at).getTime() : 0;
+        const bv = b.last_sign_in_at ? new Date(b.last_sign_in_at).getTime() : 0;
+        return (av - bv) * dir;
+      }
+      return 0;
+    });
+    return sorted;
+  };
+
+  const handleSort = (field: 'name'|'team'|'status'|'last_sign_in_at') => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
   };
 
   const getUserStats = () => {
@@ -359,6 +383,13 @@ export default function SuperAdmin() {
         e.preventDefault();
         setGlobalSearchOpen(true);
       }
+      if (e.key === '/') {
+        e.preventDefault();
+        searchInputEl?.focus();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+        setActiveTab('backups');
+      }
     };
     
     window.addEventListener('keydown', handleKeyDown);
@@ -368,6 +399,34 @@ export default function SuperAdmin() {
   const handleNavigateFromSearch = (tab: string, id?: string) => {
     setActiveTab(tab);
     // TODO: Scroll to item if id is provided
+  };
+
+  const handleExportCsv = () => {
+    const rows = filteredUsers.map(u => ({
+      nome: u.name,
+      email: u.email,
+      equipe: u.team_name || '',
+      aprovado: u.is_approved ? 'sim' : 'não',
+      ultimo_acesso: u.last_sign_in_at || '',
+    }));
+    const header = Object.keys(rows[0] || { nome: '', email: '', equipe: '', aprovado: '', ultimo_acesso: '' });
+    const csv = [header.join(','), ...rows.map(r => header.map(h => String((r as any)[h]).replace(/"/g, '""')).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'usuarios.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyEmails = () => {
+    const emails = filteredUsers.filter(u => selectedUsers.includes(u.user_id)).map(u => u.email).join(', ');
+    if (!emails) return;
+    navigator.clipboard.writeText(emails);
+    toast({ title: 'Copiado', description: 'Emails copiados para a área de transferência' });
   };
 
   const fetchBackups = async () => {
@@ -409,7 +468,10 @@ export default function SuperAdmin() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
         <div className="flex-1 min-w-0">
           <h1 className="text-xl sm:text-2xl md:text-3xl font-bold break-words">Super Administração</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground truncate">Gerenciamento global da plataforma PlannerSystem</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">Gerenciamento global da plataforma PlannerSystem</p>
+            <Badge variant="outline" className="text-[10px]">{activeTab}</Badge>
+          </div>
         </div>
         
         <Button
@@ -676,6 +738,7 @@ export default function SuperAdmin() {
                     value={userSearchQuery}
                     onChange={(e) => setUserSearchQuery(e.target.value)}
                     className="pl-10 w-full"
+                    ref={setSearchInputEl}
                   />
                 </div>
                 <Select value={userFilter} onValueChange={(value: any) => setUserFilter(value)}>
@@ -753,11 +816,11 @@ export default function SuperAdmin() {
                 <div className="flex gap-2">
                   <Button 
                     variant="outline" 
-                    onClick={handleNotifyUsers}
+                    onClick={handleCopyEmails}
                     className="flex items-center gap-2"
                   >
-                    <Mail className="h-4 w-4" />
-                    Notificar Selecionados ({selectedUsers.length})
+                    <Copy className="h-4 w-4" />
+                    Copiar Emails ({selectedUsers.length})
                   </Button>
                   <Button 
                     variant="destructive" 
@@ -766,6 +829,14 @@ export default function SuperAdmin() {
                   >
                     <Trash2 className="h-4 w-4" />
                     Excluir Selecionados ({selectedUsers.length})
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleExportCsv}
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Exportar CSV
                   </Button>
                 </div>
               </CardContent>
@@ -829,10 +900,18 @@ export default function SuperAdmin() {
                               }}
                             />
                           </TableHead>
-                          <TableHead>Usuário</TableHead>
-                          <TableHead>Empresa</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Último Acesso</TableHead>
+                          <TableHead>
+                            <button className="flex items-center gap-1" onClick={() => handleSort('name')}>Usuário{sortField==='name' && (sortOrder==='asc'?' ▲':' ▼')}</button>
+                          </TableHead>
+                          <TableHead>
+                            <button className="flex items-center gap-1" onClick={() => handleSort('team')}>Empresa{sortField==='team' && (sortOrder==='asc'?' ▲':' ▼')}</button>
+                          </TableHead>
+                          <TableHead>
+                            <button className="flex items-center gap-1" onClick={() => handleSort('status')}>Status{sortField==='status' && (sortOrder==='asc'?' ▲':' ▼')}</button>
+                          </TableHead>
+                          <TableHead>
+                            <button className="flex items-center gap-1" onClick={() => handleSort('last_sign_in_at')}>Último Acesso{sortField==='last_sign_in_at' && (sortOrder==='asc'?' ▲':' ▼')}</button>
+                          </TableHead>
                           <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>

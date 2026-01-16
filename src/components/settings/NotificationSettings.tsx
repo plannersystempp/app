@@ -19,6 +19,7 @@ export const NotificationSettings: React.FC = () => {
     unsubscribeFromPush,
     updatePreferences,
     sendTestNotification,
+    sendServerTestNotification,
   } = useNotifications();
 
   const handleTogglePreference = async (key: keyof typeof preferences) => {
@@ -113,7 +114,16 @@ export const NotificationSettings: React.FC = () => {
                 size="sm"
               >
                 <TestTube className="w-4 h-4 mr-2" />
-                Enviar Teste
+                Teste Local
+              </Button>
+              <Button
+                onClick={sendServerTestNotification}
+                disabled={loading}
+                variant="default"
+                size="sm"
+              >
+                <TestTube className="w-4 h-4 mr-2" />
+                Teste Servidor
               </Button>
             </div>
 

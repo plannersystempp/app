@@ -33,7 +33,7 @@
       "purpose": "any"
     }
   ],
-  "start_url": "/",
+  "start_url": "/app",
   "display": "standalone",
   "theme_color": "#ffffff",
   "background_color": "#ffffff",
@@ -42,5 +42,5 @@
   "orientation": "portrait-primary",
   "prefer_related_applications": false,
   "scope": "/",
-  "id": "/"
+  "id": "/app"
 }

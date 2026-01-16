@@ -302,7 +302,7 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return;
     }
 
-    let startedLoadingFlag = !isInitialized;
+    const startedLoadingFlag = !isInitialized;
     try {
       if (startedLoadingFlag) {
         setLoading(true);

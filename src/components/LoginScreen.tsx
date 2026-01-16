@@ -8,15 +8,18 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, CheckCircle, Mail, Lock, Building2, User, ArrowRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { resetPassword } from '@/services/authService';
 import { validateEmail, validatePassword, validateName, sanitizeInput } from '@/utils/validation';
+import { useStripeCheckout } from '@/hooks/useStripeCheckout';
 
 export const LoginScreen: React.FC = () => {
   const { login, signup, isLoading, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -33,12 +36,31 @@ export const LoginScreen: React.FC = () => {
   const [inviteCode, setInviteCode] = useState('');
   const [signupMessage, setSignupMessage] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const planParam = searchParams.get('plan') || '';
+  const stripeCheckout = useStripeCheckout();
 
   useEffect(() => {
     if (user) {
       navigate('/app');
     }
   }, [user, navigate]);
+
+  useEffect(() => {
+    if (location.pathname === '/auth/signup') {
+      setIsSignUp(true);
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (planParam) {
+      try {
+        const current = localStorage.getItem('pendingSignupPlan');
+        if (current !== planParam) {
+          localStorage.setItem('pendingSignupPlan', planParam);
+        }
+      } catch {}
+    }
+  }, [planParam]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,8 +123,13 @@ export const LoginScreen: React.FC = () => {
             email: email.trim().toLowerCase(),
             password,
             options: {
-              data: { name: sanitizedName },
-              emailRedirectTo: `${window.location.origin}/`
+              data: { 
+                name: sanitizedName,
+                isCreatingCompany: true,
+                companyName: sanitizedCompanyName,
+                companyCnpj: sanitizedCnpj
+              },
+              emailRedirectTo: `${window.location.origin}/auth/signup${planParam ? `?plan=${encodeURIComponent(planParam)}` : ''}`
             }
           });
 
@@ -124,26 +151,16 @@ export const LoginScreen: React.FC = () => {
           }
 
           if (userData.user) {
-            const { data: companyData, error: companyError } = await supabase
-              .rpc('setup_company_for_current_user', {
-                p_company_name: sanitizedCompanyName,
-                p_company_cnpj: sanitizedCnpj
-              });
-
-            if (companyError) {
-              console.error('Error creating company:', companyError);
-              toast({
-                title: "Erro na criação da empresa",
-                description: "Sua conta foi criada, mas houve um erro ao configurar a empresa. Entre em contato com o suporte.",
-                variant: "destructive"
-              });
-            } else if (companyData && typeof companyData === 'object' && companyData !== null && 'success' in companyData) {
-              setSignUpSuccess(true);
-              toast({
-                title: "Cadastro realizado!",
-                description: "Sua conta e empresa foram criadas com sucesso. Verifique seu e-mail para confirmar.",
-              });
+            setSignUpSuccess(true);
+            if (planParam) {
+              try {
+                localStorage.setItem('pendingSignupPlan', planParam);
+              } catch {}
             }
+            toast({
+              title: "Cadastro realizado!",
+              description: "Verifique seu e-mail para confirmar. Após o login, iniciaremos o checkout automaticamente.",
+            });
           }
         } catch (error: any) {
           console.error('Error in admin signup:', error);

@@ -146,7 +146,7 @@ serve(async (req) => {
     console.log(`📧 Customer: ${customerId} | Email: ${customerEmail}`);
 
     // URL base para redirecionamento (apenas usado como fallback)
-    const defaultBaseUrl = 'https://atogozlqfwxztjyycjoy-2d7f5ed1.lovable.app';
+    const defaultBaseUrl = Deno.env.get('PUBLIC_SITE_URL') ?? 'http://localhost:8080';
 
     // Criar Checkout Session
     const session = await stripe.checkout.sessions.create({

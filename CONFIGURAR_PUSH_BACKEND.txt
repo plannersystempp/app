@@ -1,0 +1,31 @@
+CONFIGURAÇÃO DE PUSH NOTIFICATIONS
+==================================
+
+As chaves VAPID foram geradas e o frontend já foi configurado automaticamente.
+
+Para finalizar a configuração no Backend (Supabase), você precisa adicionar os seguintes Secrets para que a Edge Function consiga enviar notificações:
+
+1. Acesse o Dashboard do Supabase:
+   https://supabase.com/dashboard/project/atogozlqfwxztjyycjoy/settings/functions
+
+2. Adicione as seguintes variáveis em "Secrets":
+
+   VAPID_PUBLIC_KEY
+   Valor: BJB4w9Lk1JjAP1tH4_BeioOi6uqKAJK98WvmIUzC_HilQsAPoXSR7VGf8L4Q3TtQ8rEAzlKmbr2AF0WxqJdqHVE
+
+   VAPID_PRIVATE_KEY
+   Valor: 8TAWpxBW88yLGkYQAVPdxFfXkWkPC6J0fx6FAPRjIyA
+
+   VAPID_EMAIL
+   Valor: mailto:admin@plannersystem.app
+
+-----------------------------------------------------------------------
+Se estiver usando Supabase CLI localmente, execute no terminal:
+
+supabase secrets set VAPID_PUBLIC_KEY=BJB4w9Lk1JjAP1tH4_BeioOi6uqKAJK98WvmIUzC_HilQsAPoXSR7VGf8L4Q3TtQ8rEAzlKmbr2AF0WxqJdqHVE
+supabase secrets set VAPID_PRIVATE_KEY=8TAWpxBW88yLGkYQAVPdxFfXkWkPC6J0fx6FAPRjIyA
+supabase secrets set VAPID_EMAIL=mailto:admin@plannersystem.app
+-----------------------------------------------------------------------
+
+O Frontend já está configurado no arquivo .env com a chave pública.
+A Edge Function 'send-push-notification' já está pronta para usar essas chaves.

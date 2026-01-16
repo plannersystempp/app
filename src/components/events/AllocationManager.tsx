@@ -92,7 +92,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
     const endDate = new Date(Date.UTC(endYear, endMonth - 1, endDay));
 
     // Cria uma cópia da data de início para iterar sobre ela com segurança
-    let currentDate = new Date(startDate);
+    const currentDate = new Date(startDate);
 
     // Itera do início ao fim, incluindo a data final
     while (currentDate <= endDate) {

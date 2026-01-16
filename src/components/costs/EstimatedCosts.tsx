@@ -13,10 +13,6 @@ export const EstimatedCosts: React.FC = () => {
   const { events, assignments, personnel, workLogs, eventSupplierCosts, loading } = useEnhancedData();
   const [period, setPeriod] = useState('current_month');
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-
   const costData = useMemo(() => {
     if (loading || !events.length) return [];
 
@@ -126,6 +122,10 @@ export const EstimatedCosts: React.FC = () => {
       currency: 'BRL'
     }).format(value);
   };
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
 
   return (
     <div className="space-y-3 sm:space-y-4">

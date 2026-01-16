@@ -433,6 +433,42 @@ export const useNotifications = () => {
     }
   };
 
+  // Enviar notificação de teste via Backend (Edge Function)
+  const sendServerTestNotification = async () => {
+    if (!user?.id || !activeTeam?.id) return;
+
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId: user.id,
+          title: '🌐 Teste do Servidor',
+          body: 'Esta notificação veio diretamente do servidor via Edge Function!',
+          tag: 'server-test',
+          data: { type: 'test', source: 'server' }
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Teste Enviado!',
+        description: 'Se tudo estiver correto, você receberá a notificação em instantes.',
+      });
+      
+      console.log('Server test response:', data);
+    } catch (error) {
+      console.error('Error sending server test notification:', error);
+      toast({
+        title: 'Erro no Envio',
+        description: 'Falha ao invocar Edge Function. Verifique logs do Supabase.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     permission,
     isSubscribed,
@@ -443,6 +479,7 @@ export const useNotifications = () => {
     unsubscribeFromPush,
     updatePreferences,
     sendTestNotification,
+    sendServerTestNotification,
   };
 };
 
