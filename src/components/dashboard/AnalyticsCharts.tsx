@@ -1,17 +1,20 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
 } from '@/components/ui/select';
 import { 
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend,
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area
 } from 'recharts';
 import { Event, Personnel, EventSupplierCost } from '@/contexts/data/types';
-import { getEventsByStatus, getMonthlyEvents, getPersonnelByFunction, getCostsByCategory } from '@/utils/analyticsData';
-import { PieChart as PieChartIcon, BarChart3, Users, DollarSign } from 'lucide-react';
+import { getEventsByStatus, getMonthlyEvents, getCostsByCategory } from '@/utils/analyticsData';
+import { PieChart as PieChartIcon, BarChart3, DollarSign } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatters';
 import { subMonths, isAfter, parseISO } from 'date-fns';
+import { usePersistentFilter } from '@/hooks/usePersistentFilter';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTeam } from '@/contexts/TeamContext';
 
 interface AnalyticsChartsProps {
   events: Event[];
@@ -20,12 +23,25 @@ interface AnalyticsChartsProps {
 }
 
 export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ events, personnel, costs }) => {
-  const [eventsPeriod, setEventsPeriod] = useState<string>("6");
-  const [costsPeriod, setCostsPeriod] = useState<string>("6");
+  const { user } = useAuth();
+  const { activeTeam } = useTeam();
+
+  const { value: eventsPeriod, setValue: setEventsPeriod } = usePersistentFilter<string>({
+    filterName: 'analyticsEventsPeriod',
+    defaultValue: '6',
+    userId: user?.id,
+    teamId: activeTeam?.id,
+  });
+
+  const { value: costsPeriod, setValue: setCostsPeriod } = usePersistentFilter<string>({
+    filterName: 'analyticsCostsPeriod',
+    defaultValue: '6',
+    userId: user?.id,
+    teamId: activeTeam?.id,
+  });
 
   const eventsByStatus = useMemo(() => getEventsByStatus(events), [events]);
   const monthlyEvents = useMemo(() => getMonthlyEvents(events, parseInt(eventsPeriod)), [events, eventsPeriod]);
-  const personnelByFunction = useMemo(() => getPersonnelByFunction(personnel), [personnel]);
 
   const filteredCosts = useMemo(() => {
     const months = parseInt(costsPeriod);

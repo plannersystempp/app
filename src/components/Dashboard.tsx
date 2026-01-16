@@ -57,7 +57,12 @@ const Dashboard = () => {
   const [superAdminPersonnelCount, setSuperAdminPersonnelCount] = useState<number | null>(null);
   const [eventsWithCompletePayments, setEventsWithCompletePayments] = useState<string[]>([]);
   const [showSupplierDetails, setShowSupplierDetails] = useState(false);
-  const [suppliersPeriod, setSuppliersPeriod] = useState<string>("6");
+  const { value: suppliersPeriod, setValue: setSuppliersPeriod } = usePersistentFilter<string>({
+    filterName: 'suppliersPeriod',
+    defaultValue: '6',
+    userId: user?.id,
+    teamId: activeTeam?.id,
+  });
   const { value: eventsRange, setValue: setEventsRange } = usePersistentFilter<DateRange>({
     filterName: 'eventsRange',
     defaultValue: '7dias',
