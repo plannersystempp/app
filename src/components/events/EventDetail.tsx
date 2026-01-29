@@ -11,8 +11,13 @@ import { Separator } from '@/components/ui/separator';
 import { 
   ArrowLeft, Calendar, Users, Clock, Settings2, Printer, Trash2, 
   MapPin, Phone, DollarSign, ShieldAlert, Star, Info, ChevronRight, LayoutDashboard,
-  CalendarDays, Wallet, FileText
+  CalendarDays, Wallet, FileText, ChevronDown, ChevronUp
 } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { AllocationManager } from './AllocationManager';
 import { DailyAttendanceList } from './EventDailyAttendance';
 import { EventForm } from './EventForm';
@@ -49,6 +54,7 @@ export const EventDetail: React.FC = () => {
   const [showEditForm, setShowEditForm] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('allocations');
   const [confirmPermanent, setConfirmPermanent] = useState(false);
+  const [isPermissionsOpen, setIsPermissionsOpen] = useState(false);
 
   // Buscar permissões do coordenador
   const { data: canView, isLoading: checkingPermission } = useHasEventPermission(id || '', 'view');
@@ -502,24 +508,42 @@ export const EventDetail: React.FC = () => {
             )}
           </div>
         </Tabs>
-        
+
         {/* Permission Manager - Discrete Section */}
         {userRole === 'admin' && (
           <div className="mt-12 pt-8 border-t">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
-                <ShieldAlert className="w-4 h-4" />
-                Controle de Acesso
-              </h3>
-            </div>
-            <Card className="shadow-sm border-dashed">
-              <CardContent className="pt-6">
-                <EventPermissionsManager
-                  eventId={event.id}
-                  eventName={event.name}
-                />
-              </CardContent>
-            </Card>
+            <Collapsible
+              open={isPermissionsOpen}
+              onOpenChange={setIsPermissionsOpen}
+              className="space-y-4"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
+                  <ShieldAlert className="w-4 h-4" />
+                  Controle de Acesso
+                </h3>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="p-0 h-8 w-8">
+                    {isPermissionsOpen ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                    <span className="sr-only">Toggle permissions</span>
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent>
+                <Card className="shadow-sm border-dashed">
+                  <CardContent className="pt-6">
+                    <EventPermissionsManager
+                      eventId={event.id}
+                      eventName={event.name}
+                    />
+                  </CardContent>
+                </Card>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         )}
       </div>
