@@ -118,9 +118,9 @@ export const DivisionCard: React.FC<DivisionCardProps> = ({
                 <div 
                   {...attributes} 
                   {...listeners} 
-                  className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded text-muted-foreground"
+                  className="cursor-grab active:cursor-grabbing p-3 -ml-2 hover:bg-muted rounded text-muted-foreground flex items-center justify-center min-w-[44px] min-h-[44px] touch-none"
                 >
-                  <GripVertical className="h-4 w-4" />
+                  <GripVertical className="h-5 w-5" />
                 </div>
                 
                 <CollapsibleTrigger asChild>

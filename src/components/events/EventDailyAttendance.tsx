@@ -260,26 +260,23 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
       <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-card p-4 rounded-lg border shadow-sm">
         <div className="flex flex-col gap-2 w-full md:w-auto">
           <label className="text-sm font-medium text-muted-foreground">Data Selecionada</label>
-          <ScrollArea className="w-full whitespace-nowrap md:w-[400px]">
-            <div className="flex space-x-2 pb-2">
-              {uniqueWorkDays.map((date) => (
-                <Button
-                  key={date}
-                  variant={selectedDate === date ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedDate(date)}
-                  className={cn(
-                    "flex-shrink-0",
-                    selectedDate === date && "shadow-md"
-                  )}
-                >
-                  <Calendar className="w-3 h-3 mr-2" />
-                  {formatDateBR(date)}
-                </Button>
-              ))}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+          <div className="flex flex-wrap gap-2 w-full">
+            {uniqueWorkDays.map((date) => (
+              <Button
+                key={date}
+                variant={selectedDate === date ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedDate(date)}
+                className={cn(
+                  "flex-shrink-0",
+                  selectedDate === date && "shadow-md"
+                )}
+              >
+                <Calendar className="w-3 h-3 mr-2" />
+                {date.split('-').reverse().slice(0, 2).join('/')}
+              </Button>
+            ))}
+          </div>
         </div>
 
         <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">

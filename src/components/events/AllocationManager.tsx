@@ -95,15 +95,15 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   useEffect(() => {
     if (hasInitializedDivisions) return;
     
-    if (expandedDivisionsParam) {
+    const isMobile = window.innerWidth < 768;
+
+    if (isMobile) {
+      setExpandedDivisions([]);
+    } else if (expandedDivisionsParam) {
       setExpandedDivisions(expandedDivisionsParam.split(','));
     } else {
-      // Default: Expand first 3 divisions
-      const first3 = divisions
-        .filter(d => d.event_id === eventId)
-        .slice(0, 3)
-        .map(d => d.id);
-      setExpandedDivisions(first3);
+      // Default: All divisions collapsed
+      setExpandedDivisions([]);
     }
     setHasInitializedDivisions(true);
   }, [expandedDivisionsParam, divisions, eventId, hasInitializedDivisions]);
@@ -248,13 +248,13 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // Increased tolerance
+        distance: 5, // Reduced distance for easier activation
       },
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 250, // Delay to distinguish from scroll
-        tolerance: 5,
+        delay: 150, // Reduced delay for faster interaction
+        tolerance: 15, // Increased tolerance for shaky fingers
       },
     }),
     useSensor(KeyboardSensor, {
@@ -265,6 +265,11 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const activeData = active.data.current;
+    
+    // Add haptic feedback if available
+    if (window.navigator && window.navigator.vibrate) {
+      window.navigator.vibrate(50);
+    }
     
     setActiveDragId(active.id as string);
     setActiveDragType(activeData?.type || null);

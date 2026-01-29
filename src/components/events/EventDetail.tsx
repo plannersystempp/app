@@ -224,7 +224,7 @@ export const EventDetail: React.FC = () => {
                   <Info className="w-4 h-4" />
                 </Button>
               </SheetTrigger>
-              <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
+              <SheetContent className="w-full sm:w-[540px] overflow-y-auto">
                 <SheetHeader className="mb-6">
                   <SheetTitle>Detalhes do Evento</SheetTitle>
                   <SheetDescription>Visão completa e configurações.</SheetDescription>
@@ -415,7 +415,7 @@ export const EventDetail: React.FC = () => {
             <Card className="shadow-none border bg-muted/20">
               <CardContent className="p-3 flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Financeiro</p>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Data de Pagamento</p>
                   <p className="text-sm font-medium text-foreground mt-0.5 truncate">
                     {event.payment_due_date ? formatDateBR(event.payment_due_date) : '-'}
                   </p>

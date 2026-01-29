@@ -31,4 +31,4 @@ FLUXO DE TRABALHO OBRIGATÓRIO
 REGRAS GERAIS
 
 - Idioma: Tudo em Português Brasileiro (código, comentários, commits).
-- Tudo que for modificado no projeto deve ser atualizado ou acrescentado no PRD MASTER.
+- Tudo que for modificado no projeto deve ser atualizado ou acrescentado no PRD_MASTER.md.

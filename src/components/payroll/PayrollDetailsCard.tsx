@@ -55,7 +55,7 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
   const [showPartialPaymentDialog, setShowPartialPaymentDialog] = useState(false);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   const [confirmPermanent, setConfirmPermanent] = useState(false);
-  const cacheDailyRate = (hasEventSpecificCache && eventSpecificCacheRate)
+  const cacheDailyRate = eventSpecificCacheRate
     || (detail as any).cacheRate
     || (typeof detail.workDays === 'number' && detail.workDays > 0 ? (detail.cachePay / detail.workDays) : undefined);
 

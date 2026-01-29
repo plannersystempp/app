@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
-import { Edit2, Trash2, Clock, User } from 'lucide-react';
+import { Edit2, Trash2, Clock, User, GripVertical } from 'lucide-react';
 import { getSimplifiedName } from '@/utils/nameUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -81,16 +81,23 @@ export const DraggableAllocationCard: React.FC<DraggableAllocationCardProps> = (
       <div
         ref={setNodeRef}
         style={style}
-        {...attributes}
-        {...listeners}
         className={cn(
-          "p-3 bg-muted/50 rounded-lg space-y-3 touch-none group relative",
+          "p-3 bg-muted/50 rounded-lg space-y-3 group relative",
           isDragging && "z-50 shadow-xl ring-2 ring-primary/20 bg-muted/80"
         )}
       >
         {/* Header com nome e função */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 flex-1 min-w-0">
+            {/* Drag Handle */}
+            <div 
+              {...attributes} 
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-foreground p-3 -ml-3 touch-none flex items-center justify-center min-w-[40px] min-h-[40px]"
+            >
+              <GripVertical className="w-5 h-5" />
+            </div>
+
             {person?.photo_url ? (
               <img
                 src={person.photo_url}
