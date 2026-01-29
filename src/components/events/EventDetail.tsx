@@ -524,19 +524,118 @@ export const EventDetail: React.FC = () => {
         )}
       </div>
 
-      {/* Print View Simplified (Mantida para impressão limpa) */}
+      {/* Print View Simplified */}
       <div className="print-only space-y-6 hidden">
-        {/* ... (Lógica de impressão mantida igual para não quebrar funcionalidade) ... */}
         <div className="text-center mb-8 border-b pb-4">
           <h1 className="text-2xl font-bold mb-2">{event.name}</h1>
-          <div className="flex justify-center gap-4 text-sm text-muted-foreground">
+          <div className="flex justify-center gap-4 text-sm text-gray-600">
              <span>{formatDateBR(event.start_date)} - {formatDateBR(event.end_date)}</span>
              <span>|</span>
              <span>{event.location}</span>
           </div>
         </div>
-        {/* Tabela de impressão simplificada */}
-        {/* ... */}
+
+        {/* Relatório de Alocação para Impressão */}
+        {(() => {
+          const eventDivs = divisions
+            .filter(d => d.event_id === event.id)
+            .sort((a, b) => (a.order_index || 0) - (b.order_index || 0) || a.name.localeCompare(b.name));
+            
+          const coordDivs = eventDivs.filter(d => {
+             const name = d.name.toLowerCase();
+             return name.includes('coord') || name.includes('direção') || name.includes('produção') || name.includes('liderança') || name.includes('gerência');
+          });
+          const otherDivs = eventDivs.filter(d => !coordDivs.includes(d));
+          const allDivsOrdered = [...coordDivs, ...otherDivs];
+
+          return (
+            <div className="space-y-8">
+              {allDivsOrdered.map(division => {
+                const divisionAssignments = eventAssignments.filter(a => a.division_id === division.id);
+                if (divisionAssignments.length === 0) return null;
+
+                return (
+                  <div key={division.id} className="break-inside-avoid">
+                    <h3 className="text-lg font-bold border-b-2 border-gray-300 mb-4 pb-1 uppercase tracking-wider">
+                      {division.name}
+                    </h3>
+                    <table className="w-full text-sm text-left">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="py-2 font-semibold w-[30%]">Nome</th>
+                          <th className="py-2 font-semibold w-[25%]">Função</th>
+                          <th className="py-2 font-semibold w-[25%]">Dias</th>
+                          <th className="py-2 font-semibold w-[20%] text-right">Horário</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {divisionAssignments.map(assignment => {
+                          const person = personnel.find(p => p.id === assignment.personnel_id);
+                          return (
+                            <tr key={assignment.id}>
+                              <td className="py-2 font-medium">{person?.name || 'Desconhecido'}</td>
+                              <td className="py-2 text-gray-600">{assignment.function_name}</td>
+                              <td className="py-2 text-gray-600 text-xs">
+                                {assignment.work_days?.map(d => d.split('-').reverse().slice(0, 2).join('/')).join(', ')}
+                              </td>
+                              <td className="py-2 text-right text-gray-600">
+                                {assignment.start_time && assignment.end_time 
+                                  ? `${assignment.start_time} - ${assignment.end_time}`
+                                  : '-'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
+
+              {/* Sem Divisão */}
+              {(() => {
+                const noDivisionAssignments = eventAssignments.filter(a => !a.division_id);
+                if (noDivisionAssignments.length === 0) return null;
+                return (
+                  <div className="break-inside-avoid">
+                    <h3 className="text-lg font-bold border-b-2 border-gray-300 mb-4 pb-1 uppercase tracking-wider text-gray-500">
+                      Sem Divisão
+                    </h3>
+                    <table className="w-full text-sm text-left">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="py-2 font-semibold w-[30%]">Nome</th>
+                          <th className="py-2 font-semibold w-[25%]">Função</th>
+                          <th className="py-2 font-semibold w-[25%]">Dias</th>
+                          <th className="py-2 font-semibold w-[20%] text-right">Horário</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {noDivisionAssignments.map(assignment => {
+                           const person = personnel.find(p => p.id === assignment.personnel_id);
+                           return (
+                             <tr key={assignment.id}>
+                               <td className="py-2 font-medium">{person?.name || 'Desconhecido'}</td>
+                               <td className="py-2 text-gray-600">{assignment.function_name}</td>
+                               <td className="py-2 text-gray-600 text-xs">
+                                 {assignment.work_days?.map(d => d.split('-').reverse().slice(0, 2).join('/')).join(', ')}
+                               </td>
+                               <td className="py-2 text-right text-gray-600">
+                                 {assignment.start_time && assignment.end_time 
+                                   ? `${assignment.start_time} - ${assignment.end_time}`
+                                   : '-'}
+                               </td>
+                             </tr>
+                           );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </div>
+          );
+        })()}
       </div>
 
       {showEditForm && (
