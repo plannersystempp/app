@@ -56,14 +56,37 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
     [assignments, eventId]
   );
 
-  // 2. Extrair dias únicos de trabalho
+  const currentEvent = events.find(e => e.id === eventId);
+
+  // 2. Extrair dias do evento (Range completo)
   const uniqueWorkDays = useMemo(() => {
+    // Se tiver datas definidas no evento, usa o intervalo do evento
+    if (currentEvent?.start_date && currentEvent?.end_date) {
+      const dates: string[] = [];
+      const [startYear, startMonth, startDay] = currentEvent.start_date.split('-').map(Number);
+      const [endYear, endMonth, endDay] = currentEvent.end_date.split('-').map(Number);
+      
+      const startDate = new Date(Date.UTC(startYear, startMonth - 1, startDay));
+      const endDate = new Date(Date.UTC(endYear, endMonth - 1, endDay));
+      const currentDate = new Date(startDate);
+
+      while (currentDate <= endDate) {
+        const year = currentDate.getUTCFullYear();
+        const month = String(currentDate.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(currentDate.getUTCDate()).padStart(2, '0');
+        dates.push(`${year}-${month}-${day}`);
+        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      }
+      return dates;
+    }
+
+    // Fallback: Se não tiver datas no evento, usa os dias das alocações
     const days = new Set<string>();
     eventAssignments.forEach(a => {
       a.work_days?.forEach(day => days.add(day));
     });
     return Array.from(days).sort();
-  }, [eventAssignments]);
+  }, [currentEvent, eventAssignments]);
 
   // Selecionar o primeiro dia por padrão se nenhum selecionado
   React.useEffect(() => {

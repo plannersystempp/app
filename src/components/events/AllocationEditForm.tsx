@@ -36,6 +36,8 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
   const [selectedDivisionId, setSelectedDivisionId] = useState('');
   const [eventSpecificCache, setEventSpecificCache] = useState<number>(0);
   const [totalEventValue, setTotalEventValue] = useState<number>(0);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Load assignment data when form opens
@@ -45,6 +47,9 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
       setSelectedFunction(assignment.function_name);
       setSelectedDays(assignment.work_days || []);
       setSelectedDivisionId(assignment.division_id);
+      // Ensure time values are initialized correctly
+      setStartTime(assignment.start_time || '');
+      setEndTime(assignment.end_time || '');
       const cache = assignment.event_specific_cache || 0;
       setEventSpecificCache(cache);
       setTotalEventValue(cache * (assignment.work_days?.length || 0));

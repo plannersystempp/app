@@ -18,6 +18,7 @@ import { type Assignment, type Division, type Personnel } from '@/contexts/Enhan
 import { useToast } from '@/hooks/use-toast';
 import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useDndContext } from '@dnd-kit/core';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { DraggableAllocationCard } from './DraggableAllocationCard';
@@ -51,6 +52,7 @@ export const DivisionCard: React.FC<DivisionCardProps> = ({
   const { toast } = useToast();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [confirmPermanentDivision, setConfirmPermanentDivision] = useState(false);
+  const { active } = useDndContext();
 
   const {
     attributes,
@@ -58,7 +60,8 @@ export const DivisionCard: React.FC<DivisionCardProps> = ({
     setNodeRef,
     transform,
     transition,
-    isDragging
+    isDragging,
+    isOver
   } = useSortable({
     id: division.id,
     data: {
@@ -66,6 +69,8 @@ export const DivisionCard: React.FC<DivisionCardProps> = ({
       division
     }
   });
+
+  const isOverAssignment = isOver && active?.data.current?.type === 'assignment';
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -102,7 +107,10 @@ export const DivisionCard: React.FC<DivisionCardProps> = ({
 
   return (
     <div ref={setNodeRef} style={style} className={cn("h-fit", isDragging && "z-50")}>
-      <Card className={cn(isDragging && "shadow-xl ring-2 ring-primary/20")}>
+      <Card className={cn(
+        isDragging && "shadow-xl ring-2 ring-primary/20",
+        isOverAssignment && "ring-2 ring-primary bg-primary/5"
+      )}>
         <Collapsible open={isExpanded} onOpenChange={onToggle}>
           <CardHeader className="pb-3 space-y-0">
             <div className="flex items-center justify-between gap-2">

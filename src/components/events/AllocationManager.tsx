@@ -15,12 +15,14 @@ import { AllocationSearchFilter } from './allocation/AllocationSearchFilter';
 import { PersonnelForm } from '@/components/personnel/PersonnelForm';
 import { Personnel } from '@/contexts/EnhancedDataContext';
 import { useUrlState } from '@/hooks/useUrlState';
+import { useToast } from '@/hooks/use-toast';
 
 import {
   DndContext,
   closestCorners,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor, // Added TouchSensor
   useSensor,
   useSensors,
   DragOverlay,
@@ -36,18 +38,24 @@ import {
 } from '@dnd-kit/sortable';
 import { DraggableAllocationCard } from './DraggableAllocationCard';
 
+import { useWorkLogsQuery } from '@/hooks/queries/useWorkLogsQuery'; // Importar hook do React Query
+
 interface AllocationManagerProps {
   eventId: string;
 }
 
 export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId }) => {
   const { user } = useAuth();
+  const { toast } = useToast();
+  // Usar workLogs direto do React Query para ter atualizações em tempo real
+  const { data: workLogs = [] } = useWorkLogsQuery(); 
+  
   const { 
     assignments, 
     events, 
     divisions, 
     personnel, 
-    workLogs,
+    // workLogs, // Remover do EnhancedData para evitar dados obsoletos
     deleteAssignment, 
     updateAssignment, 
     updateDivision 
@@ -236,11 +244,17 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
     });
   };
 
-  // DnD Sensors
+  // DnD Sensors - Optimized for Mobile
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5,
+        distance: 8, // Increased tolerance
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250, // Delay to distinguish from scroll
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -296,44 +310,21 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
             if (oldIndex !== -1 && newIndex !== -1) {
               const newOrder = arrayMove(targetList, oldIndex, newIndex);
               
-              // Precisamos salvar a ordem global. 
-              // A estratégia é: pegar a ordem visual atual e remapear os order_index globalmente
-              // para respeitar a nova ordem visual desse subgrupo.
-              
-              // No entanto, para simplificar e evitar conflitos com índices de outros grupos:
-              // Podemos apenas trocar os order_index entre os itens afetados se eles forem sequenciais,
-              // ou redefinir o order_index de todo o subgrupo baseado em um range seguro.
-              
-              // Estratégia Segura: Recalcular order_index para TODO o grupo targetList
-              // Mantendo a relatividade.
-              
-              // Mas espere, o updateDivision espera um order_index absoluto.
-              // Se eu reordenar o grupo "Outros", eu preciso garantir que os índices continuem consistentes.
-              
-              // Vamos reconstruir a lista GLOBAL ideal baseada na mudança local.
-              const newGlobalOrder = [...eventDivisions];
-              
-              // Remover itens do targetList da lista global temporária
-              const targetIds = new Set(targetList.map(d => d.id));
-              const remainingItems = newGlobalOrder.filter(d => !targetIds.has(d.id));
-              
-              // Onde inserir o newOrder?
-              // A lógica de separação visual (Coord vs Outros) é apenas visual.
-              // O order_index dita a ordem.
-              // Se eu mudar a ordem dentro de "Outros", eu apenas preciso garantir que
-              // os itens de "Outros" tenham seus order_indices atualizados para refletir a nova sequência.
-              
-              // Vamos pegar os order_indices atuais dos itens do targetList, ordená-los,
-              // e redistribuir para os itens na nova ordem visual.
+              // Recalcular índices baseados na ordem visual atual do targetList
               const currentIndices = targetList.map(d => d.order_index || 0).sort((a, b) => a - b);
+              
+              // Se os índices forem todos 0 ou iguais, precisamos criar uma sequência
+              // Pegar o menor índice possível ou começar do 0
+              let baseIndex = currentIndices[0] || 0;
               
               const updates = newOrder.map((division, idx) => ({
                   id: division.id,
-                  // Se tivermos índices disponíveis, usamos. Se não (ex: novos itens), usamos índice base + idx
-                  order_index: currentIndices[idx] !== undefined ? currentIndices[idx] : (idx + (targetList[0]?.order_index || 0))
+                  // Garantir que a ordem seja sequencial
+                  order_index: baseIndex + idx
               }));
 
               try {
+                // Atualizar um por um para garantir
                 await Promise.all(updates.map(update => updateDivision({
                     id: update.id,
                     order_index: update.order_index

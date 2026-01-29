@@ -40,7 +40,7 @@ import {
 export const EventDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { assignments, personnel, workLogs, loading } = useEnhancedData();
+  const { assignments, personnel, workLogs, divisions, loading } = useEnhancedData();
   const { data: eventsList } = useEventsQuery();
   const deleteEventMutation = useDeleteEventMutation();
   const { user } = useAuth();
@@ -156,6 +156,7 @@ export const EventDetail: React.FC = () => {
   );
 
   const totalOvertimeHours = eventWorkLogs.reduce((sum, log) => sum + log.overtime_hours, 0);
+  const eventDivisionsCount = divisions.filter(d => d.event_id === event.id).length;
 
   const handleDeleteEvent = async () => {
     if (!confirmPermanent) {
@@ -387,7 +388,7 @@ export const EventDetail: React.FC = () => {
             <Card className="shadow-none border bg-muted/20">
               <CardContent className="p-3 flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Equipe</p>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Pessoal</p>
                   <p className="text-lg font-bold text-foreground mt-0.5">{uniquePersonnel.size}</p>
                 </div>
                 <Users className="w-4 h-4 text-muted-foreground" />
@@ -396,8 +397,8 @@ export const EventDetail: React.FC = () => {
             <Card className="shadow-none border bg-muted/20">
               <CardContent className="p-3 flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Alocações</p>
-                  <p className="text-lg font-bold text-foreground mt-0.5">{eventAssignments.length}</p>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Divisões</p>
+                  <p className="text-lg font-bold text-foreground mt-0.5">{eventDivisionsCount}</p>
                 </div>
                 <CalendarDays className="w-4 h-4 text-muted-foreground" />
               </CardContent>
