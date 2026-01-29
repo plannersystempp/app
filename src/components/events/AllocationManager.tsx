@@ -274,43 +274,84 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
     // Division Reordering
     if (active.data.current?.type === 'division' && over.data.current?.type === 'division') {
       if (active.id !== over.id) {
-        const oldIndex = eventDivisions.findIndex(d => d.id === active.id);
-        const newIndex = eventDivisions.findIndex(d => d.id === over.id);
+        // Verificar se estamos reordenando dentro do grupo de Coordenação ou Outros
+        const isCoordActive = coordDivisions.some(d => d.id === active.id);
+        const isCoordOver = coordDivisions.some(d => d.id === over.id);
+        
+        const isOtherActive = otherDivisions.some(d => d.id === active.id);
+        const isOtherOver = otherDivisions.some(d => d.id === over.id);
 
-        if (oldIndex !== -1 && newIndex !== -1) {
-          const newOrder = arrayMove(eventDivisions, oldIndex, newIndex);
-          
-          // Optimistically update all affected items
-          const updates = newOrder
-            .map((division, index) => {
-              if ((division.order_index || 0) !== index) {
-                return { id: division.id, order_index: index };
-              }
-              return null;
-            })
-            .filter(Boolean) as { id: string; order_index: number }[];
+        let targetList = null;
 
-          if (updates.length > 0) {
-            try {
-              // Update each division's order
-              await Promise.all(updates.map(update => updateDivision({
-                id: update.id,
-                order_index: update.order_index
-              } as any)));
+        if (isCoordActive && isCoordOver) {
+            targetList = coordDivisions;
+        } else if (isOtherActive && isOtherOver) {
+            targetList = otherDivisions;
+        }
+
+        if (targetList) {
+            const oldIndex = targetList.findIndex(d => d.id === active.id);
+            const newIndex = targetList.findIndex(d => d.id === over.id);
+            
+            if (oldIndex !== -1 && newIndex !== -1) {
+              const newOrder = arrayMove(targetList, oldIndex, newIndex);
               
-              toast({
-                title: "Ordem atualizada",
-                description: "A ordem das divisões foi salva."
-              });
-            } catch (error) {
-              console.error("Failed to reorder divisions", error);
-              toast({
-                title: "Erro",
-                description: "Falha ao salvar ordem das divisões",
-                variant: "destructive"
-              });
+              // Precisamos salvar a ordem global. 
+              // A estratégia é: pegar a ordem visual atual e remapear os order_index globalmente
+              // para respeitar a nova ordem visual desse subgrupo.
+              
+              // No entanto, para simplificar e evitar conflitos com índices de outros grupos:
+              // Podemos apenas trocar os order_index entre os itens afetados se eles forem sequenciais,
+              // ou redefinir o order_index de todo o subgrupo baseado em um range seguro.
+              
+              // Estratégia Segura: Recalcular order_index para TODO o grupo targetList
+              // Mantendo a relatividade.
+              
+              // Mas espere, o updateDivision espera um order_index absoluto.
+              // Se eu reordenar o grupo "Outros", eu preciso garantir que os índices continuem consistentes.
+              
+              // Vamos reconstruir a lista GLOBAL ideal baseada na mudança local.
+              const newGlobalOrder = [...eventDivisions];
+              
+              // Remover itens do targetList da lista global temporária
+              const targetIds = new Set(targetList.map(d => d.id));
+              const remainingItems = newGlobalOrder.filter(d => !targetIds.has(d.id));
+              
+              // Onde inserir o newOrder?
+              // A lógica de separação visual (Coord vs Outros) é apenas visual.
+              // O order_index dita a ordem.
+              // Se eu mudar a ordem dentro de "Outros", eu apenas preciso garantir que
+              // os itens de "Outros" tenham seus order_indices atualizados para refletir a nova sequência.
+              
+              // Vamos pegar os order_indices atuais dos itens do targetList, ordená-los,
+              // e redistribuir para os itens na nova ordem visual.
+              const currentIndices = targetList.map(d => d.order_index || 0).sort((a, b) => a - b);
+              
+              const updates = newOrder.map((division, idx) => ({
+                  id: division.id,
+                  // Se tivermos índices disponíveis, usamos. Se não (ex: novos itens), usamos índice base + idx
+                  order_index: currentIndices[idx] !== undefined ? currentIndices[idx] : (idx + (targetList[0]?.order_index || 0))
+              }));
+
+              try {
+                await Promise.all(updates.map(update => updateDivision({
+                    id: update.id,
+                    order_index: update.order_index
+                } as any)));
+                
+                toast({
+                    title: "Ordem atualizada",
+                    description: "A nova ordem foi salva."
+                });
+              } catch (error) {
+                console.error("Failed to reorder", error);
+                toast({
+                    title: "Erro",
+                    variant: "destructive",
+                    description: "Falha ao salvar a ordem."
+                });
+              }
             }
-          }
         }
       }
     }
@@ -463,13 +504,13 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
             />
           </div>
         ) : (
-          <SortableContext 
-            items={eventDivisions.map(d => d.id)}
-            strategy={rectSortingStrategy}
-          >
-            <div className="space-y-8">
-              {/* Seção de Coordenação (Destaque) */}
-              {coordDivisions.length > 0 && (
+          <div className="space-y-8">
+            {/* Seção de Coordenação (Destaque) */}
+            {coordDivisions.length > 0 && (
+              <SortableContext 
+                items={coordDivisions.map(d => d.id)}
+                strategy={rectSortingStrategy}
+              >
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-primary font-semibold border-b pb-2">
                     <Crown className="w-4 h-4" />
@@ -477,10 +518,15 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
                   </div>
                   {renderDivisionList(coordDivisions, "grid grid-cols-1 md:grid-cols-2 gap-4")}
                 </div>
-              )}
+              </SortableContext>
+            )}
 
-              {/* Demais Divisões (Grid de 3 colunas) */}
-              {otherDivisions.length > 0 && (
+            {/* Demais Divisões (Grid de 3 colunas) */}
+            {otherDivisions.length > 0 && (
+              <SortableContext 
+                items={otherDivisions.map(d => d.id)}
+                strategy={rectSortingStrategy}
+              >
                 <div className="space-y-3">
                   {coordDivisions.length > 0 && (
                     <div className="flex items-center gap-2 text-muted-foreground font-semibold border-b pb-2">
@@ -490,9 +536,9 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
                   )}
                   {renderDivisionList(otherDivisions, "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start")}
                 </div>
-              )}
-            </div>
-          </SortableContext>
+              </SortableContext>
+            )}
+          </div>
         )}
 
         <DragOverlay dropAnimation={dropAnimation}>
