@@ -2,8 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://atogozlqfwxztjyycjoy.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0b2dvemxxZnd4enRqeXljam95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAxMDQ3MjksImV4cCI6MjA2NTY4MDcyOX0.m9c9XOJoU0RQeCentl1Ibow5yBqS6NfJVpxBaF75-ik";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Custom storage adapter for cookies with domain support
 const cookieStorage = {

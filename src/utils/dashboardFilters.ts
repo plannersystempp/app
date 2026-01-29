@@ -95,7 +95,10 @@ export const filterPaymentsByDateRange = <T extends PaymentLike>(items: T[], ran
     const normalizedDueDate = new Date(dueDate);
     normalizedDueDate.setHours(0, 0, 0, 0);
     
-    return normalizedDueDate >= start && normalizedDueDate <= end;
+    // CORREÇÃO: Pagamentos devem mostrar tudo ATÉ a data final, incluindo atrasados (passado)
+    // Se definirmos start como hoje, escondemos os atrasados, o que é perigoso financeiramente.
+    // Portanto, removemos a restrição '>= start' para garantir que atrasados apareçam.
+    return normalizedDueDate <= end;
   });
 };
 
