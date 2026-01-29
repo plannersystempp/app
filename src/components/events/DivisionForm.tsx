@@ -32,7 +32,9 @@ export const DivisionForm: React.FC<DivisionFormProps> = ({
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: '',
-    description: ''
+    description: '',
+    default_entry_time: '',
+    default_exit_time: ''
   });
   const [loading, setLoading] = useState(false);
 
@@ -40,7 +42,9 @@ export const DivisionForm: React.FC<DivisionFormProps> = ({
     if (division) {
       setFormData({
         name: division.name || '',
-        description: division.description || ''
+        description: division.description || '',
+        default_entry_time: division.default_entry_time || '',
+        default_exit_time: division.default_exit_time || ''
       });
     }
   }, [division]);
@@ -64,7 +68,9 @@ export const DivisionForm: React.FC<DivisionFormProps> = ({
       await updateDivision.mutateAsync({
         ...division,
         name: formData.name.trim(),
-        description: formData.description.trim() || undefined
+        description: formData.description.trim() || undefined,
+        default_entry_time: formData.default_entry_time || undefined,
+        default_exit_time: formData.default_exit_time || undefined
       });
       
       onOpenChange(false);
@@ -122,6 +128,27 @@ export const DivisionForm: React.FC<DivisionFormProps> = ({
               placeholder="Digite uma descrição opcional"
               rows={3}
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="default_entry_time">Horário de Entrada</Label>
+              <Input
+                id="default_entry_time"
+                type="time"
+                value={formData.default_entry_time}
+                onChange={(e) => setFormData(prev => ({ ...prev, default_entry_time: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="default_exit_time">Horário de Saída</Label>
+              <Input
+                id="default_exit_time"
+                type="time"
+                value={formData.default_exit_time}
+                onChange={(e) => setFormData(prev => ({ ...prev, default_exit_time: e.target.value }))}
+              />
+            </div>
           </div>
 
           <DialogFooter>

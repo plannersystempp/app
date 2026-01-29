@@ -390,6 +390,16 @@ export const EventDetail: React.FC = () => {
                   <td className="border border-gray-300 px-4 py-2">{event.description}</td>
                 </tr>
               )}
+              {(event.default_entry_time || event.default_exit_time) && (
+                <tr>
+                  <td className="border border-gray-300 px-4 py-2 font-medium bg-gray-50">Horários Padrão</td>
+                  <td className="border border-gray-300 px-4 py-2">
+                    {event.default_entry_time && `Entrada: ${event.default_entry_time}`}
+                    {event.default_entry_time && event.default_exit_time && ' | '}
+                    {event.default_exit_time && `Saída: ${event.default_exit_time}`}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

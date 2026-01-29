@@ -79,6 +79,10 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
     setSelectedFunction,
     selectedDays,
     setSelectedDays,
+    startTime,
+    setStartTime,
+    endTime,
+    setEndTime,
     eventSpecificCache,
     setEventSpecificCache,
     divisionMode,
@@ -395,6 +399,35 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
               }
             }}
           />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="startTime">Horário de Entrada</Label>
+              <div className="relative">
+                <input
+                  type="time"
+                  id="startTime"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Opcional - sobrescreve o padrão</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="endTime">Horário de Saída</Label>
+              <div className="relative">
+                <input
+                  type="time"
+                  id="endTime"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Opcional - sobrescreve o padrão</p>
+            </div>
+          </div>
 
           {isAdmin && (
             <div className="space-y-4 p-4 border rounded-lg bg-muted/30">

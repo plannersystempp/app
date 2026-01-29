@@ -254,6 +254,28 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
             </div>
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="default_entry_time">Horário de Entrada Padrão</Label>
+              <Input
+                id="default_entry_time"
+                type="time"
+                {...register('default_entry_time')}
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="default_exit_time">Horário de Saída Padrão</Label>
+              <Input
+                id="default_exit_time"
+                type="time"
+                {...register('default_exit_time')}
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="payment_due_date">Data de Vencimento do Pagamento</Label>
             <Input

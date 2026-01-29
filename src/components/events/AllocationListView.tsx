@@ -6,6 +6,7 @@ import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { type Assignment, type Personnel } from '@/contexts/EnhancedDataContext';
 import { Clock, Edit2, Trash2, User, Calendar } from 'lucide-react';
 import { getSimplifiedName } from '@/utils/nameUtils';
+import { getExpectedWorkHours, formatTimeRange } from '@/utils/allocationUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -34,7 +35,7 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
   onDeleteAssignment,
   onEditPerson
 }) => {
-  const { personnel, workLogs } = useEnhancedData();
+  const { personnel, workLogs, events, divisions } = useEnhancedData();
   const [deleteConfirmation, setDeleteConfirmation] = useState<string | null>(null);
   const [confirmPermanent, setConfirmPermanent] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -57,6 +58,7 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
                 <tr>
                   <th className="text-left p-3 sm:p-4 font-medium text-sm">Nome</th>
                   <th className="text-left p-3 sm:p-4 font-medium text-sm">Função</th>
+                  <th className="text-center p-3 sm:p-4 font-medium text-sm">Horário</th>
                   <th className="text-center p-3 sm:p-4 font-medium text-sm">Dias</th>
                   <th className="text-center p-3 sm:p-4 font-medium text-sm">H. Extras</th>
                   <th className="text-right p-3 sm:p-4 font-medium text-sm">Ações</th>
@@ -119,6 +121,16 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
                         <Badge variant="outline" className="text-xs">
                           {assignment.function_name}
                         </Badge>
+                      </td>
+                      <td className="p-2 md:p-4 text-center">
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {(() => {
+                            const division = divisions.find(d => d.id === assignment.division_id);
+                            const event = events.find(e => e.id === assignment.event_id);
+                            const { startTime, endTime } = getExpectedWorkHours(assignment, division, event);
+                            return formatTimeRange(startTime, endTime);
+                          })()}
+                        </span>
                       </td>
                       <td className="p-2 md:p-4 text-center">
                         <span className="font-medium text-xs md:text-sm">{assignment.work_days.length}</span>
@@ -218,6 +230,15 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
                         <Badge variant="outline" className="text-xs px-1 py-0">
                           {assignment.function_name}
                         </Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        <Clock className="w-3 h-3 inline mr-1" />
+                        {(() => {
+                          const division = divisions.find(d => d.id === assignment.division_id);
+                          const event = events.find(e => e.id === assignment.event_id);
+                          const { startTime, endTime } = getExpectedWorkHours(assignment, division, event);
+                          return formatTimeRange(startTime, endTime);
+                        })()}
                       </div>
                     </div>
                   </div>

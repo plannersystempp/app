@@ -26,6 +26,8 @@ export const useAllocationForm = ({
   const [divisionMode, setDivisionMode] = useState<'existing' | 'new'>('existing');
   const [selectedDivisionId, setSelectedDivisionId] = useState('');
   const [newDivisionName, setNewDivisionName] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Get divisions for this specific event
@@ -57,6 +59,8 @@ export const useAllocationForm = ({
     setDivisionMode(eventDivisions.length > 0 ? 'existing' : 'new');
     setSelectedDivisionId('');
     setNewDivisionName('');
+    setStartTime('');
+    setEndTime('');
   };
 
   const isFormValid = () => {
@@ -113,6 +117,8 @@ export const useAllocationForm = ({
         division_id: finalDivisionId,
         function_name: selectedFunction,
         work_days: selectedDays,
+        start_time: startTime || undefined,
+        end_time: endTime || undefined,
         ...(eventSpecificCache > 0 && { event_specific_cache: eventSpecificCache })
       });
 
@@ -132,6 +138,10 @@ export const useAllocationForm = ({
     setSelectedFunction,
     selectedDays,
     setSelectedDays,
+    startTime,
+    setStartTime,
+    endTime,
+    setEndTime,
     eventSpecificCache,
     setEventSpecificCache,
     divisionMode,

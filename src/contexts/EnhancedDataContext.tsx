@@ -55,6 +55,8 @@ export interface Event {
   client_contact_phone?: string;
   setup_start_date?: string;
   setup_end_date?: string;
+  default_entry_time?: string;
+  default_exit_time?: string;
   status?: 'planejado' | 'em_andamento' | 'concluido' | 'cancelado' | 'concluido_pagamento_pendente';
   user_id: string;
   created_at: string;
@@ -109,6 +111,8 @@ export interface Division {
   event_id: string;
   name: string;
   description?: string;
+  default_entry_time?: string;
+  default_exit_time?: string;
   created_at: string;
 }
 
@@ -500,6 +504,8 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
               personnel_id: assignment.personnel_id || '',
               function_name: assignment.function_name || '',
               work_days: assignment.work_days || [],
+              start_time: assignment.start_time || '',
+              end_time: assignment.end_time || '',
               event_specific_cache: assignment.event_specific_cache || undefined,
               created_at: assignment.created_at || ''
             });
@@ -1015,6 +1021,8 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
           event_id: data.event_id,
           name: data.name,
           description: data.description,
+          default_entry_time: data.default_entry_time,
+          default_exit_time: data.default_exit_time,
           created_at: data.created_at
         };
         console.log('Division created successfully:', newDivision);
@@ -1042,7 +1050,12 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
       // 1. Envia a atualização para o banco
       const { error } = await supabase
         .from('event_divisions')
-        .update({ name: division.name, description: division.description })
+        .update({ 
+          name: division.name, 
+          description: division.description,
+          default_entry_time: division.default_entry_time,
+          default_exit_time: division.default_exit_time
+        })
         .eq('id', division.id)
         .eq('team_id', activeTeam.id);
 

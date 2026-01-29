@@ -155,24 +155,19 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
 
         </div>
 
-        <div className="border-t pt-3">
-          <div className="text-xs text-muted-foreground mb-2">Dias Alocados:</div>
-          <div className="flex flex-wrap gap-1">
-            {assignment.work_days.slice(0, 5).map((day, index) => (
-              <Badge key={index} variant="outline" className="text-xs">
-                {new Date(day + 'T12:00:00').toLocaleDateString('pt-BR', {
-                  weekday: 'short',
-                  day: '2-digit',
-                  month: '2-digit'
-                })}
-              </Badge>
-            ))}
-            {assignment.work_days.length > 5 && (
-              <Badge variant="secondary" className="text-xs">
-                +{assignment.work_days.length - 5} dias...
-              </Badge>
-            )}
-          </div>
+        <div className="flex justify-center gap-2 my-4">
+          {assignment.work_days.map((day) => {
+            const hasLog = assignmentWorkLogs.some(log => log.work_date === day);
+            return (
+              <div 
+                key={day}
+                className={`h-2 w-2 rounded-full transition-colors duration-300 ${
+                  hasLog ? 'bg-green-500' : 'bg-muted-foreground/30'
+                }`}
+                title={new Date(day + 'T12:00:00').toLocaleDateString('pt-BR')}
+              />
+            );
+          })}
         </div>
 
         {/* Financial Section for Admins */}
@@ -240,7 +235,7 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
           onClick={() => setWorkLogManagerOpen(true)}
         >
           <Clock className="h-4 w-4 mr-2" />
-          Gerenciar Horas de Trabalho
+          Lançar horas extras
         </Button>
       </CardContent>
 
