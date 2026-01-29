@@ -661,8 +661,13 @@ Deno.serve(async (req) => {
             const workDate = allocation.work_days[Math.floor(Math.random() * allocation.work_days.length)];
             absencesData.push({
               team_id: teamId,
-              assignment_id: allocation.id,
+              event_id: allocation.event_id,
+              employee_id: allocation.personnel_id,
               work_date: workDate,
+              attendance_status: 'absent',
+              hours_worked: 0,
+              overtime_hours: 0,
+              total_pay: 0,
               logged_by_id: demoUserId,
               notes: 'Falta registrada - ' + (['Doença', 'Imprevisto', 'Outro compromisso'][Math.floor(Math.random() * 3)])
             });
@@ -670,7 +675,7 @@ Deno.serve(async (req) => {
         }
 
         const { data: absences } = await supabaseAdmin
-          .from('absences')
+          .from('work_records')
           .insert(absencesData)
           .select();
 

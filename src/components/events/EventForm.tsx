@@ -31,6 +31,8 @@ interface EventFormData {
   setup_start_date: string;
   setup_end_date: string;
   payment_due_date: string;
+  default_entry_time: string;
+  default_exit_time: string;
   status: 'planejado' | 'em_andamento' | 'concluido' | 'cancelado' | 'concluido_pagamento_pendente';
 }
 
@@ -54,6 +56,8 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
       setup_start_date: '',
       setup_end_date: '',
       payment_due_date: '',
+      default_entry_time: '',
+      default_exit_time: '',
       status: 'planejado'
     }
   });
@@ -122,7 +126,9 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
         client_contact_phone: data.client_contact_phone?.trim() || null,
         payment_due_date: data.payment_due_date || null,
         setup_start_date: data.setup_start_date || null,
-        setup_end_date: data.setup_end_date || null
+        setup_end_date: data.setup_end_date || null,
+        default_entry_time: data.default_entry_time || null,
+        default_exit_time: data.default_exit_time || null
       };
       
       if (event) {

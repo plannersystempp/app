@@ -62,6 +62,8 @@ export interface EventAssignment {
   division_id: string;
   function_name: string;
   work_days: string[];
+  start_time?: string;
+  end_time?: string;
   event_specific_cache?: number;
   team_id: string;
   created_at: string;
@@ -72,6 +74,7 @@ export interface Division {
   event_id: string;
   name: string;
   description?: string;
+  order_index?: number;
   team_id: string;
   created_at: string;
 }

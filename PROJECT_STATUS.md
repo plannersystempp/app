@@ -1,8 +1,34 @@
 # Status do Projeto PlannerSystem
 
-## 📅 Última Atualização: 27/01/2026
+## 📅 Última Atualização: 28/01/2026
 
-## � 2026-01-27 | Versão: 1.1.2
+## 🕒 2026-01-28 | Versão: 1.2.6
+### 🔹 Fix: Tratamento de Erro de Schema em Alocações (Hotfix)
+- **O que mudou:** Implementada resiliência na criação de alocações quando o banco de dados está desatualizado (Erro 400: column "end_time" does not exist).
+- **Correções:**
+  - **Fallback de Inserção:** Se o banco rejeitar a criação de alocação por falta das colunas de horário, o sistema tenta novamente removendo esses campos automaticamente.
+  - **Script de Correção:** Gerado arquivo `FIX_DB_SCHEMA.sql` na raiz do projeto para atualizar o banco.
+- **Arquivos afetados:**
+  - `src/contexts/EnhancedDataContext.tsx`
+  - `FIX_DB_SCHEMA.sql` (Novo)
+- **Mudança no DB:** Pendente (Script fornecido).
+- **Decisões Críticas:**
+  - **Graceful Degradation:** Em vez de quebrar a aplicação (Tela de Erro), o sistema salva os dados parciais (Alocação sem horários) e avisa o usuário. Isso mantém a operação crítica funcionando.
+---
+
+## 🕒 2026-01-27 | Versão: 1.1.3
+### ♻️ Reaplicação de Melhorias e Correções de Build
+- **Status:** Recuperado e Estável.
+- **Ações Realizadas:**
+  1. **Reimplementação do Filtro de Fornecedores:** Restaurada a lógica para ignorar fornecedores sem data de pagamento e validar datas antigas (<1900).
+  2. **Alerta Detalhado:** O alerta global agora discrimina corretamente entre Eventos, Fornecedores e Avulsos.
+  3. **Navegação Inteligente:** Botão "Ver Detalhes" agora rola para o card específico da pendência.
+  4. **Correção de Sintaxe JSX:** Fechamento correto de tags `div` em `Dashboard.tsx` que estavam causando erros de build.
+  5. **Correção de Dependência:** Recriação do componente `SubscriptionDetailsDialog` que estava faltando e impedindo o build.
+- **Arquivos afetados:** `src/components/Dashboard.tsx`, `src/components/subscriptions/SubscriptionDetailsDialog.tsx`.
+---
+
+## 🕒 2026-01-27 | Versão: 1.1.2
 ### 🔹 Hotfix: Correção de Build e Sintaxe JSX
 - **O que mudou:** Resolução de erros de tags HTML não fechadas (`</div>`) que quebravam o build do Vite e geravam erros de "símbolo já declarado".
 - **Arquivos afetados:** `src/components/Dashboard.tsx`

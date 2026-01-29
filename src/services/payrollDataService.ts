@@ -40,6 +40,9 @@ export interface RawWorkLog {
   total_pay?: number;
   team_id?: string;
   created_at?: string;
+  attendance_status?: 'present' | 'absent' | 'pending';
+  logged_by_id?: string;
+  notes?: string;
 }
 
 export interface RawPayrollClosing {
@@ -56,7 +59,7 @@ export interface RawPayrollClosing {
 
 export interface RawAbsence {
   id: string;
-  assignment_id: string;
+  assignment_id?: string; // Tornar opcional pois work_records não tem assignment_id direto
   team_id?: string;
   work_date: string;
   notes?: string;
@@ -65,6 +68,7 @@ export interface RawAbsence {
   personnel_allocations?: {
     event_id: string;
   };
+  employee_id?: string; // Adicionar para facilitar mapeamento
 }
 
 export interface RawPersonnelPayment {
@@ -95,23 +99,19 @@ export const payrollDataService = {
   async getEventPayroll(eventId: string, teamConfig?: TeamOvertimeConfig, existingPersonnel?: any[]) {
     console.log('[PayrollService] Fetching data for event:', eventId);
 
-    const [allocationsData, workLogsData, closingsData, absencesData, paymentsData] = await Promise.all([
+    const [allocationsData, workLogsData, closingsData, paymentsData] = await Promise.all([
       supabase
         .from('personnel_allocations')
         .select('id, event_id, personnel_id, division_id, team_id, work_days, event_specific_cache, function_name, created_at')
         .eq('event_id', eventId),
       supabase
         .from('work_records')
-        .select('id, event_id, employee_id, work_date, hours_worked, overtime_hours, total_pay, team_id, created_at')
+        .select('id, event_id, employee_id, work_date, hours_worked, overtime_hours, total_pay, team_id, created_at, attendance_status, logged_by_id, notes')
         .eq('event_id', eventId),
       supabase
         .from('payroll_closings')
         .select('id, event_id, personnel_id, team_id, total_amount_paid, paid_at, paid_by_id, notes, created_at')
         .eq('event_id', eventId),
-      supabase
-        .from('absences')
-        .select('id, assignment_id, team_id, work_date, notes, logged_by_id, created_at, personnel_allocations!inner(event_id)')
-        .eq('personnel_allocations.event_id', eventId),
       supabase
         .from('personnel_payments')
         .select('id, amount, paid_at, notes, created_at, personnel_id, related_events')
@@ -134,11 +134,26 @@ export const payrollDataService = {
       personnelData?.forEach(p => personnelMap.set(p.id, p));
     }
 
+    // Derivar ausências a partir de work_records
+    const allWorkLogs = (workLogsData.data || []) as RawWorkLog[];
+    const derivedAbsences = allWorkLogs
+      .filter(log => log.attendance_status === 'absent')
+      .map(log => ({
+        id: log.id,
+        work_date: log.work_date,
+        notes: log.notes,
+        logged_by_id: log.logged_by_id,
+        created_at: log.created_at || new Date().toISOString(),
+        team_id: log.team_id,
+        employee_id: log.employee_id,
+        assignment_id: undefined // Não existe em work_records
+      })) as RawAbsence[];
+
     const rawData = {
       allocations: (allocationsData.data || []) as RawAllocation[],
-      workLogs: (workLogsData.data || []) as RawWorkLog[],
+      workLogs: allWorkLogs,
       closings: (closingsData.data || []) as RawPayrollClosing[],
-      absences: (absencesData.data || []) as RawAbsence[],
+      absences: derivedAbsences,
       payments: (paymentsData.data || []) as RawPersonnelPayment[]
     };
 
@@ -210,7 +225,7 @@ export const payrollDataService = {
     const allocationIds = filteredAllocations.map(a => a.id);
 
     // Fetch related data in parallel
-    const [closingsData, paymentsData, absencesData, workLogsData] = await Promise.all([
+    const [closingsData, paymentsData, workLogsData] = await Promise.all([
       supabase
         .from('payroll_closings')
         .select('id, event_id, personnel_id, total_amount_paid, paid_at, paid_by_id, notes, created_at, team_id')
@@ -221,14 +236,26 @@ export const payrollDataService = {
         .eq('team_id', teamId)
         .eq('payment_status', 'paid'),
       supabase
-        .from('absences')
-        .select('id, assignment_id, team_id, work_date, notes, logged_by_id, created_at, personnel_allocations!inner(event_id)')
-        .in('assignment_id', allocationIds),
-      supabase
         .from('work_records')
-        .select('id, event_id, employee_id, work_date, hours_worked, overtime_hours, total_pay, team_id, created_at')
+        .select('id, event_id, employee_id, work_date, hours_worked, overtime_hours, total_pay, team_id, created_at, attendance_status, logged_by_id, notes')
         .in('event_id', eventIds)
     ]);
+
+    const allWorkLogs = (workLogsData.data || []) as RawWorkLog[];
+    
+    // Derive absences from work_records to avoid querying deprecated 'absences' table
+    const allAbsences = allWorkLogs
+      .filter(log => log.attendance_status === 'absent')
+      .map(log => ({
+        id: log.id,
+        work_date: log.work_date,
+        notes: log.notes,
+        logged_by_id: log.logged_by_id,
+        created_at: log.created_at || new Date().toISOString(),
+        team_id: log.team_id,
+        employee_id: log.employee_id,
+        personnel_allocations: { event_id: log.event_id }
+      })) as RawAbsence[];
 
     // Prepare Personnel Map from the joined query
     const personnelMap = new Map<string, any>();
@@ -253,9 +280,9 @@ export const payrollDataService = {
         // Filter data for this event
         const eventRawData = {
             allocations: eventAllocations,
-            workLogs: (workLogsData.data || []).filter(l => l.event_id === eventId) as RawWorkLog[],
+            workLogs: allWorkLogs.filter(l => l.event_id === eventId),
             closings: (closingsData.data || []).filter(c => c.event_id === eventId) as RawPayrollClosing[],
-            absences: (absencesData.data || []).filter(a => eventAllocations.some(ea => ea.id === a.assignment_id)) as RawAbsence[],
+            absences: allAbsences.filter(a => a.personnel_allocations?.event_id === eventId),
             // Payments are trickier because they can be multi-event. We pass all and let the calculator filter.
             payments: (paymentsData.data || []) as RawPersonnelPayment[]
         };
@@ -323,9 +350,15 @@ export const payrollDataService = {
 
       // Filter logs and absences for this person
       const personWorkLogs = data.workLogs.filter(log => log.employee_id === personnelId);
-      const personAbsences = data.absences.filter(absence => 
-        allocations.some(allocation => allocation.id === absence.assignment_id)
-      );
+      
+      // Filter absences based on employee_id (from work_records)
+      const personAbsences = data.absences.filter(absence => {
+        if (absence.employee_id) {
+          return absence.employee_id === personnelId;
+        }
+        // Fallback for legacy absences structure (should not be hit if fully migrated)
+        return false;
+      });
 
       // --- UNIFIED PAYMENT LOGIC ---
       
@@ -374,10 +407,10 @@ export const payrollDataService = {
       const absencesData = personAbsences as unknown as PayrollCalc.AbsenceData[];
 
       // --- CALCULATIONS ---
-      const totalWorkDays = PayrollCalc.calculateWorkedDays(allocationsData, absencesData);
+      const totalWorkDays = PayrollCalc.calculateWorkedDays(allocationsData, workLogsData);
       const regularHours = PayrollCalc.calculateTotalRegularHours(workLogsData);
       const baseSalary = PayrollCalc.calculateBaseSalary(person);
-      const cachePay = PayrollCalc.calculateCachePay(allocationsData, person, absencesData);
+      const cachePay = PayrollCalc.calculateCachePay(allocationsData, person, workLogsData);
       
       const overtimeRate = person.overtime_rate || 0;
       const dailyCache = PayrollCalc.getDailyCacheRate(allocationsData, person);
@@ -428,5 +461,22 @@ export const payrollDataService = {
         overtimeRemainingHours: overtimeResult.remainingHours
       };
     }).filter(Boolean) as PayrollDetails[];
+  },
+
+  /**
+   * Helper to parse related_events (which can be string or array)
+   */
+  parseRelatedEvents(relatedEvents: any): string[] {
+    if (!relatedEvents) return [];
+    if (Array.isArray(relatedEvents)) return relatedEvents;
+    if (typeof relatedEvents === 'string') {
+        try {
+            const parsed = JSON.parse(relatedEvents);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
   }
 };

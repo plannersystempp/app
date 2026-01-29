@@ -91,7 +91,12 @@ export const DivisionForm: React.FC<DivisionFormProps> = ({
     if (loading) return;
     onOpenChange(newOpen);
     if (!newOpen) {
-      setFormData({ name: '', description: '' });
+      setFormData({ 
+        name: '', 
+        description: '',
+        default_entry_time: '',
+        default_exit_time: ''
+      });
     }
   };
 

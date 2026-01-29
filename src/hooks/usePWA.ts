@@ -46,6 +46,8 @@ export const usePWA = () => {
         .register('/sw.js')
         .then((registration) => {
           console.log('Service Worker registered successfully:', registration.scope);
+          // Forçar update imediato para garantir que a versão segura seja carregada
+          registration.update();
           
           // Check for updates
           registration.addEventListener('updatefound', () => {

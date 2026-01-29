@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { formatDate, formatDateTime } from '@/utils/formatters';
+import { PaginationControl } from '@/components/shared/PaginationControl';
 
 interface AbsenceHistoryDetail {
   id: string;
@@ -25,6 +26,8 @@ interface AbsenceHistoryDetail {
 interface AbsenceHistoryProps {
   eventId: string;
 }
+
+const ITEMS_PER_PAGE = 10;
 
 const fetchEventAbsenceHistory = async (eventId: string, teamId: string): Promise<AbsenceHistoryDetail[]> => {
   const { data, error } = await supabase
@@ -76,6 +79,7 @@ export const AbsenceHistory: React.FC<AbsenceHistoryProps> = ({ eventId }) => {
   const { activeTeam } = useTeam();
   const [searchTerm, setSearchTerm] = useState('');
   const [divisionFilter, setDivisionFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: absenceHistory = [], isLoading } = useQuery({
     queryKey: ['absence-history', eventId, activeTeam?.id],
@@ -97,6 +101,18 @@ export const AbsenceHistory: React.FC<AbsenceHistoryProps> = ({ eventId }) => {
     
     return matchesSearch && matchesDivision;
   });
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredAbsences.length / ITEMS_PER_PAGE);
+  const paginatedAbsences = filteredAbsences.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  // Reset page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, divisionFilter]);
 
   if (user?.role !== 'admin') {
     return (
@@ -177,8 +193,9 @@ export const AbsenceHistory: React.FC<AbsenceHistoryProps> = ({ eventId }) => {
           </CardContent>
         </Card>
       ) : (
+        <div className="space-y-4">
           <div className="space-y-2">
-            {filteredAbsences.map((absence) => (
+            {paginatedAbsences.map((absence) => (
               <Card key={absence.id}>
                 <CardContent className="p-3">
                   <div className="flex items-start justify-between mb-2">
@@ -224,6 +241,15 @@ export const AbsenceHistory: React.FC<AbsenceHistoryProps> = ({ eventId }) => {
               </Card>
             ))}
           </div>
+
+          <PaginationControl
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            itemsPerPage={ITEMS_PER_PAGE}
+            totalItems={filteredAbsences.length}
+          />
+        </div>
       )}
     </div>
   );

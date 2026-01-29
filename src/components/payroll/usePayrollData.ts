@@ -1,5 +1,4 @@
-
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import type { Personnel } from '@/contexts/EnhancedDataContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -47,65 +46,165 @@ export const usePayrollData = (selectedEventId: string) => {
     fetchTeamConfig();
   }, [activeTeam]);
 
-  useEffect(() => {
-    const fetchEventData = async () => {
-      if (!selectedEventId || !activeTeam?.id) {
-        setEventData({ allocations: [], workLogs: [], closings: [], absences: [] });
+  const fetchPixKeys = useCallback(async (personnelIds: string[]) => {
+    try {
+      // Remove duplicates
+      const uniqueIds = [...new Set(personnelIds)];
+      
+      const { data, error } = await supabase.functions.invoke('pix-key/get', {
+        body: { personnel_ids: uniqueIds }
+      });
+
+      if (error) {
+        console.error('Error fetching PIX keys:', error);
         return;
       }
 
-      try {
-        setLoading(true);
+      setPixKeys(data?.pix_keys || {});
+    } catch (error) {
+      console.error('Error calling PIX key function:', error);
+    }
+  }, []);
 
-        // OTIMIZADO - SELECT específico ao invés de *
-        const [allocationsData, workLogsData, closingsData, absencesData] = await Promise.all([
-          supabase
-            .from('personnel_allocations')
-            .select('id, event_id, personnel_id, division_id, team_id, work_days, event_specific_cache, function_name, created_at')
-            .eq('event_id', selectedEventId)
-            .eq('team_id', activeTeam.id),
-          supabase
-            .from('work_records')
-            .select('id, event_id, employee_id, work_date, hours_worked, overtime_hours, total_pay, team_id, created_at')
-            .eq('event_id', selectedEventId)
-            .eq('team_id', activeTeam.id),
-          supabase
-            .from('payroll_closings')
-            .select('id, event_id, personnel_id, team_id, total_amount_paid, paid_at, paid_by_id, notes, created_at')
-            .eq('event_id', selectedEventId)
-            .eq('team_id', activeTeam.id),
-          supabase
-            .from('absences')
-            .select('id, assignment_id, team_id, work_date, notes, logged_by_id, created_at, personnel_allocations!inner(event_id, team_id)')
-            .eq('personnel_allocations.event_id', selectedEventId)
-            .eq('personnel_allocations.team_id', activeTeam.id)
-        ]);
+  const fetchEventData = useCallback(async (showLoading = true) => {
+    if (!selectedEventId || !activeTeam?.id) {
+      setEventData({ allocations: [], workLogs: [], closings: [], absences: [] });
+      return;
+    }
 
-        setEventData({
-          allocations: allocationsData.data || [],
-          workLogs: workLogsData.data || [],
-          closings: closingsData.data || [],
-          absences: absencesData.data || []
-        });
+    try {
+      if (showLoading) setLoading(true);
 
-        // Fetch PIX keys for admins
-        if (isAdmin && allocationsData.data?.length) {
-          await fetchPixKeys(allocationsData.data.map(a => a.personnel_id));
-        }
-      } catch (error) {
-        console.error('Error fetching event data:', error);
-        toast({
-          title: "Erro",
-          description: "Falha ao carregar dados do evento",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
+      // OTIMIZADO - SELECT específico ao invés de *
+      const [allocationsData, workLogsData, closingsData, absencesData] = await Promise.all([
+        supabase
+          .from('personnel_allocations')
+          .select('id, event_id, personnel_id, division_id, team_id, work_days, event_specific_cache, function_name, created_at')
+          .eq('event_id', selectedEventId)
+          .eq('team_id', activeTeam.id),
+        supabase
+          .from('work_records')
+          .select('id, event_id, employee_id, work_date, hours_worked, overtime_hours, total_pay, team_id, created_at, attendance_status')
+          .eq('event_id', selectedEventId)
+          .eq('team_id', activeTeam.id),
+        supabase
+          .from('payroll_closings')
+          .select('id, event_id, personnel_id, team_id, total_amount_paid, paid_at, paid_by_id, notes, created_at')
+          .eq('event_id', selectedEventId)
+          .eq('team_id', activeTeam.id),
+        supabase
+          .from('absences')
+          .select('id, assignment_id, team_id, work_date, notes, logged_by_id, created_at, personnel_allocations!inner(event_id, team_id)')
+          .eq('personnel_allocations.event_id', selectedEventId)
+          .eq('personnel_allocations.team_id', activeTeam.id)
+      ]);
+
+      setEventData({
+        allocations: allocationsData.data || [],
+        workLogs: workLogsData.data || [],
+        closings: closingsData.data || [],
+        absences: absencesData.data || []
+      });
+
+      // Fetch PIX keys for admins
+      if (isAdmin && allocationsData.data?.length) {
+        await fetchPixKeys(allocationsData.data.map(a => a.personnel_id));
       }
-    };
+    } catch (error) {
+      console.error('Error fetching event data:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao carregar dados do evento",
+        variant: "destructive"
+      });
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  }, [selectedEventId, activeTeam, isAdmin, toast, fetchPixKeys]);
 
-    fetchEventData();
-  }, [selectedEventId, toast, isAdmin, activeTeam]);
+  // Initial fetch and Realtime subscription
+  useEffect(() => {
+    fetchEventData(true);
+
+    if (!selectedEventId) return;
+
+    const channel = supabase
+      .channel(`payroll-updates-${selectedEventId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'personnel_allocations',
+          filter: `event_id=eq.${selectedEventId}`
+        },
+        () => {
+          console.log('Payroll: Allocations changed, refreshing...');
+          fetchEventData(false);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'work_records',
+          filter: `event_id=eq.${selectedEventId}`
+        },
+        () => {
+          console.log('Payroll: Work records changed, refreshing...');
+          fetchEventData(false);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'payroll_closings',
+          filter: `event_id=eq.${selectedEventId}`
+        },
+        () => {
+          console.log('Payroll: Closings changed, refreshing...');
+          fetchEventData(false);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'absences',
+          // Absences might be tricky to filter by event_id directly if it's not a column, 
+          // but usually it's linked. However, absences table structure relies on personnel_allocations.
+          // Realtime filters are limited to direct columns.
+          // We'll rely on the fact that absences changes usually trigger UI updates elsewhere or
+          // we can just listen to 'absences' table globally for this team if needed, but 
+          // 'absences' doesn't have event_id directly usually.
+          // Based on the select: .eq('personnel_allocations.event_id', selectedEventId)
+          // It seems absences doesn't have event_id column.
+          // Let's omit direct filter on absences if we can't filter by event_id easily, 
+          // OR if we know absences has assignment_id which is allocation_id.
+          // For now, let's assume work_records and allocations cover most changes that affect payroll directly.
+          // Actually, absences affect payroll too.
+          // If absences has team_id, we can filter by that, but it might be too broad.
+          // Let's try to filter by team_id if available.
+          event: '*',
+          schema: 'public',
+          table: 'absences',
+          filter: `team_id=eq.${activeTeam?.id}` 
+        },
+        () => {
+           console.log('Payroll: Absences changed, refreshing...');
+           fetchEventData(false);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedEventId, fetchEventData, activeTeam]);
 
   // Fallback: buscar pessoal necessário para este evento que não está no contexto
   useEffect(() => {
@@ -171,26 +270,6 @@ export const usePayrollData = (selectedEventId: string) => {
 
     fetchMissingPersonnel();
   }, [eventData.allocations, personnel, activeTeam]);
-
-  const fetchPixKeys = async (personnelIds: string[]) => {
-    try {
-      // Remove duplicates
-      const uniqueIds = [...new Set(personnelIds)];
-      
-      const { data, error } = await supabase.functions.invoke('pix-key/get', {
-        body: { personnel_ids: uniqueIds }
-      });
-
-      if (error) {
-        console.error('Error fetching PIX keys:', error);
-        return;
-      }
-
-      setPixKeys(data?.pix_keys || {});
-    } catch (error) {
-      console.error('Error calling PIX key function:', error);
-    }
-  };
 
   const payrollDetails = useMemo(() => {
     if (!eventData.allocations.length) return [];
@@ -271,7 +350,7 @@ export const usePayrollData = (selectedEventId: string) => {
       const absenceDates = absencesData.map(a => a.work_date);
       const workedDates = Array.from(uniqueDaysSet)
         .filter(d => !absenceDates.includes(d))
-        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 1));
 
       return {
         id: allocations[0].id,
@@ -301,7 +380,7 @@ export const usePayrollData = (selectedEventId: string) => {
         overtimeRemainingHours: overtimeResult.remainingHours
       };
     }).filter(Boolean) as PayrollDetails[];
-  }, [eventData, personnel]);
+  }, [eventData, personnel, teamOvertimeConfig, extraPersonnel]);
 
   return {
     eventData,

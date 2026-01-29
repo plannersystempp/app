@@ -8,6 +8,8 @@ interface AllocationFormState {
   divisionMode: 'existing' | 'new';
   selectedDivisionId: string;
   newDivisionName: string;
+  startTime?: string;
+  endTime?: string;
 }
 
 export const useAllocationFormPersistence = (

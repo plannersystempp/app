@@ -7,21 +7,31 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { AddSupplierCostDialog } from './AddSupplierCostDialog';
 import { SupplierCostCard } from './SupplierCostCard';
 import { SupplierCostSummary } from './SupplierCostSummary';
+import { PaginationControl } from '@/components/shared/PaginationControl';
 
 interface EventCostsTabProps {
   eventId: string;
 }
+
+const ITEMS_PER_PAGE = 6;
 
 export const EventCostsTab: React.FC<EventCostsTabProps> = ({ eventId }) => {
   const { eventSupplierCosts, events, deleteEventSupplierCost } = useEnhancedData();
   const { user } = useAuth();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingCost, setEditingCost] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const isAdmin = user?.role === 'admin';
   const costs = eventSupplierCosts.filter(cost => cost.event_id === eventId);
   const event = events.find(e => e.id === eventId);
   const eventName = event?.name || 'Evento';
+
+  const totalPages = Math.ceil(costs.length / ITEMS_PER_PAGE);
+  const paginatedCosts = costs.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const handleEdit = (cost: any) => {
     setEditingCost(cost);
@@ -69,7 +79,7 @@ export const EventCostsTab: React.FC<EventCostsTabProps> = ({ eventId }) => {
           <SupplierCostSummary costs={costs} />
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {costs.map((cost) => (
+            {paginatedCosts.map((cost) => (
               <SupplierCostCard
                 key={cost.id}
                 cost={cost}
@@ -78,6 +88,16 @@ export const EventCostsTab: React.FC<EventCostsTabProps> = ({ eventId }) => {
               />
             ))}
           </div>
+
+          {costs.length > ITEMS_PER_PAGE && (
+            <PaginationControl
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              itemsPerPage={ITEMS_PER_PAGE}
+              totalItems={costs.length}
+            />
+          )}
         </>
       )}
 

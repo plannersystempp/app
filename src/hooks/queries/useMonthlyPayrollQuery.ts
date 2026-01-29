@@ -4,6 +4,7 @@ import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { useMemo } from 'react';
 import * as PayrollCalc from '@/components/payroll/payrollCalculations';
+import { RawWorkLog, RawAbsence } from '@/services/payrollDataService';
 
 export const monthlyPayrollKeys = {
   all: ['monthly-payroll'] as const,
@@ -68,7 +69,7 @@ export const useMonthlyPayrollQuery = (month: number, year: number) => {
         return { allocations: [], workLogs: [], closings: [], absences: [] };
       }
 
-      const [allocationsData, workLogsData, closingsData, absencesData] = await Promise.all([
+      const [allocationsData, workLogsData, closingsData] = await Promise.all([
         supabase
           .from('personnel_allocations')
           .select('*')
@@ -83,18 +84,29 @@ export const useMonthlyPayrollQuery = (month: number, year: number) => {
           .from('payroll_closings')
           .select('*')
           .eq('team_id', activeTeam.id)
-          .in('event_id', eventIds),
-        supabase
-          .from('absences')
-          .select('*, personnel_allocations!inner(*)')
-          .in('personnel_allocations.event_id', eventIds)
+          .in('event_id', eventIds)
       ]);
+
+      // Derivar ausências a partir de work_records
+      const allWorkLogs = (workLogsData.data || []) as RawWorkLog[];
+      const derivedAbsences = allWorkLogs
+        .filter(log => log.attendance_status === 'absent')
+        .map(log => ({
+          id: log.id,
+          work_date: log.work_date,
+          notes: log.notes,
+          logged_by_id: log.logged_by_id,
+          created_at: log.created_at || new Date().toISOString(),
+          team_id: log.team_id,
+          employee_id: log.employee_id,
+          assignment_id: undefined // Não existe em work_records
+        })) as RawAbsence[];
 
       return {
         allocations: allocationsData.data || [],
-        workLogs: workLogsData.data || [],
+        workLogs: allWorkLogs,
         closings: closingsData.data || [],
-        absences: absencesData.data || [],
+        absences: derivedAbsences,
       };
     },
     enabled: !!activeTeam?.id && eventIds.length > 0,
@@ -156,38 +168,30 @@ export const useMonthlyPayrollQuery = (month: number, year: number) => {
     return fixedPersonnel.map(person => {
       // Filtrar alocações do funcionário nos eventos do mês
       const personAllocations = payrollData.allocations.filter(
-        a => a.personnel_id === person.id
+        (a: any) => a.personnel_id === person.id
       );
 
       // Filtrar logs de trabalho
       const personWorkLogs = payrollData.workLogs.filter(
-        log => log.employee_id === person.id
-      );
-
-      // Filtrar ausências
-      const personAbsences = payrollData.absences.filter((absence: any) =>
-        personAllocations.some((allocation: any) => allocation.id === absence.assignment_id)
+        (log: any) => log.employee_id === person.id
       );
 
       // Agrupar por evento
       const eventDetails = monthEvents
-        .filter(event => personAllocations.some(a => a.event_id === event.id))
+        .filter(event => personAllocations.some((a: any) => a.event_id === event.id))
         .map(event => {
-          const eventAllocations = personAllocations.filter(a => a.event_id === event.id);
-          const eventWorkLogs = personWorkLogs.filter(log => log.event_id === event.id);
-          const eventAbsences = personAbsences.filter((absence: any) =>
-            eventAllocations.some(allocation => allocation.id === absence.assignment_id)
-          );
+          const eventAllocations = personAllocations.filter((a: any) => a.event_id === event.id);
+          const eventWorkLogs = personWorkLogs.filter((log: any) => log.event_id === event.id);
 
           const workDays = PayrollCalc.calculateWorkedDays(
             eventAllocations as any,
-            eventAbsences as any
+            eventWorkLogs as any
           );
           
           const cachePay = PayrollCalc.calculateCachePay(
             eventAllocations as any,
             person,
-            eventAbsences as any
+            eventWorkLogs as any
           );
 
           const dailyCache = PayrollCalc.getDailyCacheRate(eventAllocations as any, person);
@@ -221,8 +225,8 @@ export const useMonthlyPayrollQuery = (month: number, year: number) => {
 
       // Calcular pagamentos já feitos (fechamentos de eventos + pagamentos avulsos)
       const eventPayments = payrollData.closings
-        .filter(c => c.personnel_id === person.id)
-        .reduce((sum, c) => sum + Number(c.total_amount_paid), 0);
+        .filter((c: any) => c.personnel_id === person.id)
+        .reduce((sum: number, c: any) => sum + Number(c.total_amount_paid), 0);
 
       const extraPayments = personnelPayments
         ?.filter(p => p.personnel_id === person.id)

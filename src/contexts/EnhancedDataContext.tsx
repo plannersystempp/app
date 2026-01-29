@@ -124,6 +124,8 @@ export interface Assignment {
   personnel_id: string;
   function_name: string;
   work_days: string[];
+  start_time?: string;
+  end_time?: string;
   event_specific_cache?: number;
   created_at: string;
 }
@@ -372,6 +374,8 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
               payment_due_date: event.payment_due_date || '',
               setup_start_date: event.setup_start_date || '',
               setup_end_date: event.setup_end_date || '',
+              default_entry_time: event.default_entry_time || '',
+              default_exit_time: event.default_exit_time || '',
               location: event.location || '',
               client_contact_phone: event.client_contact_phone || '',
               status: event.status as 'planejado' | 'em_andamento' | 'concluido' | 'cancelado' || 'planejado',
@@ -481,6 +485,8 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
               event_id: division.event_id || '',
               name: division.name || '',
               description: division.description || '',
+              default_entry_time: division.default_entry_time || '',
+              default_exit_time: division.default_exit_time || '',
               created_at: division.created_at || ''
             });
           }
@@ -597,6 +603,8 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
           payment_due_date: data.payment_due_date,
           setup_start_date: data.setup_start_date,
           setup_end_date: data.setup_end_date,
+          default_entry_time: data.default_entry_time,
+          default_exit_time: data.default_exit_time,
           location: data.location,
           client_contact_phone: data.client_contact_phone,
           status: data.status as 'planejado' | 'em_andamento' | 'concluido' | 'cancelado' | 'concluido_pagamento_pendente' || 'planejado',
@@ -637,6 +645,8 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
           client_contact_phone: event.client_contact_phone,
           setup_start_date: event.setup_start_date,
           setup_end_date: event.setup_end_date,
+          default_entry_time: event.default_entry_time,
+          default_exit_time: event.default_exit_time,
           status: event.status
         })
         .eq('id', event.id)
@@ -1043,19 +1053,22 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  const updateDivision = async (division: Division): Promise<void> => {
+  const updateDivision = async (division: Partial<Division> & { id: string }): Promise<void> => {
     if (!activeTeam) return;
 
     try {
+      // Preparar objeto de atualização para o banco
+      const updateData: any = {};
+      if (division.name !== undefined) updateData.name = division.name;
+      if (division.description !== undefined) updateData.description = division.description;
+      if (division.order_index !== undefined) updateData.order_index = division.order_index;
+      if (division.default_entry_time !== undefined) updateData.default_entry_time = division.default_entry_time;
+      if (division.default_exit_time !== undefined) updateData.default_exit_time = division.default_exit_time;
+
       // 1. Envia a atualização para o banco
       const { error } = await supabase
         .from('event_divisions')
-        .update({ 
-          name: division.name, 
-          description: division.description,
-          default_entry_time: division.default_entry_time,
-          default_exit_time: division.default_exit_time
-        })
+        .update(updateData)
         .eq('id', division.id)
         .eq('team_id', activeTeam.id);
 
@@ -1063,13 +1076,16 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       // 2. ATUALIZAÇÃO OTIMISTA: Atualiza o estado local imediatamente
       setDivisions(prevDivisions =>
-        prevDivisions.map(d => (d.id === division.id ? division : d))
+        prevDivisions.map(d => (d.id === division.id ? { ...d, ...division } : d))
       );
 
-      toast({
-        title: "Sucesso",
-        description: "Divisão atualizada com sucesso!",
-      });
+      // Só mostra toast se não for apenas reordenação (para evitar spam)
+      if (division.name || division.description) {
+        toast({
+          title: "Sucesso",
+          description: "Divisão atualizada com sucesso!",
+        });
+      }
 
     } catch (error) {
       console.error('Error updating division:', error);
@@ -1124,11 +1140,38 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
       console.log('Prepared assignment data for DB:', newAssignmentData);
 
       // 2. Insere no banco de dados e usa .select().single() para obter o registro completo de volta
-      const { data: newAssignment, error } = await supabase
+      let { data: newAssignment, error } = await supabase
         .from('personnel_allocations')
         .insert([newAssignmentData])
         .select()
         .single();
+
+      // LÓGICA DE RECUPERAÇÃO DE ERRO DE SCHEMA (RCA: Colunas start_time/end_time faltando)
+      // Se o banco rejeitar por falta de coluna, tentamos inserir sem os campos de horário
+      // para garantir que a alocação seja criada, mesmo que sem os horários.
+      if (error && error.code === '42703') { // 42703 é undefined_column no Postgres
+        console.warn('Schema mismatch detected (missing columns). Retrying without time columns...', error.message);
+        
+        // Remove campos que podem não existir no banco antigo
+        const { start_time, end_time, ...safeData } = newAssignmentData;
+        
+        const retryResult = await supabase
+          .from('personnel_allocations')
+          .insert([safeData])
+          .select()
+          .single();
+          
+        if (!retryResult.error) {
+          newAssignment = retryResult.data;
+          error = null; // Limpa o erro original pois o retry funcionou
+          
+          toast({
+            title: "Aviso de Banco de Dados",
+            description: "Alocação criada, mas horários foram ignorados. O banco precisa ser atualizado.",
+            duration: 5000
+          });
+        }
+      }
         
       console.log('Database insert result:', { data: newAssignment, error });
 
@@ -1216,6 +1259,8 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
           function_name: assignment.function_name,
           work_days: assignment.work_days,
           division_id: assignment.division_id,
+          start_time: assignment.start_time,
+          end_time: assignment.end_time,
           event_specific_cache: assignment.event_specific_cache ?? null
         })
         .eq('id', assignment.id)

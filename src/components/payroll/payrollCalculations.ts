@@ -28,6 +28,7 @@ export interface AllocationData {
   event_id: string;
   work_days: string[];
   event_specific_cache?: number | null;
+  attendance_status?: 'pending' | 'present' | 'absent';
   [key: string]: any;
 }
 
@@ -40,6 +41,8 @@ export interface WorkLogData {
   event_id: string;
   hours_worked: number;
   overtime_hours: number;
+  work_date?: string;
+  attendance_status?: 'present' | 'absent' | 'pending';
   [key: string]: any;
 }
 
@@ -85,6 +88,11 @@ export function calculateUniqueWorkDays(allocations: AllocationData[]): number {
   const uniqueDays = new Set<string>();
   
   for (const allocation of allocations) {
+    // Se o status for 'absent' (falta), ignorar dias desta alocação
+    if (allocation.attendance_status === 'absent') {
+      continue;
+    }
+
     const workDays = allocation.work_days || [];
     workDays.forEach(day => uniqueDays.add(day));
   }
@@ -98,22 +106,30 @@ export function calculateUniqueWorkDays(allocations: AllocationData[]): number {
  * Regra de negócio: Dias trabalhados = Dias únicos alocados - Faltas registradas
  * 
  * @param allocations - Array de alocações do pessoal
- * @param absences - Array de ausências/faltas
+ * @param workLogs - Array de registros de trabalho (NOVO - para verificar attendance_status)
  * @returns Número de dias trabalhados (nunca negativo)
  * 
  * @example
  * // 5 dias alocados, 2 faltas = 3 dias trabalhados
- * calculateWorkedDays([allocation], [absence1, absence2]) // => 3
+ * calculateWorkedDays([allocation], [workLog1, workLog2]) // => 3
  */
 export function calculateWorkedDays(
   allocations: AllocationData[],
-  absences: AbsenceData[]
+  workLogs: WorkLogData[] = []
 ): number {
   const totalUniqueDays = calculateUniqueWorkDays(allocations);
-  const totalAbsences = absences.length;
+  
+  // Coletar datas de falta de work_records com status absent
+  const absentDates = new Set<string>();
+  
+  workLogs.forEach(log => {
+    if (log.attendance_status === 'absent' && log.work_date) {
+      absentDates.add(log.work_date);
+    }
+  });
   
   // Garante que nunca retorna negativo
-  return Math.max(0, totalUniqueDays - totalAbsences);
+  return Math.max(0, totalUniqueDays - absentDates.size);
 }
 
 /**
@@ -176,7 +192,7 @@ export function getDailyCacheRate(
  * 
  * @param allocations - Alocações do pessoal
  * @param person - Dados do pessoal
- * @param absences - Ausências registradas
+ * @param workLogs - Registros de trabalho (para verificar faltas no novo sistema)
  * @returns Valor total de cachê a pagar
  * 
  * @example
@@ -184,14 +200,14 @@ export function getDailyCacheRate(
  * calculateCachePay(allocations, person, []) // => 1000
  * 
  * // Taxa: R$ 200/dia, 5 dias alocados, 1 falta
- * calculateCachePay(allocations, person, [absence]) // => 800 (4 dias × R$ 200)
+ * calculateCachePay(allocations, person, [workLogAbsence]) // => 800 (4 dias × R$ 200)
  */
 export function calculateCachePay(
   allocations: AllocationData[],
   person: PersonnelData,
-  absences: AbsenceData[]
+  workLogs: WorkLogData[] = []
 ): number {
-  const workedDays = calculateWorkedDays(allocations, absences);
+  const workedDays = calculateWorkedDays(allocations, workLogs);
   const dailyRate = getDailyCacheRate(allocations, person);
   
   return workedDays * dailyRate;
@@ -336,53 +352,6 @@ export const calculateOvertimePayWithDailyConversion = (
 };
 
 /**
- * @deprecated Use calculateOvertimePayWithDailyConversion para cálculo correto dia a dia
- * 
- * Calcula pagamento de horas extras com conversão no TOTAL (comportamento incorreto)
- */
-export const calculateOvertimePayWithConversion = (
-  totalOvertimeHours: number,
-  config: OvertimeConfig
-): OvertimePaymentResult => {
-  // Se conversão desativada, pagar hora a hora (comportamento atual)
-  if (!config.convertEnabled) {
-    return {
-      payAmount: totalOvertimeHours * config.overtimeRate,
-      displayHours: totalOvertimeHours,
-      conversionApplied: false,
-      dailyCachesUsed: 0,
-      remainingHours: totalOvertimeHours
-    };
-  }
-
-  // Se HE < limiar, pagar hora a hora
-  if (totalOvertimeHours < config.threshold) {
-    return {
-      payAmount: totalOvertimeHours * config.overtimeRate,
-      displayHours: totalOvertimeHours,
-      conversionApplied: false,
-      dailyCachesUsed: 0,
-      remainingHours: totalOvertimeHours
-    };
-  }
-
-  // Se HE >= limiar, pagar 1 cachê por cada "bloco" de limiar
-  const dailyCachesUsed = Math.floor(totalOvertimeHours / config.threshold);
-  const remainingHours = totalOvertimeHours % config.threshold;
-
-  const cachePayment = dailyCachesUsed * config.dailyCache;
-  const remainingPayment = remainingHours * config.overtimeRate;
-
-  return {
-    payAmount: cachePayment + remainingPayment,
-    displayHours: totalOvertimeHours,
-    conversionApplied: true,
-    dailyCachesUsed,
-    remainingHours
-  };
-};
-
-/**
  * Calcula o salário base para funcionários fixos
  * 
  * Regra: Apenas funcionários do tipo 'fixo' têm salário base
@@ -410,7 +379,6 @@ export function calculateBaseSalary(person: PersonnelData): number {
  * @param allocations - Alocações do pessoal
  * @param person - Dados do pessoal
  * @param workLogs - Registros de trabalho
- * @param absences - Ausências registradas
  * @param overtimeConfig - Configuração opcional de conversão de HE (se fornecida, usa cálculo dia a dia)
  * @returns Valor total bruto a pagar
  */
@@ -418,11 +386,10 @@ export function calculateTotalPay(
   allocations: AllocationData[],
   person: PersonnelData,
   workLogs: WorkLogData[],
-  absences: AbsenceData[],
   overtimeConfig?: OvertimeConfig
 ): number {
   const baseSalary = calculateBaseSalary(person);
-  const cachePay = calculateCachePay(allocations, person, absences);
+  const cachePay = calculateCachePay(allocations, person, workLogs);
   
   // Usar conversão diária se config fornecida, caso contrário usar cálculo simples
   let overtimePay: number;

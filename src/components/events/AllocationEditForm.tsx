@@ -90,7 +90,9 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
         function_name: functionName,
         work_days: selectedDays,
         division_id: selectedDivisionId,
-        event_specific_cache: eventSpecificCache > 0 ? eventSpecificCache : undefined
+        event_specific_cache: eventSpecificCache > 0 ? eventSpecificCache : undefined,
+        start_time: startTime || undefined,
+        end_time: endTime || undefined
       });
 
       onOpenChange(false);

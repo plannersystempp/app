@@ -60,8 +60,21 @@ class NotificationService {
       if (error) throw error;
       console.log('Push notification sent:', data);
       return data;
-    } catch (error) {
-      console.warn('Warning: Failed to send push notification. This is likely due to CORS configuration or the Edge Function not being deployed.', error);
+    } catch (error: any) {
+      // Identifica erro de conexão/CORS que indica função não implantada
+      const isConnectionError = error.message?.includes('Failed to send a request') || 
+                               error.message?.includes('Failed to fetch') ||
+                               error.name === 'FunctionsFetchError';
+
+      if (isConnectionError) {
+        console.info(
+          'ℹ️ Push notification não enviada: A Edge Function "send-push-notification" parece não estar implantada ou acessível.\n' +
+          'Para corrigir, execute: supabase functions deploy send-push-notification'
+        );
+        return null;
+      }
+
+      console.warn('Warning: Failed to send push notification.', error);
       // Return null instead of throwing to avoid disrupting the application flow
       return null;
     }

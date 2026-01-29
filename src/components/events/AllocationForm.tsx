@@ -118,7 +118,9 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
       eventSpecificCache,
       divisionMode,
       selectedDivisionId,
-      newDivisionName
+      newDivisionName,
+      startTime,
+      endTime
     },
     (newState) => {
       if (newState.selectedPersonnel !== undefined) setSelectedPersonnel(newState.selectedPersonnel);
@@ -128,6 +130,8 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
       if (newState.divisionMode !== undefined) setDivisionMode(newState.divisionMode);
       if (newState.selectedDivisionId !== undefined) setSelectedDivisionId(newState.selectedDivisionId);
       if (newState.newDivisionName !== undefined) setNewDivisionName(newState.newDivisionName);
+      if (newState.startTime !== undefined) setStartTime(newState.startTime);
+      if (newState.endTime !== undefined) setEndTime(newState.endTime);
     },
     open,
     preselectedDivisionId ? ['selectedDivisionId'] : undefined

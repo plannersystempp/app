@@ -1,12 +1,9 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Users, Calendar, Clock, Trash2, User, Edit2 } from 'lucide-react';
-import { formatCurrency } from '@/utils/formatters';
-import { getSimplifiedName } from '@/utils/nameUtils';
+import { Plus, Users, Calendar, Crown } from 'lucide-react';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { AllocationForm } from './AllocationForm';
 import { AllocationEditForm } from './AllocationEditForm';
@@ -17,6 +14,27 @@ import { DivisionForm } from './DivisionForm';
 import { AllocationSearchFilter } from './allocation/AllocationSearchFilter';
 import { PersonnelForm } from '@/components/personnel/PersonnelForm';
 import { Personnel } from '@/contexts/EnhancedDataContext';
+import { useUrlState } from '@/hooks/useUrlState';
+
+import {
+  DndContext,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+  DragStartEvent,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable';
+import { DraggableAllocationCard } from './DraggableAllocationCard';
 
 interface AllocationManagerProps {
   eventId: string;
@@ -24,7 +42,16 @@ interface AllocationManagerProps {
 
 export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId }) => {
   const { user } = useAuth();
-  const { assignments, events, divisions, personnel, functions, workLogs, deleteAssignment } = useEnhancedData();
+  const { 
+    assignments, 
+    events, 
+    divisions, 
+    personnel, 
+    workLogs,
+    deleteAssignment, 
+    updateAssignment, 
+    updateDivision 
+  } = useEnhancedData();
   
   // Persist allocation form state in sessionStorage
   const allocationFormKey = `plannersystem-allocation-form-open-${eventId}`;
@@ -45,6 +72,39 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   const [divisionToEdit, setDivisionToEdit] = useState<any>(null);
   const [personnelToEdit, setPersonnelToEdit] = useState<Personnel | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // DnD State
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [activeDragType, setActiveDragType] = useState<'division' | 'assignment' | null>(null);
+  const [activeDragItem, setActiveDragItem] = useState<any>(null);
+
+  // Expanded Divisions State (URL Persisted)
+  const [expandedDivisionsParam, setExpandedDivisionsParam] = useUrlState('expanded', '');
+  const [expandedDivisions, setExpandedDivisions] = useState<string[]>([]);
+  const [hasInitializedDivisions, setHasInitializedDivisions] = useState(false);
+
+  // Initialize expanded divisions from URL
+  useEffect(() => {
+    if (hasInitializedDivisions) return;
+    
+    if (expandedDivisionsParam) {
+      setExpandedDivisions(expandedDivisionsParam.split(','));
+    } else {
+      // Default: Expand first 3 divisions
+      const first3 = divisions
+        .filter(d => d.event_id === eventId)
+        .slice(0, 3)
+        .map(d => d.id);
+      setExpandedDivisions(first3);
+    }
+    setHasInitializedDivisions(true);
+  }, [expandedDivisionsParam, divisions, eventId, hasInitializedDivisions]);
+
+  // Sync state to URL
+  useEffect(() => {
+    if (!hasInitializedDivisions) return;
+    setExpandedDivisionsParam(expandedDivisions.join(','));
+  }, [expandedDivisions, setExpandedDivisionsParam, hasInitializedDivisions]);
 
   // Persist form open state changes
   useEffect(() => {
@@ -56,7 +116,36 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   }, [showAllocationForm, allocationFormKey]);
 
   const eventAssignments = assignments.filter(a => a.event_id === eventId);
-  const eventDivisions = divisions.filter(d => d.event_id === eventId);
+  
+  // Sort divisions by order_index if available, otherwise by creation/name
+  const eventDivisions = useMemo(() => {
+    return divisions
+      .filter(d => d.event_id === eventId)
+      .sort((a, b) => {
+        if (a.order_index !== undefined && b.order_index !== undefined) {
+            return a.order_index - b.order_index;
+        }
+        return a.name.localeCompare(b.name);
+      });
+  }, [divisions, eventId]);
+
+  // Separação de divisões de Coordenação vs Outras
+  const { coordDivisions, otherDivisions } = useMemo(() => {
+    const coords: typeof eventDivisions = [];
+    const others: typeof eventDivisions = [];
+    
+    eventDivisions.forEach(div => {
+      const name = div.name.toLowerCase();
+      if (name.includes('coord') || name.includes('direção') || name.includes('produção') || name.includes('liderança') || name.includes('gerência')) {
+        coords.push(div);
+      } else {
+        others.push(div);
+      }
+    });
+
+    return { coordDivisions: coords, otherDivisions: others };
+  }, [eventDivisions]);
+
   const currentEvent = events.find(e => e.id === eventId);
 
   // Filter assignments based on search term
@@ -75,36 +164,26 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
     });
   }, [eventAssignments, searchTerm, personnel]);
 
-  // CORREÇÃO: Lógica centralizada de datas com UTC - fonte única da verdade
+  // Date Logic
   const availableDays = useMemo(() => {
     if (!currentEvent || !currentEvent.start_date || !currentEvent.end_date) {
       return [];
     }
 
     const dates = [];
-    
-    // CORREÇÃO: Decompomos a data e usamos Date.UTC para criar um objeto de data
-    // que é agnóstico ao fuso horário, representando sempre a meia-noite em UTC.
     const [startYear, startMonth, startDay] = currentEvent.start_date.split('-').map(Number);
     const [endYear, endMonth, endDay] = currentEvent.end_date.split('-').map(Number);
 
     const startDate = new Date(Date.UTC(startYear, startMonth - 1, startDay));
     const endDate = new Date(Date.UTC(endYear, endMonth - 1, endDay));
-
-    // Cria uma cópia da data de início para iterar sobre ela com segurança
     const currentDate = new Date(startDate);
 
-    // Itera do início ao fim, incluindo a data final
     while (currentDate <= endDate) {
-      // Format as YYYY-MM-DD using UTC methods
       const year = currentDate.getUTCFullYear();
       const month = String(currentDate.getUTCMonth() + 1).padStart(2, '0');
       const day = String(currentDate.getUTCDate()).padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
-      
       dates.push(dateStr);
-      
-      // Adiciona um dia (em UTC) à data atual para a próxima iteração
       currentDate.setUTCDate(currentDate.getUTCDate() + 1);
     }
     
@@ -142,153 +221,357 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
     setPersonnelToEdit(person);
   };
 
+  const toggleDivision = (divisionId: string) => {
+    setExpandedDivisions(prev => {
+      if (prev.includes(divisionId)) {
+        return prev.filter(id => id !== divisionId);
+      } else {
+        const newExpanded = [...prev, divisionId];
+        // Limit to 3 expanded
+        if (newExpanded.length > 3) {
+          return newExpanded.slice(newExpanded.length - 3);
+        }
+        return newExpanded;
+      }
+    });
+  };
+
+  // DnD Sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const activeData = active.data.current;
+    
+    setActiveDragId(active.id as string);
+    setActiveDragType(activeData?.type || null);
+    
+    if (activeData?.type === 'division') {
+      setActiveDragItem(activeData.division);
+    } else if (activeData?.type === 'assignment') {
+      setActiveDragItem(activeData.assignment);
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    setActiveDragId(null);
+    setActiveDragType(null);
+    setActiveDragItem(null);
+
+    if (!over) return;
+
+    // Division Reordering
+    if (active.data.current?.type === 'division' && over.data.current?.type === 'division') {
+      if (active.id !== over.id) {
+        const oldIndex = eventDivisions.findIndex(d => d.id === active.id);
+        const newIndex = eventDivisions.findIndex(d => d.id === over.id);
+
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const newOrder = arrayMove(eventDivisions, oldIndex, newIndex);
+          
+          // Optimistically update all affected items
+          const updates = newOrder
+            .map((division, index) => {
+              if ((division.order_index || 0) !== index) {
+                return { id: division.id, order_index: index };
+              }
+              return null;
+            })
+            .filter(Boolean) as { id: string; order_index: number }[];
+
+          if (updates.length > 0) {
+            try {
+              // Update each division's order
+              await Promise.all(updates.map(update => updateDivision({
+                id: update.id,
+                order_index: update.order_index
+              } as any)));
+              
+              toast({
+                title: "Ordem atualizada",
+                description: "A ordem das divisões foi salva."
+              });
+            } catch (error) {
+              console.error("Failed to reorder divisions", error);
+              toast({
+                title: "Erro",
+                description: "Falha ao salvar ordem das divisões",
+                variant: "destructive"
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Assignment Moving
+    if (active.data.current?.type === 'assignment') {
+      const assignment = active.data.current.assignment;
+      const overData = over.data.current;
+      
+      let newDivisionId = null;
+
+      if (overData?.type === 'division') {
+        newDivisionId = overData.division.id;
+      } else if (overData?.type === 'assignment') {
+        newDivisionId = overData.divisionId;
+      }
+
+      if (newDivisionId && newDivisionId !== assignment.division_id) {
+        // Move to new division
+        await updateAssignment({
+          ...assignment,
+          division_id: newDivisionId
+        });
+        
+        // Auto expand target division
+        if (!expandedDivisions.includes(newDivisionId)) {
+          toggleDivision(newDivisionId);
+        }
+      }
+    }
+  };
+
+  const dropAnimation = {
+    sideEffects: defaultDropAnimationSideEffects({
+      styles: {
+        active: {
+          opacity: '0.5',
+        },
+      },
+    }),
+  };
+
+  const renderDivisionList = (divs: typeof eventDivisions, gridClass: string) => (
+    <div className={gridClass}>
+      {divs.map((division) => {
+        const divisionAssignments = filteredAssignments.filter(a => a.division_id === division.id);
+        return (
+          <DivisionCard
+            key={division.id}
+            division={division}
+            assignments={divisionAssignments}
+            availableDays={availableDays}
+            isExpanded={expandedDivisions.includes(division.id)}
+            onToggle={() => toggleDivision(division.id)}
+            onLaunchHours={handleLaunchHours}
+            onAddAllocation={handleAddAllocation}
+            onEditAssignment={handleEditAssignment}
+            onEditDivision={handleEditDivision}
+            onEditPerson={handleEditPerson}
+          />
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h3 className="text-lg font-semibold">Alocações de Pessoal</h3>
-        <Button onClick={() => handleAddAllocation()} className="w-full sm:w-auto">
-          <Plus className="w-4 h-4 mr-2" />
-          Adicionar Alocação
-        </Button>
-      </div>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h3 className="text-lg font-semibold">Alocações de Pessoal</h3>
+          <Button onClick={() => handleAddAllocation()} className="w-full sm:w-auto">
+            <Plus className="w-4 h-4 mr-2" />
+            Adicionar Alocação
+          </Button>
+        </div>
 
-      {/* Search Filter - Show only if there are assignments */}
-      {eventAssignments.length > 0 && (
-        <AllocationSearchFilter
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          totalCount={eventAssignments.length}
-          filteredCount={filteredAssignments.length}
-        />
-      )}
+        {/* Search Filter - Show only if there are assignments */}
+        {eventAssignments.length > 0 && (
+          <AllocationSearchFilter
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            totalCount={eventAssignments.length}
+            filteredCount={filteredAssignments.length}
+          />
+        )}
 
-      {availableDays.length === 0 && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-yellow-600">
-              <Calendar className="h-4 w-4" />
-              <p className="text-sm">
-                Configure as datas de início e fim do evento para poder alocar pessoas.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {filteredAssignments.length === 0 && eventAssignments.length > 0 ? (
-        <EmptyState
-          icon={<Users className="w-12 h-12" />}
-          title="Nenhuma pessoa encontrada"
-          description="Tente alterar o termo de busca"
-        />
-      ) : eventAssignments.length === 0 ? (
-        <EmptyState
-          icon={<Users className="w-12 h-12" />}
-          title="Nenhuma alocação encontrada"
-          description="Adicione pessoas a este evento para começar"
-          action={{
-            label: "Adicionar Primeira Alocação",
-            onClick: () => handleAddAllocation()
-          }}
-        />
-      ) : eventDivisions.length === 0 ? (
-        <div className="space-y-4">
+        {availableDays.length === 0 && (
           <Card>
             <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Alocações sem divisão</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {searchTerm ? filteredAssignments.length : eventAssignments.length} pessoa(s) {searchTerm ? 'encontrada(s)' : 'alocada(s) sem divisão específica'}
-                    </p>
-                  </div>
-                <Button 
-                  variant="outline" 
-                  onClick={() => handleAddAllocation()}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Organizar em divisões
-                </Button>
+              <div className="flex items-center gap-2 text-yellow-600">
+                <Calendar className="h-4 w-4" />
+                <p className="text-sm">
+                  Configure as datas de início e fim do evento para poder alocar pessoas.
+                </p>
               </div>
             </CardContent>
           </Card>
-          
-          {/* Lista das alocações sem divisão - formato tabela responsivo */}
-          <AllocationListView
-            assignments={filteredAssignments}
-            onLaunchHours={handleLaunchHours}
-            onEditAssignment={handleEditAssignment}
-            onDeleteAssignment={(assignmentId) => deleteAssignment(assignmentId)}
-            onEditPerson={handleEditPerson}
+        )}
+
+        {filteredAssignments.length === 0 && eventAssignments.length > 0 ? (
+          <EmptyState
+            icon={<Users className="w-12 h-12" />}
+            title="Nenhuma pessoa encontrada"
+            description="Tente alterar o termo de busca"
           />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-          {eventDivisions.map((division) => {
-            const divisionAssignments = filteredAssignments.filter(a => a.division_id === division.id);
-            return (
-              <DivisionCard
-                key={division.id}
-                division={division}
-                assignments={divisionAssignments}
-                availableDays={availableDays}
-                onLaunchHours={handleLaunchHours}
-                onAddAllocation={handleAddAllocation}
-                onEditAssignment={handleEditAssignment}
-                onEditDivision={handleEditDivision}
-                onEditPerson={handleEditPerson}
-              />
-            );
-          })}
-        </div>
-      )}
+        ) : eventAssignments.length === 0 ? (
+          <EmptyState
+            icon={<Users className="w-12 h-12" />}
+            title="Nenhuma alocação encontrada"
+            description="Adicione pessoas a este evento para começar"
+            action={{
+              label: "Adicionar Primeira Alocação",
+              onClick: () => handleAddAllocation()
+            }}
+          />
+        ) : eventDivisions.length === 0 ? (
+          <div className="space-y-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">Alocações sem divisão</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {searchTerm ? filteredAssignments.length : eventAssignments.length} pessoa(s) {searchTerm ? 'encontrada(s)' : 'alocada(s) sem divisão específica'}
+                      </p>
+                    </div>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleAddAllocation()}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Organizar em divisões
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Lista das alocações sem divisão - formato tabela responsivo */}
+            <AllocationListView
+              assignments={filteredAssignments}
+              onLaunchHours={handleLaunchHours}
+              onEditAssignment={handleEditAssignment}
+              onDeleteAssignment={(assignmentId) => deleteAssignment(assignmentId)}
+              onEditPerson={handleEditPerson}
+            />
+          </div>
+        ) : (
+          <SortableContext 
+            items={eventDivisions.map(d => d.id)}
+            strategy={rectSortingStrategy}
+          >
+            <div className="space-y-8">
+              {/* Seção de Coordenação (Destaque) */}
+              {coordDivisions.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-primary font-semibold border-b pb-2">
+                    <Crown className="w-4 h-4" />
+                    <h4>Coordenação & Direção</h4>
+                  </div>
+                  {renderDivisionList(coordDivisions, "grid grid-cols-1 md:grid-cols-2 gap-4")}
+                </div>
+              )}
 
-      <AllocationForm
-        eventId={eventId}
-        preselectedDivisionId={preselectedDivisionId}
-        open={showAllocationForm}
-        onOpenChange={handleOpenChange}
-      />
+              {/* Demais Divisões (Grid de 3 colunas) */}
+              {otherDivisions.length > 0 && (
+                <div className="space-y-3">
+                  {coordDivisions.length > 0 && (
+                    <div className="flex items-center gap-2 text-muted-foreground font-semibold border-b pb-2">
+                      <Users className="w-4 h-4" />
+                      <h4>Equipes Operacionais</h4>
+                    </div>
+                  )}
+                  {renderDivisionList(otherDivisions, "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start")}
+                </div>
+              )}
+            </div>
+          </SortableContext>
+        )}
 
-      {/* CORREÇÃO: Modal de edição usando as datas centralizadas */}
-      {assignmentToEdit && (
-        <AllocationEditForm
-          assignment={assignmentToEdit}
-          availableDays={availableDays}
-          open={!!assignmentToEdit}
+        <DragOverlay dropAnimation={dropAnimation}>
+          {activeDragType === 'division' && activeDragItem ? (
+             <div className="opacity-90 rotate-2 cursor-grabbing">
+                <DivisionCard
+                  division={activeDragItem}
+                  assignments={filteredAssignments.filter(a => a.division_id === activeDragItem.id)}
+                  availableDays={availableDays}
+                  isExpanded={expandedDivisions.includes(activeDragItem.id)}
+                  onToggle={() => {}}
+                  onLaunchHours={() => {}}
+                  onAddAllocation={() => {}}
+                  onEditAssignment={() => {}}
+                  onEditDivision={() => {}}
+                  onEditPerson={() => {}}
+                />
+             </div>
+          ) : activeDragType === 'assignment' && activeDragItem ? (
+             <div className="opacity-90 rotate-2 cursor-grabbing w-[300px]">
+                <DraggableAllocationCard
+                  assignment={activeDragItem}
+                  person={personnel.find(p => p.id === activeDragItem.personnel_id)}
+                  workLogs={workLogs}
+                  onLaunchHours={() => {}}
+                  onEditAssignment={() => {}}
+                  onDeleteAssignment={() => {}}
+                  onEditPerson={() => {}}
+                />
+             </div>
+          ) : null}
+        </DragOverlay>
+
+        <AllocationForm
+          eventId={eventId}
+          preselectedDivisionId={preselectedDivisionId}
+          open={showAllocationForm}
+          onOpenChange={handleOpenChange}
+        />
+
+        {assignmentToEdit && (
+          <AllocationEditForm
+            assignment={assignmentToEdit}
+            availableDays={availableDays}
+            open={!!assignmentToEdit}
+            onOpenChange={(open) => {
+              if (!open) setAssignmentToEdit(null);
+            }}
+          />
+        )}
+
+        <WorkLogManager
+          assignment={selectedAssignmentData ? {
+            ...selectedAssignmentData,
+            function_name: selectedAssignmentData.function_name,
+            user_id: user?.id || ''
+          } : null}
+          open={showWorkLogManager}
+          onOpenChange={setShowWorkLogManager}
+        />
+
+        <DivisionForm
+          division={divisionToEdit}
+          open={!!divisionToEdit}
           onOpenChange={(open) => {
-            if (!open) setAssignmentToEdit(null);
+            if (!open) setDivisionToEdit(null);
           }}
         />
-      )}
 
-      <WorkLogManager
-        assignment={selectedAssignmentData ? {
-          ...selectedAssignmentData,
-          function_name: selectedAssignmentData.function_name,
-          user_id: user?.id || ''
-        } : null}
-        open={showWorkLogManager}
-        onOpenChange={setShowWorkLogManager}
-      />
-
-      <DivisionForm
-        division={divisionToEdit}
-        open={!!divisionToEdit}
-        onOpenChange={(open) => {
-          if (!open) setDivisionToEdit(null);
-        }}
-      />
-
-      {personnelToEdit && (
-        <PersonnelForm
-          personnel={personnelToEdit}
-          onClose={() => setPersonnelToEdit(null)}
-          onSuccess={() => {
-            setPersonnelToEdit(null);
-          }}
-        />
-      )}
-    </div>
+        {personnelToEdit && (
+          <PersonnelForm
+            personnel={personnelToEdit}
+            onClose={() => setPersonnelToEdit(null)}
+            onSuccess={() => {
+              setPersonnelToEdit(null);
+            }}
+          />
+        )}
+      </div>
+    </DndContext>
   );
 };

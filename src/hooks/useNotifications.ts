@@ -115,11 +115,18 @@ export const useNotifications = () => {
 
   // Subscribe para push notifications
   const subscribeToPush = async () => {
+    toast({
+      title: 'Notificações Desativadas',
+      description: 'As notificações push estão temporariamente desativadas para manutenção.',
+      variant: 'default',
+    });
+    return false;
+    /*
     if (!user?.id || !activeTeam?.id) {
       console.error('User or team not available');
       return false;
     }
-
+    
     try {
       setLoading(true);
 
@@ -203,7 +210,7 @@ export const useNotifications = () => {
             title: 'Erro no Service Worker',
             description: 'Falha ao registrar o Service Worker para push.',
             variant: 'destructive',
-          });
+            });
           return false;
         }
       }
@@ -310,6 +317,7 @@ export const useNotifications = () => {
     } finally {
       setLoading(false);
     }
+    */
   };
 
   // Unsubscribe de push notifications

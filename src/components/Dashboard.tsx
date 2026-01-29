@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useTeam } from '@/contexts/TeamContext';
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Calendar, Users, Briefcase, CheckCircle, Clock, AlertCircle, DollarSign, Package, AlertTriangle, UserCheck, Circle, TrendingUp, CalendarClock, CalendarRange } from 'lucide-react';
+import { Calendar, Users, Briefcase, CheckCircle, Clock, AlertCircle, DollarSign, Package, AlertTriangle, UserCheck, Circle, TrendingUp, CalendarClock, CalendarRange, ArrowDown } from 'lucide-react';
 import { LoadingSpinner } from './shared/LoadingSpinner';
 import { EmptyState } from './shared/EmptyState';
 import { NoTeamSelected } from './shared/NoTeamSelected';
@@ -82,6 +82,35 @@ const Dashboard = () => {
     teamId: activeTeam?.id,
   });
   const supplierStatusSafe: 'todos' | 'pendente' | 'pago' = suppliersStatus;
+
+  // Refs para navegação suave
+  const paymentsCardRef = useRef<HTMLDivElement>(null);
+  const suppliersCardRef = useRef<HTMLDivElement>(null);
+  const avulsosCardRef = useRef<HTMLDivElement>(null);
+  const [highlightPayments, setHighlightPayments] = useState(false);
+  const [highlightSuppliers, setHighlightSuppliers] = useState(false);
+  const [highlightAvulsos, setHighlightAvulsos] = useState(false);
+
+  const handleScrollToPayments = () => {
+    // Lógica inteligente de scroll baseada no tipo de pendência
+    if (overdueStats.eventsCount > 0) {
+      paymentsCardRef.current?.scrollIntoView({ behavior: 'smooth' });
+      setHighlightPayments(true);
+      setTimeout(() => setHighlightPayments(false), 2000);
+    } else if (overdueStats.suppliersCount > 0) {
+      suppliersCardRef.current?.scrollIntoView({ behavior: 'smooth' });
+      setHighlightSuppliers(true);
+      setShowSupplierDetails(true); // Auto-expandir detalhes
+      setTimeout(() => setHighlightSuppliers(false), 2000);
+    } else if (overdueStats.avulsosCount > 0) {
+      avulsosCardRef.current?.scrollIntoView({ behavior: 'smooth' });
+      setHighlightAvulsos(true);
+      setTimeout(() => setHighlightAvulsos(false), 2000);
+    } else {
+      // Fallback padrão
+      paymentsCardRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   // Custom dashboard hooks MUST be called unconditionally before any conditional returns
   const eventsInProgress = useEventsInProgress();
@@ -227,6 +256,72 @@ const Dashboard = () => {
     'todos',
     supplierStatusSafe
   );
+
+  // Cálculo de pagamentos atrasados para alerta
+  const overdueStats = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Helper para converter string YYYY-MM-DD para data local (00:00:00)
+    // Isso evita problemas de fuso horário e datas inválidas (0000-00-00)
+    const parseLocalDate = (dateStr: string | undefined | null) => {
+      if (!dateStr) return null;
+      
+      const cleanDate = dateStr.split('T')[0];
+      const parts = cleanDate.split('-');
+      
+      let dateObj: Date;
+      
+      if (parts.length === 3) {
+        const year = Number(parts[0]);
+        // Proteção contra datas inválidas/zeradas (ex: 0000-00-00)
+        if (year < 1900) return null;
+        dateObj = new Date(year, Number(parts[1]) - 1, Number(parts[2]));
+      } else {
+        dateObj = new Date(dateStr);
+      }
+      
+      // Validação final de integridade da data
+      if (isNaN(dateObj.getTime()) || dateObj.getFullYear() < 1900) return null;
+      
+      return dateObj;
+    };
+
+    const overdueEvents = upcomingPayments.filter(event => {
+      // Ignorar eventos concluídos ou cancelados
+      if (event.status === 'concluido' || event.status === 'cancelado') return false;
+
+      const dueDate = parseLocalDate(event.payment_due_date || event.end_date);
+      if (!dueDate) return false;
+      
+      return dueDate < today;
+    });
+
+    const overdueAvulsos = avulsosPending.filter(payment => {
+       const dueDate = parseLocalDate(payment.payment_due_date);
+       if (!dueDate) return false;
+       return dueDate < today;
+    });
+    
+    const overdueSuppliers = filteredSupplierCosts.filter(cost => {
+        if (cost.payment_status === 'paid') return false;
+        
+        // FILTRO SOLICITADO: Ignorar fornecedores sem data prevista definida
+        if (!cost.payment_date) return false;
+
+        const paymentDate = parseLocalDate(cost.payment_date);
+        if (!paymentDate) return false;
+        
+        return paymentDate < today;
+    });
+
+    return {
+      total: overdueEvents.length + overdueAvulsos.length + overdueSuppliers.length,
+      eventsCount: overdueEvents.length,
+      avulsosCount: overdueAvulsos.length,
+      suppliersCount: overdueSuppliers.length
+    };
+  }, [upcomingPayments, avulsosPending, filteredSupplierCosts]);
   
   // CONDITIONAL RETURNS ONLY AFTER ALL HOOKS HAVE BEEN CALLED
   if (!activeTeam && !isSuperAdmin) {
@@ -298,6 +393,30 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {overdueStats.total > 0 && !isSuperAdmin && (
+        <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-2 flex items-start gap-4 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/50">
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <AlertTitle className="text-red-800 dark:text-red-300 font-semibold">Pagamentos em Atraso</AlertTitle>
+            <AlertDescription className="text-red-700 dark:text-red-400 mt-1">
+              Atenção: Existem pendências vencidas: 
+              {overdueStats.eventsCount > 0 && ` ${overdueStats.eventsCount} Evento(s).`}
+              {overdueStats.avulsosCount > 0 && ` ${overdueStats.avulsosCount} Avulso(s).`}
+              {overdueStats.suppliersCount > 0 && ` ${overdueStats.suppliersCount} Fornecedor(es).`}
+              Verifique os cards abaixo.
+            </AlertDescription>
+          </div>
+          <Button 
+            size="sm" 
+            className="shrink-0 bg-white hover:bg-red-100 text-red-700 border border-red-200 shadow-sm gap-2 transition-all hover:scale-105"
+            onClick={handleScrollToPayments}
+          >
+            Ver Detalhes
+            <ArrowDown className="h-4 w-4" />
+          </Button>
+        </Alert>
+      )}
 
       {/* Banner de Aviso de Assinatura - ação disponível só para admin, nunca para planos vitalícios */}
       {!isSuperAdmin && subscription && !subscription.isLifetime && subscription.daysUntilExpiration && subscription.daysUntilExpiration <= 7 && subscription.daysUntilExpiration > 0 && subscription.status !== 'trial_expired' && (
@@ -403,8 +522,9 @@ const Dashboard = () => {
 
       {/* Estatísticas de Fornecedores (somente admin) */}
       {!isSuperAdmin && userRole === 'admin' && (
-        <Card className="bg-muted/30 dark:bg-muted/20">
-          <CardHeader className="pb-3">
+        <div ref={suppliersCardRef}>
+          <Card className={`bg-muted/30 dark:bg-muted/20 hover:shadow-lg transition-all duration-500 ${highlightSuppliers ? 'ring-4 ring-red-500/50 shadow-xl scale-[1.01]' : ''}`}>
+            <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2 text-base">
@@ -485,6 +605,7 @@ const Dashboard = () => {
             </Collapsible>
           </CardContent>
         </Card>
+        </div>
       )}
 
       {/* Seções principais - Layout otimizado para mobile */}
@@ -587,8 +708,9 @@ const Dashboard = () => {
 
         {/* Card de Pagamentos Próximos - apenas para não-superadmin */}
         {!isSuperAdmin && (
-          <Card className="bg-muted/30 dark:bg-muted/20 hover:shadow-lg transition-shadow">
-            <CardHeader>
+          <div ref={paymentsCardRef}>
+            <Card className={`bg-muted/30 dark:bg-muted/20 hover:shadow-lg transition-all duration-500 ${highlightPayments ? 'ring-4 ring-red-500/50 shadow-xl scale-[1.01]' : ''}`}>
+              <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <DollarSign className="h-5 w-5 text-red-600" />
                 Pagamentos Próximos
@@ -646,16 +768,18 @@ const Dashboard = () => {
               )}
             </CardContent>
           </Card>
+          </div>
         )}
 
         {/* Card de Pagamentos Avulsos - apenas para não-superadmin */}
         {!isSuperAdmin && (
-          <Card className="bg-muted/30 dark:bg-muted/20 hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-primary" />
-                Pagamentos Avulsos
-              </CardTitle>
+          <div ref={avulsosCardRef}>
+            <Card className={`bg-muted/30 dark:bg-muted/20 hover:shadow-lg transition-all duration-500 ${highlightAvulsos ? 'ring-4 ring-red-500/50 shadow-xl scale-[1.01]' : ''}`}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-primary" />
+                  Pagamentos Avulsos
+                </CardTitle>
               <CardDescription className="text-xs">Lista de pagamentos avulsos pendentes</CardDescription>
             </CardHeader>
             <CardContent>
@@ -700,8 +824,9 @@ const Dashboard = () => {
                   Ver todos
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
     </div>
