@@ -5,6 +5,14 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Debug logs to help diagnose configuration issues
+console.log('Supabase Configuration Check:');
+console.log('- URL configured:', !!SUPABASE_URL);
+console.log('- Key configured:', !!SUPABASE_PUBLISHABLE_KEY);
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  console.error('Missing Supabase environment variables! Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
+}
+
 // Custom storage adapter for cookies with domain support
 const cookieStorage = {
   getItem: (key: string) => {
