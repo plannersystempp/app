@@ -14,7 +14,7 @@ import {
   CalendarDays, Wallet, FileText
 } from 'lucide-react';
 import { AllocationManager } from './AllocationManager';
-import { DailyAttendanceList } from './DailyAttendanceList';
+import { DailyAttendanceList } from './EventDailyAttendance';
 import { EventForm } from './EventForm';
 import { formatDateBR } from '@/utils/dateUtils';
 import { SkeletonCard } from '@/components/shared/SkeletonCard';
