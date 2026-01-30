@@ -436,10 +436,10 @@ export const EventDetail: React.FC = () => {
       {/* Main Content Area */}
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 no-print">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-6">
-          <TabsList className="w-full justify-start h-9 p-0 bg-transparent border-b rounded-none gap-6">
+          <TabsList className="w-full justify-start h-auto p-0 bg-transparent border-b rounded-none gap-6 overflow-x-auto flex-nowrap pb-1 no-scrollbar">
             <TabsTrigger 
               value="allocations" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground shrink-0"
             >
               <div className="flex items-center gap-2">
                 <LayoutDashboard className="w-4 h-4" />
@@ -448,7 +448,7 @@ export const EventDetail: React.FC = () => {
             </TabsTrigger>
             <TabsTrigger 
               value="attendance" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground shrink-0"
             >
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4" />
@@ -458,7 +458,7 @@ export const EventDetail: React.FC = () => {
             {(userRole === 'admin' || canManageCosts) && (
               <TabsTrigger 
                 value="costs" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground shrink-0"
               >
                 <div className="flex items-center gap-2">
                   <DollarSign className="w-4 h-4" />
@@ -469,7 +469,7 @@ export const EventDetail: React.FC = () => {
             {userRole === 'admin' && (
               <TabsTrigger 
                 value="absences" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground shrink-0"
               >
                 <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4" />

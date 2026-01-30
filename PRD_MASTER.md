@@ -55,7 +55,7 @@ O projeto segue uma arquitetura modular baseada em funcionalidades (Feature-base
 
 ### 6.2. Gestão de Eventos
 - **CRUD de Eventos:** Criação, edição e listagem de eventos.
-- **Alocação de Pessoal:** Seleção de freelancers, definição de dias trabalhados e funções. Interface otimizada para mobile com divisões recolhidas por padrão para melhor organização visual.
+- **Alocação de Pessoal:** Seleção de freelancers, definição de dias trabalhados e funções. Interface otimizada para mobile com divisões recolhidas por padrão para melhor organização visual. Cartões de alocação com ajuste dinâmico de texto para evitar truncamento e sobreposição. Cabeçalho das divisões com layout flexível (flex-wrap) e botão "Adicionar" simplificado (apenas ícone + tooltip) para otimizar espaço.
 - **Divisões:** Organização interna do evento (ex: Bar, Recepção).
 - **Custos:** Registro de custos com fornecedores e despesas extras.
 - **Log de Trabalho:** Acompanhamento de presença e horas.
@@ -90,6 +90,7 @@ O projeto segue uma arquitetura modular baseada em funcionalidades (Feature-base
 
 ### 6.8. Mobile / PWA
 - **Interface responsiva adaptada para mobile:** Ajustes de layout em cartões e modais para telas pequenas.
+- **Navegação Horizontal:** Habilitação de scroll horizontal (swipe) em abas, tabelas e listas que excedem a largura da tela.
 - **Interação Touch:** Otimização de componentes de arrastar (Drag & Drop) com alças (handles) específicas para não bloquear a rolagem da página em dispositivos móveis.
 - **Funcionalidades offline-first (onde aplicável).
 - **Instalação na tela inicial.

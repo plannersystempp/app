@@ -216,7 +216,7 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
                     <div className="flex-1 min-w-0">
                       <button
                         type="button"
-                        className="font-medium text-sm truncate hover:underline text-left cursor-pointer"
+                        className="font-medium text-xs sm:text-sm break-words hover:underline text-left cursor-pointer leading-tight"
                         onClick={() => {
                           if (person && onEditPerson) onEditPerson(person);
                         }}

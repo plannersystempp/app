@@ -4,6 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Trash2, Edit2, Users, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -21,8 +27,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { useDndContext } from '@dnd-kit/core';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
-import { DraggableAllocationCard } from './DraggableAllocationCard';
 
+import { DraggableAllocationCard } from './DraggableAllocationCard';
 interface DivisionCardProps {
   division: Division;
   assignments: Assignment[];
@@ -113,8 +119,8 @@ export const DivisionCard: React.FC<DivisionCardProps> = ({
       )}>
         <Collapsible open={isExpanded} onOpenChange={onToggle}>
           <CardHeader className="pb-3 space-y-0">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-2">
+              <div className="flex items-center gap-2 flex-1 min-w-[200px]">
                 <div 
                   {...attributes} 
                   {...listeners} 
@@ -129,11 +135,11 @@ export const DivisionCard: React.FC<DivisionCardProps> = ({
                   </Button>
                 </CollapsibleTrigger>
 
-                <div className="flex items-center gap-2 flex-1 min-w-0 sm:min-w-[150px]">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
                   <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <CardTitle className="text-sm sm:text-base break-words cursor-pointer" onClick={onToggle}>
+                  <CardTitle className="text-xs sm:text-sm md:text-base break-words cursor-pointer leading-tight" onClick={onToggle}>
                     {division.name} 
-                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    <span className="ml-2 text-[10px] sm:text-xs font-normal text-muted-foreground inline-block">
                       ({assignments.length})
                     </span>
                   </CardTitle>
@@ -141,15 +147,24 @@ export const DivisionCard: React.FC<DivisionCardProps> = ({
               </div>
               
               <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onAddAllocation(division.id)}
-                  className="h-8 px-2 sm:px-3"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline ml-1">Adicionar</span>
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => onAddAllocation(division.id)}
+                        className="h-8 w-8"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span className="sr-only">Adicionar</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Adicionar</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <Button
                   variant="ghost"
                   size="sm"

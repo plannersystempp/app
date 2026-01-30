@@ -126,14 +126,14 @@ export const DraggableAllocationCard: React.FC<DraggableAllocationCardProps> = (
             <div className="flex-1 min-w-0">
               <button
                 type="button"
-                className="font-medium text-sm truncate hover:underline text-left cursor-pointer"
+                className="font-medium text-xs sm:text-sm break-words hover:underline text-left cursor-pointer leading-tight"
                 onClick={(e) => handleAction(e, () => {
                   if (person && onEditPerson) onEditPerson(person);
                 })}
               >
                 {person ? getSimplifiedName(person.name) : 'Pessoa não encontrada'}
               </button>
-              <div className="text-xs text-muted-foreground truncate">
+              <div className="text-[10px] sm:text-xs text-muted-foreground break-words leading-tight mt-0.5">
                 {assignment.function_name}
               </div>
             </div>
@@ -161,14 +161,14 @@ export const DraggableAllocationCard: React.FC<DraggableAllocationCardProps> = (
         {/* Informações da alocação */}
         <div className="grid grid-cols-2 gap-3 text-xs">
           <div className="text-center bg-background/50 rounded-md p-2">
-            <div className="font-medium text-primary text-base sm:text-sm">{assignment.work_days?.length || 0}</div>
-            <div className="text-muted-foreground">
+            <div className="font-medium text-primary text-sm sm:text-base">{assignment.work_days?.length || 0}</div>
+            <div className="text-muted-foreground text-[10px] sm:text-xs">
               {(assignment.work_days?.length || 0) === 1 ? 'dia' : 'dias'}
             </div>
           </div>
           <div className="text-center bg-background/50 rounded-md p-2">
-            <div className="font-medium text-orange-600 text-base sm:text-sm">{totalOvertimeHours}h</div>
-            <div className="text-muted-foreground">extras</div>
+            <div className="font-medium text-orange-600 text-sm sm:text-base">{totalOvertimeHours}h</div>
+            <div className="text-muted-foreground text-[10px] sm:text-xs">extras</div>
           </div>
         </div>
 

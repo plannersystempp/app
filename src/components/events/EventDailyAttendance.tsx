@@ -343,7 +343,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
       {/* 3. Lista de Presença */}
       <Card>
         <CardContent className="p-0">
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left">
                 <tr>
