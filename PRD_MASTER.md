@@ -82,3 +82,13 @@
    - `src/components/events/DivisionCard.tsx`
  - Impacto:
    - Melhora a estética com margens respiráveis e corrige a experiência de arrastar e soltar em dispositivos móveis, permitindo "segurar para arrastar" sem interferir no scroll vertical.
+
+## [2026-01-31] - fix: Conflito de Z-Index em Modais (Editar/Excluir)
+ - Mudanças:
+   - `src/components/ui/dialog.tsx`: Aumentado z-index de Overlay (`z-[1060]`) e Content (`z-[1070]`) para sobrepor `Sheet` (`z-[1050]`).
+   - `src/components/ui/alert-dialog.tsx`: Aumentado z-index de Overlay (`z-[1080]`) e Content (`z-[1090]`) para garantir prioridade sobre Dialogs e Sheets.
+ - Arquivos:
+   - `src/components/ui/dialog.tsx`
+   - `src/components/ui/alert-dialog.tsx`
+ - Impacto:
+   - Resolve bug onde modais de edição e exclusão abertos a partir do menu lateral (Sheet) ficavam inacessíveis ou "atrás" do menu.
