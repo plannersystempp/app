@@ -527,21 +527,21 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                             <span className="font-medium break-words leading-tight text-xs sm:text-sm">{person.name}</span>
                             <span className="text-[10px] sm:text-xs text-muted-foreground break-words leading-tight">{person.functionName}</span>
                             <span className="text-[10px] text-muted-foreground sm:hidden break-words leading-tight">{person.divisionName}</span>
-                            <div className="flex items-center gap-2 mt-1 sm:hidden">
+                            <div className="flex flex-col gap-1 mt-1 sm:hidden">
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="h-7 px-2 text-xs"
+                                className="h-7 px-2 text-xs w-full justify-start"
                                 onClick={() => openTimeModal(person)}
                                 disabled={loadingId === person.id}
                               >
                                 {timeLabel}
                               </Button>
                               {computed && computed.overtimeHours > 0 && (
-                                <Badge variant="destructive" className="text-[10px] px-1 py-0 h-5">
-                                  HE {computed.overtimeHours.toFixed(2)}h
-                                </Badge>
+                                <div className="text-[11px] text-red-600 font-medium whitespace-nowrap">
+                                  HE: {computed.overtimeHours.toFixed(2)}h
+                                </div>
                               )}
                             </div>
                           </div>
@@ -673,14 +673,15 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                   );
                 }
                 return (
-                  <div className="flex items-center justify-between gap-2 rounded-md border p-3">
-                    <div className="text-sm">
-                      <div className="font-medium">Resumo</div>
-                      <div className="text-xs text-muted-foreground">Trabalhadas: {computed.hoursWorked.toFixed(2)}h</div>
-                    </div>
-                    <Badge variant={computed.overtimeHours > 0 ? 'destructive' : 'outline'}>
+                  <div className="rounded-md border p-3 space-y-1">
+                    <div className="text-sm font-medium">Resumo</div>
+                    <div className="text-xs text-muted-foreground">Trabalhadas: {computed.hoursWorked.toFixed(2)}h</div>
+                    <div className={cn(
+                      "text-xs font-medium",
+                      computed.overtimeHours > 0 ? "text-red-600" : "text-muted-foreground"
+                    )}>
                       HE: {computed.overtimeHours.toFixed(2)}h
-                    </Badge>
+                    </div>
                   </div>
                 );
               })()}

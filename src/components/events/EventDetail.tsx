@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEventsQuery, useDeleteEventMutation } from '@/hooks/queries/useEventsQuery';
+import { useWorkLogsQuery } from '@/hooks/queries/useWorkLogsQuery';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -46,7 +47,8 @@ import {
 export const EventDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { assignments, personnel, workLogs, divisions, loading } = useEnhancedData();
+  const { assignments, personnel, divisions, loading } = useEnhancedData();
+  const { data: workLogs = [] } = useWorkLogsQuery();
   const { data: eventsList } = useEventsQuery();
   const deleteEventMutation = useDeleteEventMutation();
   const { user } = useAuth();
@@ -162,7 +164,7 @@ export const EventDetail: React.FC = () => {
     )
   );
 
-  const totalOvertimeHours = eventWorkLogs.reduce((sum, log) => sum + log.overtime_hours, 0);
+  const totalOvertimeHours = eventWorkLogs.reduce((sum, log) => sum + Number(log.overtime_hours || 0), 0);
   const eventDivisionsCount = divisions.filter(d => d.event_id === event.id).length;
 
   const handleDeleteEvent = async () => {

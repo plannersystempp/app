@@ -1,3 +1,33 @@
+## [2026-01-31] - fix: Métrica "H. EXTRAS" Atualiza Imediatamente após Entrada/Saída
+ - Mudanças:
+   - `src/components/events/EventDetail.tsx`:
+     - Métrica de horas extras passa a ler de `useWorkLogsQuery()` (React Query) em vez do `EnhancedDataContext` (deprecado).
+     - Garante que ao salvar Entrada/Saída na lista de presença, o card "H. EXTRAS" reflete imediatamente o valor correto.
+ - Arquivos:
+   - `src/components/events/EventDetail.tsx`
+ - Impacto:
+   - Remove divergência visual e atraso na atualização das métricas do evento, melhorando consistência e confiança do operador.
+
+## [2026-01-31] - fix: HE Mobile sem Badge (Texto Vermelho + Mais Área Útil)
+ - Mudanças:
+   - `src/components/events/EventDailyAttendance.tsx`:
+     - Removida sinalização de HE em `Badge` no mobile (evita clipping).
+     - HE passa a ser exibida como texto em vermelho, com layout em coluna para mais área visível.
+ - Arquivos:
+   - `src/components/events/EventDailyAttendance.tsx`
+ - Impacto:
+   - Melhora legibilidade e reduz ruído visual no mobile, mantendo feedback claro de horas extras.
+
+## [2026-01-31] - fix: Atualização Imediata de Entrada/Saída (Mobile)
+ - Mudanças:
+   - `src/components/events/EventDailyAttendance.tsx`:
+     - Aplicada atualização otimista dos horários ao salvar no modal, refletindo instantaneamente na lista.
+     - Lista (mobile) passa a exibir o horário preenchido (Entrada/Saída) no botão, em vez de apenas o previsto.
+ - Arquivos:
+   - `src/components/events/EventDailyAttendance.tsx`
+ - Impacto:
+   - Elimina sensação de "não salvou" e reduz erros operacionais, mantendo consistência visual e feedback imediato.
+
 ## [2026-01-31] - feat: UX de Horas Extras ao Preencher Entrada/Saída
  - Mudanças:
    - `src/components/events/EventDailyAttendance.tsx`:
