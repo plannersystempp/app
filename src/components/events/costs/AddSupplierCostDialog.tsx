@@ -64,7 +64,7 @@ export const AddSupplierCostDialog: React.FC<AddSupplierCostDialogProps> = ({
   cost,
   onClose
 }) => {
-  const { suppliers, supplierItems, addEventSupplierCost, updateEventSupplierCost } = useEnhancedData();
+  const { suppliers, supplierItems, addEventSupplierCost, updateEventSupplierCost, patchEventSupplierCostPayments } = useEnhancedData();
   const { activeTeam } = useTeam();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -195,6 +195,8 @@ export const AddSupplierCostDialog: React.FC<AddSupplierCostDialogProps> = ({
                 payment_type: initialPaidAmount >= (unitPrice * quantity) ? 'full' : 'partial',
                 notes: 'Pagamento inicial no cadastro'
             }, user.id);
+
+            patchEventSupplierCostPayments(newId, initialPaidAmount);
         }
         
         if (activeTeam?.id) {

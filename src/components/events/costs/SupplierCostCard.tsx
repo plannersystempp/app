@@ -10,7 +10,6 @@ import { formatDateBR, parseDateSafe } from '@/utils/dateUtils';
 import { differenceInCalendarDays } from 'date-fns';
 import { formatCurrency } from '@/utils/formatters';
 import { SupplierPaymentDialog } from './SupplierPaymentDialog';
-import { useQueryClient } from '@tanstack/react-query';
 
 interface SupplierCostCardProps {
   cost: EventSupplierCost;
@@ -22,11 +21,7 @@ export const SupplierCostCard: React.FC<SupplierCostCardProps> = ({ cost, onEdit
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-  const queryClient = useQueryClient();
-
-  const handlePaymentSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ['event_supplier_costs'] });
-  };
+  const handlePaymentSuccess = () => {};
 
   const getStatusBadge = () => {
     if (cost.payment_status === 'pending') {

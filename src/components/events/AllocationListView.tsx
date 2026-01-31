@@ -8,6 +8,7 @@ import { Clock, Edit2, Trash2, User, Calendar } from 'lucide-react';
 import { getSimplifiedName } from '@/utils/nameUtils';
 import { getExpectedWorkHours, formatTimeRange } from '@/utils/allocationUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useWorkLogsQuery } from '@/hooks/queries/useWorkLogsQuery';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,7 +36,8 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
   onDeleteAssignment,
   onEditPerson
 }) => {
-  const { personnel, workLogs, events, divisions } = useEnhancedData();
+  const { personnel, events, divisions } = useEnhancedData();
+  const { data: workLogs = [] } = useWorkLogsQuery();
   const [deleteConfirmation, setDeleteConfirmation] = useState<string | null>(null);
   const [confirmPermanent, setConfirmPermanent] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -70,7 +72,7 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
                   const assignmentWorkLogs = workLogs.filter(log => 
                     log.employee_id === assignment.personnel_id && log.event_id === assignment.event_id
                   );
-                  const totalOvertimeHours = assignmentWorkLogs.reduce((sum, log) => sum + log.overtime_hours, 0);
+                  const totalOvertimeHours = assignmentWorkLogs.reduce((sum, log) => sum + Number(log.overtime_hours || 0), 0);
 
                   return (
                     <tr key={assignment.id} className="border-b hover:bg-muted/30 transition-colors">
@@ -182,7 +184,7 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
             const assignmentWorkLogs = workLogs.filter(log => 
               log.employee_id === assignment.personnel_id && log.event_id === assignment.event_id
             );
-            const totalOvertimeHours = assignmentWorkLogs.reduce((sum, log) => sum + log.overtime_hours, 0);
+            const totalOvertimeHours = assignmentWorkLogs.reduce((sum, log) => sum + Number(log.overtime_hours || 0), 0);
 
             return (
               <div key={assignment.id} className="border rounded-lg p-3 bg-card hover:bg-muted/30 transition-colors">

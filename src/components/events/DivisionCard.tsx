@@ -27,6 +27,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useDndContext } from '@dnd-kit/core';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
+import { useWorkLogsQuery } from '@/hooks/queries/useWorkLogsQuery';
 
 import { DraggableAllocationCard } from './DraggableAllocationCard';
 interface DivisionCardProps {
@@ -54,7 +55,8 @@ export const DivisionCard: React.FC<DivisionCardProps> = ({
   onEditDivision,
   onEditPerson
 }) => {
-  const { personnel, workLogs, deleteAssignment, deleteDivision } = useEnhancedData();
+  const { personnel, deleteAssignment, deleteDivision } = useEnhancedData();
+  const { data: workLogs = [] } = useWorkLogsQuery();
   const { toast } = useToast();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [confirmPermanentDivision, setConfirmPermanentDivision] = useState(false);

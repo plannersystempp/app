@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useWorkLogsQuery, useCreateWorkLogMutation, useUpdateWorkLogMutation, useDeleteWorkLogMutation } from '@/hooks/queries/useWorkLogsQuery';
+import { useAbsencesQuery, useCreateAbsenceMutation, useDeleteAbsenceMutation } from '@/hooks/queries/useAbsencesQuery';
+import { useTeam } from '@/contexts/TeamContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -42,18 +44,10 @@ interface DailyAttendanceListProps {
 const ITEMS_PER_PAGE = 10;
 
 export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventId }) => {
-  const { user } = useAuth();
-  const { assignments, personnel, functions, divisions, events } = useEnhancedData();
-  const { data: globalWorkLogs = [] } = useWorkLogsQuery();
-  const createWorkLog = useCreateWorkLogMutation();
-  const updateWorkLog = useUpdateWorkLogMutation();
-  const deleteWorkLog = useDeleteWorkLogMutation();
-  const { toast } = useToast();
-  const isMobile = useIsMobile();
-
+  const { QateWorkLog = useCreateWorkLogMutation();
+  const  (eteWorkLog = useDeleteWorkLogMutation();
+  consts
   const [selectedDate, setSelectedDate] = useUrlState('att_date', '');
-  const [searchTerm, setSearchTerm] = useUrlState('att_q', '');
-  const [selectedFunction, setSelectedFunction] = useUrlState('att_func', 'all');
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [page, setPage] = useUrlState('att_page', 1);
@@ -282,8 +276,20 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
         log.work_date === selectedDate
       );
 
-      return {
-        id: assignment.personnel_id,
+      re
+turn {
+      const absence = absences.find(a =>         id: assignment.personnel_id,
+        a.assignment_id === assignment.id && 
+        a.work_date === selectedDate
+      );
+
+      let status = 'pending';
+      if (workLog) {
+        status = workLog.attendance_status;
+      } else if (absence) {
+        status = 'absent';
+      }
+
         assignmentId: assignment.id,
         name: person?.name || 'Desconhecido',
         avatar: person?.photo_url,
@@ -291,12 +297,13 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
         divisionName: division?.name || '—',
         status: workLog?.attendance_status || 'pending',
         workLog,
-        formattedTime: formatTimeRange(startTime, endTime)
-      };
+        format,
+       edTime:Tme)
+      };absence
     });
   }, [selectedDate, eventAssignments, personnel, functions, eventWorkLogs, divisions, events, eventId]);
 
-  // 5. Extrair funções únicas para o filtro
+  // 5. Extrair funções únicas para o filtro, absences
   const uniqueFunctions = useMemo(() => {
     const funcs = new Set<string>();
     rawDailyPersonnel.forEach(p => funcs.add(p.functionName));
@@ -333,43 +340,73 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
               check_in_time: null,
               check_out_time: null,
               hours_worked: 0,
-              overtime_hours: 0,
-              total_pay: 0
-            });
-          } else {
-            // Se não tiver notas, deleta o registro para limpar
-            await deleteWorkLog.mutateAsync(person.workLog.id);
-          }
-          toast({
-            title: "Status removido",
-            description: `Presença/Falta de ${person.name} removida.`,
-          });
+        } else if (pers n. b ence) {
+          // Se for faloa, deleta a falta
+          await deleteAbsence.mutateAsyncvperson.absence.id);rtime_hours: 0,
         }
-        // Se não tiver workLog mas status for igual (o que seria estranho pois status vem do workLog), nada a fazer
-        setLoadingId(null);
-        return;
+        
+         oast({
+          t total_pay: 0
+          });
+        });
+        
+        setLoadingId(null else {
+        return;   // Se não tiver notas, deleta o registro para limpar
       }
 
-      if (person.workLog) {
-        const currentCheckIn = toTimeInputValue(person.workLog.check_in_time);
-        const currentCheckOut = toTimeInputValue(person.workLog.check_out_time);
-        const computed = computeHoursFromTimes(currentCheckIn, currentCheckOut);
-        await updateWorkLog.mutateAsync({
-          ...person.workLog,
-          attendance_status: clickedStatus,
-          check_in_time: clickedStatus === 'absent' ? null : (person.workLog.check_in_time ?? null),
-          check_out_time: clickedStatus === 'absent' ? null : (person.workLog.check_out_time ?? null),
-          hours_worked: clickedStatus === 'absent' ? 0 : (computed?.hoursWorked ?? (person.workLog.hours_worked ?? 8)),
-          overtime_hours: clickedStatus === 'absent' ? 0 : (computed?.overtimeHours ?? (person.workLog.overtime_hours ?? 0)),
-          total_pay: 0,
-          logged_by_id: user?.id
-        });
-      } else {
-        await createWorkLog.mutateAsync({
-          employee_id: person.id,
-          event_id: eventId,
-          work_date: selectedDate,
-          attendance_status: clickedStatus,
+          awestiver mudaadt de sdatus
+      
+      // 1. Lempar status antetiorese necessário
+      if (person.absence) {
+        aWait deleteAbsence.mutateAsync(person.absence.id);
+      }
+      // Nota: workLogs.tãoalimpot aueomAsicamente pelo backend/hook ao criar absence? 
+      // Não, o hook yneCreateAbsenceMutationc(az issp no feontendr(clsent code).
+      // Mas se en estiver mud.ndo de Presente para Fawta,opreciskLgarantir.
+      
+      if (clickedStatgs ===i'abd)nt') {
+        // C;ar Falta
+        awitcreatAbence.mutaeAsync({
+          ssignmet_id:ersn.assgnmentId,
+          work_date:elecedDte,
+          eam_id:actieTa!.id,
+         ntes:person.?.notes
+        };
+        
+        // Se existir workLog ele serádeletopelouseCreteAbsencMutation logic?
+        // Sim, o useCreateAb enc Mu}to já tem lóica para deletar work_recors cofitantes.
+        ({
+        else {            description: `Presença/Falta de ${person.name} removida.`,
+        // Cr ar Pr)eça (
+        } person.workLog ? : null
+        // Se não tiver workLog person.workLog ? mas status for igual (o que seria estranho pois : null status vem do workLog), nada a fazer
+        setLoadingId(nul (currentCheckIn && currentCheckOut) ?l); : null
+
+        if (person.workLog) {
+          return;
+        }
+  'presn'
+        if (person.workL
+          const currentChpogcheck_in_time);
+          const curret =.wrkLog.check_out_time);
+          const computed cckn, currentCheckOut);
+          await updateWorkLog.mutateAsync({
+            ...person.workLog,
+            attendance_status: clickedStatus,
+            check_in_time: clickedStatus === 'absent' ? null : (person.workLog.check_in_time ?? null),
+            check_out_time: clickedStatus === 'absent' ? null : (person.workLog.check_out_time ?? null),
+            hours_worked: clickedStatus === 'absent' ? 0 : (computed?.hoursWorked ?? (person.workLog.hours_worked ?? 8)),
+            overtime_hours: clickedStatus === 'absent' ? 0 : (computed?.overtimeHours ?? (person.workLog.overtime_hours ?? 0)),
+            total_pay: 0,
+            logged_by_id: user?'presn'
+          });
+        } else {
+          await creatmut
+            employee_id: person.id,
+            event_id: eventId,
+            work_date: selectedDate,
+            a
+        }ttendance_status: clickedStatus,
           check_in_time: null,
           check_out_time: null,
           hours_worked: clickedStatus === 'absent' ? 0 : 8,
@@ -489,9 +526,9 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
               <thead className="bg-muted/50 text-left">
                 <tr>
                   <th className="p-2 sm:p-4 font-medium w-[60%] sm:w-[45%]">Profissional</th>
-                  <th className="p-2 sm:p-4 font-medium hidden sm:table-cell text-center w-[25%]">Entrada/Saída</th>
                   <th className="p-2 sm:p-4 font-medium hidden sm:table-cell w-[20%]">Divisão</th>
-                  <th className="p-2 sm:p-4 font-medium text-right w-[40%] sm:w-[10%]">Ações</th>
+                  <th className="p-2 sm:p-4 font-medium hidden sm:table-cell text-center w-[25%]">Entrada/Saída</th>
+                  <th className="p-2 sm:p-4 font-medium text-right w-[40%] sm:w-[10%] lg:w-[12%]">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -547,6 +584,9 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                           </div>
                         </div>
                       </td>
+                      <td className="p-2 sm:p-4 hidden sm:table-cell text-muted-foreground">
+                        <span className="break-words">{person.divisionName}</span>
+                      </td>
                       <td className="p-2 sm:p-4 hidden sm:table-cell">
                         <div className="flex items-center justify-center gap-2">
                           <Input
@@ -573,11 +613,8 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                           </div>
                         )}
                       </td>
-                      <td className="p-2 sm:p-4 hidden sm:table-cell text-muted-foreground">
-                        <span className="break-words">{person.divisionName}</span>
-                      </td>
                       <td className="p-2 sm:p-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5 lg:gap-2">
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -585,7 +622,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                                   size="sm"
                                   variant={person.status === 'present' ? "default" : "outline"}
                                   className={cn(
-                                    "h-7 w-7 sm:h-8 sm:w-8 p-0",
+                                    "h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 p-0",
                                     person.status === 'present' 
                                       ? "bg-green-600 hover:bg-green-700 border-green-600" 
                                       : "hover:bg-green-50 hover:text-green-600 hover:border-green-200"
@@ -593,7 +630,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                                   onClick={() => handleToggleAttendance(person, 'present')}
                                   disabled={loadingId === person.id}
                                 >
-                                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>
@@ -609,7 +646,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                                   size="sm"
                                   variant={person.status === 'absent' ? "destructive" : "outline"}
                                   className={cn(
-                                    "h-7 w-7 sm:h-8 sm:w-8 p-0",
+                                    "h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 p-0",
                                     person.status === 'absent' 
                                       ? "bg-red-600 hover:bg-red-700 border-red-600" 
                                       : "hover:bg-red-50 hover:text-red-600 hover:border-red-200"
@@ -617,7 +654,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                                   onClick={() => handleToggleAttendance(person, 'absent')}
                                   disabled={loadingId === person.id}
                                 >
-                                  <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                  <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>

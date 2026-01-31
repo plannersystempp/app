@@ -30,25 +30,32 @@ interface AbsenceHistoryProps {
 const ITEMS_PER_PAGE = 10;
 
 const fetchEventAbsenceHistory = async (eventId: string, teamId: string): Promise<AbsenceHistoryDetail[]> => {
-  const { data: workLogs, error } = await supabase
-    .from('work_records')
+  console.log('Fetching absence history for event:', eventId);
+  
+  const { data: absences, error } = await supabase
+    .from('absences')
     .select(`
       id,
       work_date,
       notes,
       created_at,
       logged_by_id,
-      employee_id,
-      personnel:employee_id(
-        name
-      ),
       user_profiles:logged_by_id(
         name
+      ),
+      personnel_allocations!inner(
+        event_id,
+        function_name,
+        personnel:personnel_id(
+          name
+        ),
+        event_divisions(
+          name
+        )
       )
     `)
     .eq('team_id', teamId)
-    .eq('event_id', eventId)
-    .eq('attendance_status', 'absent')
+    .eq('personnel_allocations.event_id', eventId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -56,37 +63,22 @@ const fetchEventAbsenceHistory = async (eventId: string, teamId: string): Promis
     throw error;
   }
 
-  const { data: allocations } = await supabase
-    .from('personnel_allocations')
-    .select(`
-      personnel_id,
-      function_name,
-      event_divisions(
-        name
-      )
-    `)
-    .eq('event_id', eventId);
-
-  const allocationMap = new Map();
-  allocations?.forEach(a => {
-    allocationMap.set(a.personnel_id, {
-      function_name: a.function_name,
-      division_name: (a.event_divisions as any)?.name || '—'
-    });
-  });
-
-  return (workLogs || []).map(log => {
-    const alloc = allocationMap.get(log.employee_id);
+  return (absences || []).map(absence => {
+    const allocation = absence.personnel_allocations as any;
+    const personnelName = allocation?.personnel?.name || 'Desconhecido';
+    const divisionName = allocation?.event_divisions?.name || '—';
+    const functionName = allocation?.function_name || '—';
+    
     return {
-      id: log.id,
-      work_date: log.work_date || '',
-      notes: log.notes || '',
-      created_at: log.created_at || '',
-      logged_by_id: log.logged_by_id || '',
-      logged_by_name: (log.user_profiles as any)?.name || 'Sistema',
-      personnel_name: (log.personnel as any)?.name || 'Desconhecido',
-      division_name: alloc?.division_name || '—',
-      function_name: alloc?.function_name || '—',
+      id: absence.id,
+      work_date: absence.work_date,
+      notes: absence.notes || '',
+      created_at: absence.created_at,
+      logged_by_id: absence.logged_by_id || '',
+      logged_by_name: (absence.user_profiles as any)?.name || 'Sistema',
+      personnel_name: personnelName,
+      division_name: divisionName,
+      function_name: functionName,
     };
   });
 };

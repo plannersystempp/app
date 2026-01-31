@@ -280,7 +280,17 @@ export const updateEventSupplierCost = async (
 ): Promise<void> => {
   try {
     // Sanitização explícita: remover campos gerados/readonly
-    const { total_amount, created_at, team_id, id: _ignoreId, updated_at, ...rest } = data as any;
+    const {
+      total_amount,
+      created_at,
+      team_id,
+      id: _ignoreId,
+      updated_at,
+      paid_amount,
+      payment_status,
+      payment_date,
+      ...rest
+    } = data as any;
     const updateData = { ...rest } as any;
 
     const { error } = await supabase

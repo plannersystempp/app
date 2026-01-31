@@ -1,3 +1,42 @@
+## [2026-01-31] - fix: Custos de Fornecedores Atualizam Imediatamente (Pagamentos/Total)
+ - Mudanças:
+   - Sincronização imediata de `paid_amount`/`payment_status` no estado local ao carregar/criar/excluir pagamentos (sem depender de refresh).
+   - Modal de pagamentos passa a calcular "Já Pago" e "Restante" a partir do histórico carregado, evitando UI stale.
+   - Atualização de custo (qty/preço) passa a recalcular `payment_status` localmente; update no banco não sobrescreve campos de pagamento.
+ - Arquivos:
+   - `src/components/events/costs/SupplierPaymentDialog.tsx`
+   - `src/components/events/costs/SupplierCostCard.tsx`
+   - `src/components/events/costs/AddSupplierCostDialog.tsx`
+   - `src/contexts/EnhancedDataContext.tsx`
+   - `src/services/supplierService.ts`
+   - `src/components/events/costs/__tests__/SupplierPaymentDialog.reactive.test.tsx`
+ - Impacto:
+   - Cards e resumo do evento refletem pagamentos/alterações de custo imediatamente, reduzindo divergência visual e risco de sobrescrever status/valores de pagamento.
+
+## [2026-01-31] - fix: Coluna "Divisão" antes de Entrada/Saída + Botões Maiores (Desktop)
+ - Mudanças:
+   - Lista de presença: reordenadas as colunas no desktop para exibir "Divisão" antes de "Entrada/Saída".
+   - Botões de ação (presença/falta) aumentados em telas grandes para melhorar clique/visibilidade.
+ - Arquivos:
+   - `src/components/events/EventDailyAttendance.tsx`
+ - Impacto:
+   - Leitura mais natural por divisão e ações mais fáceis de operar no desktop, sem afetar o layout mobile.
+
+## [2026-01-31] - fix: Cards de Alocação ("extras") Atualizam Imediatamente
+ - Mudanças:
+   - `src/components/events/DivisionCard.tsx` + `src/components/events/DraggableAllocationCard.tsx`:
+     - Cards passam a usar `useWorkLogsQuery()` como fonte de dados para HE, refletindo imediatamente após lançamentos.
+   - `src/components/events/AllocationListView.tsx` + `src/components/events/AllocationCard.tsx`:
+     - Removida dependência de `workLogs` do `EnhancedDataContext` (deprecado) para exibir horas extras.
+     - Somatório de HE normalizado com `Number(...)` para garantir valor correto.
+ - Arquivos:
+   - `src/components/events/DivisionCard.tsx`
+   - `src/components/events/DraggableAllocationCard.tsx`
+   - `src/components/events/AllocationListView.tsx`
+   - `src/components/events/AllocationCard.tsx`
+ - Impacto:
+   - Elimina atraso e divergência nos cards por pessoa ("extras"), mantendo UI consistente com os lançamentos em tempo real.
+
 ## [2026-01-31] - fix: Métrica "H. EXTRAS" Atualiza Imediatamente após Entrada/Saída
  - Mudanças:
    - `src/components/events/EventDetail.tsx`:
@@ -244,4 +283,31 @@
    - `src/components/AppSidebar.tsx`
    - `supabase/functions/create-checkout-session/index.ts`
  - Impacto:
-   - Melhora a UX do Super Admin (acesso direto) e fornece diagnósticos claros para erros de infraestrutura no checkout (evitando "Internal Server Error" opaco).
+  - Melhora a UX do Super Admin (acesso direto) e fornece diagnósticos claros para erros de infraestrutura no checkout (evitando "Internal Server Error" opaco).
+
+## [2026-01-31] - fix: Remoção de Registro de Falta Incorreto (Data Fix)
+- Mudanças:
+  - Executada migração `20260131120000_delete_wrong_absence.sql` para remover registro de falta incorreto de "Felipe Gomes Oliveira de Abreu" em 13/11/2025.
+- Arquivos:
+  - `supabase/migrations/20260131120000_delete_wrong_absence.sql`
+- Impacto:
+  - Correção pontual de dados a pedido do usuário, removendo uma falta lançada erroneamente e regularizando o histórico do profissional.
+
+## [2026-01-31] - fix: Visibilidade e Sincronização de Faltas (Todas as Telas)
+ - Mudanças:
+   - `src/components/events/AbsenceHistory.tsx`:
+     - Refatorado para ler diretamente da tabela `absences` em vez de buscar por `attendance_status='absent'` em `work_records` (que são deletados ao lançar falta).
+     - Adicionado join correto com `personnel_allocations` para exibir dados do profissional/divisão.
+   - `src/components/events/EventDailyAttendance.tsx`:
+     - Adicionada leitura híbrida de `work_records` (presença) e `absences` (falta) para compor o status diário.
+     - Corrigida lógica de toggle: criar falta agora insere em `absences` (e remove work_record); marcar presença remove `absence` e cria `work_record`.
+   - `src/components/events/AllocationCard.tsx`:
+     - Adicionada query de `absences` para identificar dias de falta visualmente (bolinha vermelha).
+     - Corrigido cálculo de "Dias Trabalhados": agora subtrai as faltas do total de dias alocados.
+     - Ajustado cálculo financeiro para descontar dias de falta do total estimado/pago.
+ - Arquivos:
+   - `src/components/events/AbsenceHistory.tsx`
+   - `src/components/events/EventDailyAttendance.tsx`
+   - `src/components/events/AllocationCard.tsx`
+ - Impacto:
+   - Resolve o bug onde faltas lançadas "sumiam" do histórico e da lista diária. Agora a falta aparece corretamente no Histórico, na Lista de Presença (com botão "X" ativo) e no Resumo do Profissional (com indicador visual e desconto financeiro).

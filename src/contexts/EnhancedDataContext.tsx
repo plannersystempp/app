@@ -203,6 +203,7 @@ interface EnhancedDataContextType {
   addEventSupplierCost: (cost: Omit<EventSupplierCost, 'id' | 'created_at' | 'updated_at' | 'total_amount' | 'team_id'>) => Promise<string | null>;
   updateEventSupplierCost: (cost: EventSupplierCost) => Promise<void>;
   deleteEventSupplierCost: (id: string) => Promise<void>;
+  patchEventSupplierCostPayments: (costId: string, paidAmount: number) => void;
   addSupplierRating: (rating: Omit<SupplierRating, 'id' | 'created_at' | 'team_id' | 'rated_by'>) => Promise<void>;
 }
 
@@ -1591,11 +1592,35 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  const patchEventSupplierCostPayments = (costId: string, paidAmount: number): void => {
+    const safePaidAmount = Number.isFinite(paidAmount) ? paidAmount : 0;
+    setEventSupplierCosts(prev =>
+      prev.map(c => {
+        if (c.id !== costId) return c;
+        const total = (c.total_amount ?? (c.unit_price * c.quantity)) || 0;
+        const epsilon = 0.00001;
+        const normalizedPaid = Math.abs(safePaidAmount) < epsilon ? 0 : safePaidAmount;
+        const payment_status: 'pending' | 'partially_paid' | 'paid' =
+          normalizedPaid >= total - epsilon ? 'paid' : normalizedPaid > epsilon ? 'partially_paid' : 'pending';
+        return {
+          ...c,
+          paid_amount: normalizedPaid,
+          payment_status,
+          updated_at: new Date().toISOString(),
+        };
+      })
+    );
+  };
+
   const updateEventSupplierCostData = async (cost: EventSupplierCost): Promise<void> => {
     try {
       await updateEventSupplierCost(cost.id, cost);
       const updatedTotal = cost.unit_price * cost.quantity;
-      const updatedCost: EventSupplierCost = { ...cost, total_amount: updatedTotal };
+      const epsilon = 0.00001;
+      const paid = cost.paid_amount ?? 0;
+      const payment_status: 'pending' | 'partially_paid' | 'paid' =
+        paid >= updatedTotal - epsilon ? 'paid' : paid > epsilon ? 'partially_paid' : 'pending';
+      const updatedCost: EventSupplierCost = { ...cost, total_amount: updatedTotal, payment_status };
       setEventSupplierCosts(prev => prev.map(c => c.id === cost.id ? updatedCost : c));
       toast({ title: "Custo atualizado com sucesso" });
     } catch (error) {
@@ -1697,6 +1722,7 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     addEventSupplierCost,
     updateEventSupplierCost: updateEventSupplierCostData,
     deleteEventSupplierCost: removeEventSupplierCost,
+    patchEventSupplierCostPayments,
     addSupplierRating,
   };
 

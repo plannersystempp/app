@@ -68,7 +68,7 @@ export const DraggableAllocationCard: React.FC<DraggableAllocationCardProps> = (
   const assignmentWorkLogs = workLogs.filter(log => 
     log.employee_id === assignment.personnel_id && log.event_id === assignment.event_id
   );
-  const totalOvertimeHours = assignmentWorkLogs.reduce((sum, log) => sum + log.overtime_hours, 0);
+  const totalOvertimeHours = assignmentWorkLogs.reduce((sum, log) => sum + Number(log.overtime_hours || 0), 0);
 
   // Stop propagation for interactive elements to prevent drag start
   const handleAction = (e: React.MouseEvent, action: () => void) => {

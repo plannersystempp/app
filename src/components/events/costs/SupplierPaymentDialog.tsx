@@ -9,10 +9,21 @@ import { Input } from '@/components/ui/input';
 import { createSupplierPayment, fetchSupplierPayments, deleteSupplierPayment } from '@/services/supplierService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { useEnhancedData } from '@/contexts/EnhancedDataContext';
+import { Trash2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+
+type SupplierPaymentRow = {
+  id: string;
+  supplier_cost_id?: string;
+  amount: number | string;
+  payment_date: string;
+  payment_type?: 'partial' | 'full';
+  created_by?: { email?: string };
+  notes?: string | null;
+  created_by_id?: string | null;
+};
 
 interface SupplierPaymentDialogProps {
   open: boolean;
@@ -35,31 +46,39 @@ export const SupplierPaymentDialog: React.FC<SupplierPaymentDialogProps> = ({
 }) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { patchEventSupplierCostPayments } = useEnhancedData();
   const [amount, setAmount] = useState(0);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<SupplierPaymentRow[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const remainingAmount = Math.max(0, (cost.total_amount || 0) - (cost.paid_amount || 0));
+  const toAmount = React.useCallback((v: unknown): number => {
+    if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+    if (typeof v === 'string') {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    }
+    return 0;
+  }, []);
+
+  const paidFromHistory = history.reduce((sum, p) => sum + toAmount(p.amount), 0);
+  const effectivePaidAmount = historyLoaded ? paidFromHistory : (cost.paid_amount || 0);
+  const remainingAmount = Math.max(0, (cost.total_amount || 0) - effectivePaidAmount);
   const isValidAmount = amount > 0 && amount <= remainingAmount + 0.01; // tolerance for rounding
 
-  useEffect(() => {
-    if (open) {
-      setAmount(0);
-      setNotes('');
-      setDate(new Date().toISOString().split('T')[0]);
-      loadHistory();
-    }
-  }, [open, cost.id]);
-
-  const loadHistory = async () => {
+  const loadHistory = React.useCallback(async () => {
     setLoadingHistory(true);
     try {
-      const data = await fetchSupplierPayments(cost.id);
+      const data = (await fetchSupplierPayments(cost.id)) as SupplierPaymentRow[];
       setHistory(data);
+      setHistoryLoaded(true);
+
+      const totalPaid = (data || []).reduce((sum, p) => sum + toAmount(p.amount), 0);
+      patchEventSupplierCostPayments(cost.id, totalPaid);
     } catch (error) {
       console.error(error);
       toast({
@@ -70,7 +89,18 @@ export const SupplierPaymentDialog: React.FC<SupplierPaymentDialogProps> = ({
     } finally {
       setLoadingHistory(false);
     }
-  };
+  }, [cost.id, patchEventSupplierCostPayments, toast, toAmount]);
+
+  useEffect(() => {
+    if (open) {
+      setAmount(0);
+      setNotes('');
+      setDate(new Date().toISOString().split('T')[0]);
+      setHistory([]);
+      setHistoryLoaded(false);
+      loadHistory();
+    }
+  }, [open, loadHistory]);
 
   const handleFullPayment = () => {
     setAmount(remainingAmount);
@@ -158,7 +188,7 @@ export const SupplierPaymentDialog: React.FC<SupplierPaymentDialogProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Já Pago:</span>
-                <span className="text-green-600">{formatCurrency(cost.paid_amount)}</span>
+                <span className="text-green-600">{formatCurrency(effectivePaidAmount)}</span>
               </div>
               <div className="flex justify-between border-t pt-2 mt-2">
                 <span className="text-sm font-medium">Restante:</span>

@@ -12,6 +12,8 @@ import { useState } from 'react';
 import { formatCurrency } from '@/utils/formatters';
 import { useTeam } from '@/contexts/TeamContext';
 import { getDailyCacheRate, type AllocationData, type PersonnelData } from '@/components/payroll/payrollCalculations';
+import { useWorkLogsQuery } from '@/hooks/queries/useWorkLogsQuery';
+import { useAbsencesQuery } from '@/hooks/queries/useAbsencesQuery';
 
 interface AllocationCardProps {
   assignment: Assignment;
@@ -24,7 +26,9 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
   onEdit,
   onDelete
 }) => {
-  const { personnel, functions, divisions, workLogs } = useEnhancedData();
+  const { personnel, functions, divisions } = useEnhancedData();
+  const { data: workLogs = [] } = useWorkLogsQuery();
+  const { data: absences = [] } = useAbsencesQuery(assignment.event_id);
   const { userRole } = useTeam();
   const [workLogManagerOpen, setWorkLogManagerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -39,8 +43,8 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
   const assignmentWorkLogs = workLogs.filter(log => 
     log.employee_id === assignment.personnel_id && log.event_id === assignment.event_id
   );
-  const totalHours = assignmentWorkLogs.reduce((sum, log) => sum + log.hours_worked, 0);
-  const totalOvertimeHours = assignmentWorkLogs.reduce((sum, log) => sum + log.overtime_hours, 0);
+  const totalHours = assignmentWorkLogs.reduce((sum, log) => sum + Number(log.hours_worked || 0), 0);
+  const totalOvertimeHours = assignmentWorkLogs.reduce((sum, log) => sum + Number(log.overtime_hours || 0), 0);
 
   if (!person) return null;
 
@@ -191,11 +195,11 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
                   <div className="flex justify-between text-sm border-t pt-2">
                     <span className="font-medium text-primary">Total do evento:</span>
                     <span className="font-bold text-primary">
-                      {formatCurrency(assignment.event_specific_cache * assignment.work_days.length)}
+                      {formatCurrency(assignment.event_specific_cache * effectiveWorkDays)}
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground text-center">
-                    {formatCurrency(assignment.event_specific_cache)} × {assignment.work_days.length} dias
+                    {formatCurrency(assignment.event_specific_cache)} × {effectiveWorkDays} dias
                   </div>
                 </>
               ) : isFunctionCache ? (
@@ -209,18 +213,18 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
                   <div className="flex justify-between text-sm border-t pt-2">
                     <span className="font-medium text-primary">Total do evento:</span>
                     <span className="font-bold text-primary">
-                      {formatCurrency(effectiveCacheRate * assignment.work_days.length)}
+                      {formatCurrency(effectiveCacheRate * effectiveWorkDays)}
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground text-center">
-                    {formatCurrency(effectiveCacheRate)} × {assignment.work_days.length} dias (Função)
+                    {formatCurrency(effectiveCacheRate)} × {effectiveWorkDays} dias (Função)
                   </div>
                 </>
               ) : (
                 <div className="flex justify-between text-sm border-t pt-2">
                   <span className="font-medium">Total estimado:</span>
                   <span className="font-semibold">
-                    {formatCurrency((person.event_cache || 0) * assignment.work_days.length)}
+                    {formatCurrency((person.event_cache || 0) * effectiveWorkDays)}
                   </span>
                 </div>
               )}
