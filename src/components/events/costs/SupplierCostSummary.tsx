@@ -17,32 +17,32 @@ export const SupplierCostSummary: React.FC<SupplierCostSummaryProps> = ({ costs 
   const partialCount = costs.filter(c => c.payment_status === 'partially_paid').length;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       <Card>
-        <CardContent className="pt-6">
-          <div className="text-2xl font-bold">{formatCurrency(totalCost)}</div>
-          <p className="text-xs text-muted-foreground">Custo Total</p>
+        <CardContent className="p-4 sm:pt-6">
+          <div className="text-xl sm:text-2xl font-bold break-words leading-tight">{formatCurrency(totalCost)}</div>
+          <p className="text-xs text-muted-foreground mt-1">Custo Total</p>
         </CardContent>
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
-          <div className="text-2xl font-bold text-green-600">{formatCurrency(totalPaid)}</div>
-          <p className="text-xs text-muted-foreground">Total Pago</p>
+        <CardContent className="p-4 sm:pt-6">
+          <div className="text-xl sm:text-2xl font-bold text-green-600 break-words leading-tight">{formatCurrency(totalPaid)}</div>
+          <p className="text-xs text-muted-foreground mt-1">Total Pago</p>
         </CardContent>
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
-          <div className="text-2xl font-bold text-orange-600">{formatCurrency(totalPending)}</div>
-          <p className="text-xs text-muted-foreground">Pendente</p>
+        <CardContent className="p-4 sm:pt-6">
+          <div className="text-xl sm:text-2xl font-bold text-orange-600 break-words leading-tight">{formatCurrency(totalPending)}</div>
+          <p className="text-xs text-muted-foreground mt-1">Pendente</p>
         </CardContent>
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
-          <div className="text-2xl font-bold">{costs.length}</div>
-          <p className="text-xs text-muted-foreground">
+        <CardContent className="p-4 sm:pt-6">
+          <div className="text-xl sm:text-2xl font-bold break-words leading-tight">{costs.length}</div>
+          <p className="text-[10px] sm:text-xs text-muted-foreground break-words mt-1 leading-tight">
             {paidCount} pagos • {partialCount} parciais • {pendingCount} pendentes
           </p>
         </CardContent>

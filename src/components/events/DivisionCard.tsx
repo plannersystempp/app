@@ -120,11 +120,11 @@ export const DivisionCard: React.FC<DivisionCardProps> = ({
         <Collapsible open={isExpanded} onOpenChange={onToggle}>
           <CardHeader className="pb-3 space-y-0">
             <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-2">
-              <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+              <div className="flex items-center gap-2 flex-1 min-w-[150px]">
                 <div 
                   {...attributes} 
                   {...listeners} 
-                  className="cursor-grab active:cursor-grabbing p-3 -ml-2 hover:bg-muted rounded text-muted-foreground flex items-center justify-center min-w-[44px] min-h-[44px] touch-none"
+                  className="cursor-grab active:cursor-grabbing p-3 -ml-2 hover:bg-muted rounded text-muted-foreground flex items-center justify-center min-w-[44px] min-h-[44px] touch-none select-none"
                 >
                   <GripVertical className="h-5 w-5" />
                 </div>

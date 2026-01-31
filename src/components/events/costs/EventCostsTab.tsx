@@ -55,8 +55,8 @@ export const EventCostsTab: React.FC<EventCostsTabProps> = ({ eventId }) => {
         <h3 className="text-lg font-semibold">Custos de Fornecedores</h3>
         {isAdmin && (
           <Button onClick={() => setShowAddDialog(true)} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Adicionar Custo
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Adicionar Custo</span>
           </Button>
         )}
       </div>

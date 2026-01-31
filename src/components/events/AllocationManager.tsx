@@ -248,13 +248,13 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5, // Reduced distance for easier activation
+        distance: 8, // Increased distance slightly to prevent accidental drags
       },
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 150, // Reduced delay for faster interaction
-        tolerance: 15, // Increased tolerance for shaky fingers
+        delay: 250, // Increased delay for "press and hold" feel
+        tolerance: 5, // Reduced tolerance to ensure intention
       },
     }),
     useSensor(KeyboardSensor, {
@@ -423,10 +423,15 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h3 className="text-lg font-semibold">Alocações de Pessoal</h3>
-          <Button onClick={() => handleAddAllocation()} className="w-full sm:w-auto">
-            <Plus className="w-4 h-4 mr-2" />
-            Adicionar Alocação
-          </Button>
+          <div className="w-full sm:w-auto flex justify-end">
+            <Button onClick={() => handleAddAllocation()} className="hidden sm:flex">
+              <Plus className="w-4 h-4 mr-2" />
+              Adicionar Alocação
+            </Button>
+            <Button onClick={() => handleAddAllocation()} size="icon" className="sm:hidden w-12 h-12 rounded-full shadow-lg fixed bottom-32 right-4 z-50 bg-primary text-primary-foreground hover:bg-primary/90">
+              <Plus className="w-6 h-6" />
+            </Button>
+          </div>
         </div>
 
         {/* Search Filter - Show only if there are assignments */}

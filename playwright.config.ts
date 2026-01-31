@@ -10,7 +10,19 @@ export default defineConfig({
   projects: [
     {
       name: 'webkit (iOS Safari)',
-      use: { ...devices['Desktop Safari'] },
+      use: { ...devices['iPhone 12'] },
+    },
+    {
+      name: 'chromium (Android Chrome)',
+      use: { ...devices['Pixel 5'] },
+    },
+    {
+      name: 'firefox (Mobile Emulation)',
+      use: { ...devices['Desktop Firefox'], viewport: { width: 390, height: 844 } },
+    },
+    {
+      name: 'webkit (iPad)',
+      use: { ...devices['iPad Pro 11'] },
     },
   ],
 })

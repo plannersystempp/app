@@ -3,6 +3,35 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --ps-gutter: clamp(12px, 4vw, 20px);
+}
+
+@media (min-width: 768px) {
+  :root {
+    --ps-gutter: clamp(16px, 3vw, 28px);
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --ps-gutter: clamp(20px, 2.5vw, 40px);
+  }
+}
+
+@media (max-width: 1024px) and (orientation: landscape) {
+  :root {
+    --ps-gutter: clamp(10px, 2vw, 18px);
+  }
+}
+
+.ps-container {
+  max-width: 1600px;
+  margin-inline: auto;
+  padding-left: calc(var(--ps-gutter) + env(safe-area-inset-left));
+  padding-right: calc(var(--ps-gutter) + env(safe-area-inset-right));
+}
+
 @layer base {
   :root {
     /* Cores base */

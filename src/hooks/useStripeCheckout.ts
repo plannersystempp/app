@@ -43,7 +43,8 @@ export function useStripeCheckout() {
             } catch {
               try {
                 const text = await cloned.text();
-                body = JSON.parse(text);
+                console.error('Erro não-JSON do servidor:', text);
+                body = { message: text };
               } catch {
                 // ignore
               }
@@ -54,7 +55,8 @@ export function useStripeCheckout() {
             }
           }
         } catch (parseError) {
-          if (parseError instanceof Error && parseError.message) {
+          // Se o erro for o que nós lançamos acima, repassar
+          if (parseError instanceof Error && parseError.message && parseError.message !== 'Falha ao iniciar o checkout. Tente novamente em alguns instantes.') {
             throw parseError;
           }
         }

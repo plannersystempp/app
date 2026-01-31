@@ -95,7 +95,7 @@ export const SupplierCostCard: React.FC<SupplierCostCardProps> = ({ cost, onEdit
           <div className="pt-2 border-t">
             <div className="flex justify-between items-center">
               <span className="text-xs text-muted-foreground">Total</span>
-              <span className="text-lg font-bold">{formatCurrency(cost.total_amount)}</span>
+              <span className="text-lg font-bold break-words">{formatCurrency(cost.total_amount)}</span>
             </div>
           </div>
 

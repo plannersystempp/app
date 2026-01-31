@@ -49,7 +49,7 @@ export const PWAManager = () => {
             <Button
               variant="outline"
               size="sm"
-              className="fixed bottom-4 right-4 z-[1030] shadow-lg"
+              className="fixed bottom-20 right-4 z-[1030] shadow-lg"
             >
               <Download className="h-4 w-4 mr-2" />
               Instalar App
@@ -78,7 +78,7 @@ export const PWAManager = () => {
 
       {/* Update Available Prompt */}
       {swUpdateAvailable && (
-        <div className="fixed bottom-4 left-4 z-[1030]">
+        <div className="fixed bottom-20 md:bottom-4 left-4 z-[1030]">
           <div className="bg-primary text-primary-foreground p-4 rounded-lg shadow-lg">
             <div className="flex items-center gap-2 mb-2">
               <RefreshCw className="h-4 w-4" />

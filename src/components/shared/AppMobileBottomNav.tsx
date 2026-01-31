@@ -135,7 +135,7 @@ export function AppMobileBottomNav() {
               aria-current={active ? 'page' : undefined}
             >
               <Icon className="h-4 w-4" />
-              <span className="w-full text-center leading-tight text-[10px] sm:text-xs font-medium truncate">{tab.label}</span>
+              <span className="w-full text-center leading-tight text-[9px] sm:text-xs font-medium tracking-tighter truncate">{tab.label}</span>
               {active && (
                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 sm:w-12 h-0.5 bg-primary rounded-t-full" />
               )}

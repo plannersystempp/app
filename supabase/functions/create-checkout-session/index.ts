@@ -182,19 +182,24 @@ serve(async (req) => {
     console.log(`✅ Checkout Session criada: ${session.id}`);
 
     // Log de auditoria
-    await supabase.from('audit_logs').insert({
-      user_id: user.id,
-      team_id: teamId,
-      action: 'CHECKOUT_SESSION_CREATED',
-      table_name: 'team_subscriptions',
-      record_id: session.id,
-      new_values: {
-        plan_id: planId,
-        plan_name: plan.display_name,
-        stripe_session_id: session.id,
-        customer_id: customerId
-      }
-    });
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: user.id,
+        team_id: teamId,
+        action: 'CHECKOUT_SESSION_CREATED',
+        table_name: 'team_subscriptions',
+        record_id: session.id,
+        new_values: {
+          plan_id: planId,
+          plan_name: plan.display_name,
+          stripe_session_id: session.id,
+          customer_id: customerId
+        }
+      });
+    } catch (auditError) {
+      console.error('⚠️ Erro ao registrar audit log:', auditError);
+      // Não interromper o fluxo se o log falhar, pois a sessão já foi criada no Stripe
+    }
 
     return new Response(
       JSON.stringify({ 

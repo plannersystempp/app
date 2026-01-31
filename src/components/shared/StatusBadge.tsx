@@ -54,7 +54,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   const label = labelOverride ?? chosen.label;
   const isEmAndamento = status === 'em_andamento';
   const effectiveSize = size === 'md' && isEmAndamento ? 'sm' : size;
-  const labelClass = compact ? (isEmAndamento ? 'ml-1 hidden sm:inline' : 'ml-1 hidden sm:inline') : 'ml-1';
+  const labelClass = compact ? (isEmAndamento ? 'ml-1 hidden md:inline' : 'ml-1 hidden md:inline') : 'ml-1';
   const iconSizeClass = effectiveSize === 'sm' ? 'h-2.5 w-2.5' : 'h-4 w-4';
   const paddingClass = effectiveSize === 'sm' ? 'px-1.5 py-0' : '';
   const labelSizeClass = effectiveSize === 'sm' ? 'text-[10px]' : '';

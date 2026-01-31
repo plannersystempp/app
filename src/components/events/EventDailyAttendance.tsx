@@ -279,7 +279,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
           </div>
         </div>
 
-        <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto pb-2 md:pb-0">
           <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg border">
             <Users className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium">{stats.total}</span>
@@ -343,15 +343,15 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
       {/* 3. Lista de Presença */}
       <Card>
         <CardContent className="p-0">
-          <div className="rounded-md border overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="rounded-md border">
+            <table className="w-full text-sm table-fixed">
               <thead className="bg-muted/50 text-left">
                 <tr>
-                  <th className="p-4 font-medium">Profissional</th>
-                  <th className="p-4 font-medium hidden md:table-cell">Função</th>
-                  <th className="p-4 font-medium hidden sm:table-cell text-center">Horário</th>
-                  <th className="p-4 font-medium text-center">Status</th>
-                  <th className="p-4 font-medium text-right">Ações</th>
+                  <th className="p-3 sm:p-4 font-medium w-[55%]">Profissional</th>
+                  <th className="p-3 sm:p-4 font-medium hidden md:table-cell w-[20%]">Função</th>
+                  <th className="p-3 sm:p-4 font-medium hidden sm:table-cell text-center w-[15%]">Horário</th>
+                  <th className="p-3 sm:p-4 font-medium text-center w-[15%]">Status</th>
+                  <th className="p-3 sm:p-4 font-medium text-right w-[15%]">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -364,27 +364,27 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                 ) : (
                   paginatedPersonnel.map((person) => (
                     <tr key={person.id} className="border-t hover:bg-muted/30 transition-colors">
-                      <td className="p-4">
+                      <td className="p-3 sm:p-4">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-9 w-9 border">
                             <AvatarImage src={person.avatar} />
                             <AvatarFallback>{person.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                           </Avatar>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{person.name}</span>
-                            <span className="text-xs text-muted-foreground md:hidden">{person.functionName}</span>
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-medium break-words leading-tight">{person.name}</span>
+                            <span className="text-xs text-muted-foreground md:hidden break-words leading-tight">{person.functionName}</span>
                           </div>
                         </div>
                       </td>
-                      <td className="p-4 hidden md:table-cell">
+                      <td className="p-3 sm:p-4 hidden md:table-cell">
                         <Badge variant="outline" className="font-normal">
                           {person.functionName}
                         </Badge>
                       </td>
-                      <td className="p-4 hidden sm:table-cell text-center text-muted-foreground">
+                      <td className="p-3 sm:p-4 hidden sm:table-cell text-center text-muted-foreground">
                         {person.formattedTime}
                       </td>
-                      <td className="p-4 text-center">
+                      <td className="p-3 sm:p-4 text-center">
                         {loadingId === person.id ? (
                           <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
                         ) : (
@@ -409,7 +409,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                           </div>
                         )}
                       </td>
-                      <td className="p-4 text-right">
+                      <td className="p-3 sm:p-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <TooltipProvider>
                             <Tooltip>

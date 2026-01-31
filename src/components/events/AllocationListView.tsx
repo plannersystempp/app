@@ -223,11 +223,11 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
                       >
                         {person ? getSimplifiedName(person.name) : 'Pessoa não encontrada'}
                       </button>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Badge variant={person?.type === 'fixo' ? 'default' : 'secondary'} className="text-xs px-1 py-0">
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        <Badge variant={person?.type === 'fixo' ? 'default' : 'secondary'} className="text-[10px] px-1 py-0 h-auto min-h-[18px]">
                           {person?.type === 'fixo' ? 'Fixo' : 'Freelancer'}
                         </Badge>
-                        <Badge variant="outline" className="text-xs px-1 py-0">
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-auto min-h-[18px] break-words whitespace-normal text-left">
                           {assignment.function_name}
                         </Badge>
                       </div>
@@ -242,7 +242,7 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-1 flex-shrink-0">
+                  <div className="flex gap-1 flex-shrink-0 self-start">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -263,23 +263,22 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
                 </div>
 
                 {/* Stats and Action */}
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1 whitespace-nowrap">
                       <Calendar className="w-3 h-3" />
                       <span>{assignment.work_days.length} dias</span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 whitespace-nowrap">
                       <Clock className="w-3 h-3" />
                       <span>{totalOvertimeHours}h extras</span>
                     </div>
                   </div>
-                  <div className="flex-1" />
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => onLaunchHours(assignment.id)}
-                    className="h-8 px-3 text-xs"
+                    className="h-7 px-2 text-xs ml-auto"
                   >
                     <Clock className="w-3 h-3 mr-1" />
                     Horas

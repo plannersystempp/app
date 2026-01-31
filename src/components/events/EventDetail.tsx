@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { 
@@ -191,8 +192,8 @@ export const EventDetail: React.FC = () => {
     <div className="min-h-screen bg-muted/10 pb-12 print-section">
       {/* Compact Header */}
       <header className="bg-background border-b sticky top-0 z-10 no-print">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 overflow-hidden">
+        <div className="ps-container min-h-14 py-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 overflow-hidden flex-1">
             <Button 
               variant="ghost" 
               size="icon"
@@ -204,9 +205,9 @@ export const EventDetail: React.FC = () => {
             
             <Separator orientation="vertical" className="h-4 shrink-0" />
             
-            <div className="flex items-center gap-2 min-w-0">
-              <h1 className="text-sm font-semibold truncate">{event.name}</h1>
-              <StatusBadge status={event.status || 'planejado'} className="scale-75 origin-left" />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0 flex-1">
+              <h1 className="text-sm font-semibold break-words leading-tight whitespace-normal">{event.name}</h1>
+              <StatusBadge status={event.status || 'planejado'} size="sm" className="w-fit" />
             </div>
           </div>
 
@@ -258,58 +259,65 @@ export const EventDetail: React.FC = () => {
 
                   <Separator />
 
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cronograma</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between items-center p-2 border rounded bg-background">
-                        <span className="text-muted-foreground">Início</span>
-                        <span className="font-medium">{formatDateBR(event.start_date)}</span>
-                      </div>
-                      <div className="flex justify-between items-center p-2 border rounded bg-background">
-                        <span className="text-muted-foreground">Fim</span>
-                        <span className="font-medium">{formatDateBR(event.end_date)}</span>
-                      </div>
-                      {(event.setup_start_date || event.setup_end_date) && (
-                        <div className="flex justify-between items-center p-2 border rounded bg-muted/20">
-                          <span className="text-muted-foreground">Montagem</span>
-                          <span className="font-medium text-xs">
-                            {event.setup_start_date ? formatDateBR(event.setup_start_date) : '...'} - {event.setup_end_date ? formatDateBR(event.setup_end_date) : '...'}
-                          </span>
+                  <Accordion type="multiple" className="w-full">
+                    <AccordionItem value="schedule" className="border-b-0">
+                      <AccordionTrigger className="text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:no-underline py-3">
+                        Cronograma
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between items-center p-2 border rounded bg-background">
+                            <span className="text-muted-foreground">Início</span>
+                            <span className="font-medium">{formatDateBR(event.start_date)}</span>
+                          </div>
+                          <div className="flex justify-between items-center p-2 border rounded bg-background">
+                            <span className="text-muted-foreground">Fim</span>
+                            <span className="font-medium">{formatDateBR(event.end_date)}</span>
+                          </div>
+                          {(event.setup_start_date || event.setup_end_date) && (
+                            <div className="flex justify-between items-center p-2 border rounded bg-muted/20">
+                              <span className="text-muted-foreground">Montagem</span>
+                              <span className="font-medium text-xs">
+                                {event.setup_start_date ? formatDateBR(event.setup_start_date) : '...'} - {event.setup_end_date ? formatDateBR(event.setup_end_date) : '...'}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
+                      </AccordionContent>
+                    </AccordionItem>
 
-                  <Separator />
-
-                  {/* Actions in Sheet for Mobile/Compact View */}
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ações</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {(userRole === 'admin' || canViewPayroll) && (
-                        <Button variant="outline" size="sm" onClick={() => navigate(`/app/folha/${event.id}`)} className="justify-start">
-                          <DollarSign className="w-4 h-4 mr-2" />
-                          Folha
-                        </Button>
-                      )}
-                      {(userRole === 'admin' || userRole === 'coordinator') && (
-                        <Button variant="outline" size="sm" onClick={() => navigate(`/app/eventos/${event.id}/avaliar-freelancers`)} className="justify-start">
-                          <Star className="w-4 h-4 mr-2" />
-                          Avaliar
-                        </Button>
-                      )}
-                      <Button variant="outline" size="sm" onClick={() => window.print()} className="justify-start">
-                        <Printer className="w-4 h-4 mr-2" />
-                        Imprimir
-                      </Button>
-                      {(userRole === 'admin' || (userRole === 'coordinator' && canEdit)) && (
-                        <Button variant="outline" size="sm" onClick={() => setShowEditForm(true)} className="justify-start">
-                          <Settings2 className="w-4 h-4 mr-2" />
-                          Editar
-                        </Button>
-                      )}
-                    </div>
-                  </div>
+                    <AccordionItem value="actions" className="border-b-0">
+                      <AccordionTrigger className="text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:no-underline py-3">
+                        Ações
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(userRole === 'admin' || canViewPayroll) && (
+                            <Button variant="outline" size="sm" onClick={() => navigate(`/app/folha/${event.id}`)} className="justify-start">
+                              <DollarSign className="w-4 h-4 mr-2" />
+                              Folha
+                            </Button>
+                          )}
+                          {(userRole === 'admin' || userRole === 'coordinator') && (
+                            <Button variant="outline" size="sm" onClick={() => navigate(`/app/eventos/${event.id}/avaliar-freelancers`)} className="justify-start">
+                              <Star className="w-4 h-4 mr-2" />
+                              Avaliar
+                            </Button>
+                          )}
+                          <Button variant="outline" size="sm" onClick={() => window.print()} className="justify-start">
+                            <Printer className="w-4 h-4 mr-2" />
+                            Imprimir
+                          </Button>
+                          {(userRole === 'admin' || (userRole === 'coordinator' && canEdit)) && (
+                            <Button variant="outline" size="sm" onClick={() => setShowEditForm(true)} className="justify-start">
+                              <Settings2 className="w-4 h-4 mr-2" />
+                              Editar
+                            </Button>
+                          )}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
 
                   {userRole === 'admin' && (
                     <>
@@ -382,51 +390,51 @@ export const EventDetail: React.FC = () => {
 
       {/* Overview Cards - Compact Grid */}
       <div className="bg-background border-b no-print">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4 space-y-4">
+        <div className="ps-container py-4 space-y-4">
           {event.description && (
-             <div className="text-sm text-muted-foreground bg-muted/30 p-3 rounded border border-l-4 border-l-primary">
-                <span className="font-semibold text-foreground mr-2">Sobre o evento:</span>
-                {event.description}
+             <div className="text-sm text-muted-foreground bg-muted/30 p-3 sm:p-4 rounded border border-l-4 border-l-primary overflow-hidden">
+                <span className="font-semibold text-foreground mr-2 block sm:inline">Sobre o evento:</span>
+                <span className="break-words whitespace-normal block sm:inline">{event.description}</span>
              </div>
           )}
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             <Card className="shadow-none border bg-muted/20">
-              <CardContent className="p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Pessoal</p>
-                  <p className="text-lg font-bold text-foreground mt-0.5">{uniquePersonnel.size}</p>
+              <CardContent className="p-3 sm:p-4 flex items-center justify-between min-w-0 h-full">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] sm:text-xs uppercase font-bold text-muted-foreground tracking-wider whitespace-normal break-words leading-tight">Pessoal</p>
+                  <p className="text-lg sm:text-xl font-bold text-foreground mt-0.5 break-all">{uniquePersonnel.size}</p>
                 </div>
-                <Users className="w-4 h-4 text-muted-foreground" />
+                <Users className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground flex-shrink-0 ml-1 mb-auto mt-0.5" />
               </CardContent>
             </Card>
             <Card className="shadow-none border bg-muted/20">
-              <CardContent className="p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Divisões</p>
-                  <p className="text-lg font-bold text-foreground mt-0.5">{eventDivisionsCount}</p>
+              <CardContent className="p-3 sm:p-4 flex items-center justify-between min-w-0 h-full">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] sm:text-xs uppercase font-bold text-muted-foreground tracking-wider whitespace-normal break-words leading-tight">Divisões</p>
+                  <p className="text-lg sm:text-xl font-bold text-foreground mt-0.5 break-all">{eventDivisionsCount}</p>
                 </div>
-                <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground flex-shrink-0 ml-1 mb-auto mt-0.5" />
               </CardContent>
             </Card>
             <Card className="shadow-none border bg-muted/20">
-              <CardContent className="p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">H. Extras</p>
-                  <p className="text-lg font-bold text-foreground mt-0.5">{totalOvertimeHours}h</p>
+              <CardContent className="p-3 sm:p-4 flex items-center justify-between min-w-0 h-full">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] sm:text-xs uppercase font-bold text-muted-foreground tracking-wider whitespace-normal break-words leading-tight">H. Extras</p>
+                  <p className="text-lg sm:text-xl font-bold text-foreground mt-0.5 break-all">{totalOvertimeHours}h</p>
                 </div>
-                <Clock className="w-4 h-4 text-muted-foreground" />
+                <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground flex-shrink-0 ml-1 mb-auto mt-0.5" />
               </CardContent>
             </Card>
-            <Card className="shadow-none border bg-muted/20">
-              <CardContent className="p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Data de Pagamento</p>
-                  <p className="text-sm font-medium text-foreground mt-0.5 truncate">
+            <Card className="shadow-none border bg-muted/20 col-span-1">
+              <CardContent className="p-3 sm:p-4 flex items-center justify-between min-w-0 h-full">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] sm:text-xs uppercase font-bold text-muted-foreground tracking-wider whitespace-normal break-words leading-tight">Data Pagamento</p>
+                  <p className="text-sm sm:text-base font-medium text-foreground mt-0.5 break-words leading-tight">
                     {event.payment_due_date ? formatDateBR(event.payment_due_date) : '-'}
                   </p>
                 </div>
-                <Wallet className="w-4 h-4 text-muted-foreground" />
+                <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground flex-shrink-0 ml-1 mb-auto mt-0.5" />
               </CardContent>
             </Card>
           </div>
@@ -434,46 +442,46 @@ export const EventDetail: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 no-print">
+      <div className="w-full ps-container py-6 no-print">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-6">
-          <TabsList className="w-full justify-start h-auto p-0 bg-transparent border-b rounded-none gap-6 overflow-x-auto flex-nowrap pb-1 no-scrollbar">
-            <TabsTrigger 
-              value="allocations" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground shrink-0"
+          <TabsList className="w-full justify-start h-auto p-0 bg-transparent border-b rounded-none gap-2 sm:gap-6 flex-wrap pb-1">
+            <TabsTrigger
+              value="allocations"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-xs sm:text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground min-w-0 whitespace-normal"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <LayoutDashboard className="w-4 h-4" />
-                Gestão de Equipe
+                <span className="break-words">Gestão de Equipe</span>
               </div>
             </TabsTrigger>
-            <TabsTrigger 
-              value="attendance" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground shrink-0"
+            <TabsTrigger
+              value="attendance"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-xs sm:text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground min-w-0 whitespace-normal"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <Users className="w-4 h-4" />
-                Lista de Presença
+                <span className="break-words">Lista de Presença</span>
               </div>
             </TabsTrigger>
             {(userRole === 'admin' || canManageCosts) && (
-              <TabsTrigger 
-                value="costs" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground shrink-0"
+              <TabsTrigger
+                value="costs"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-xs sm:text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground min-w-0 whitespace-normal"
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <DollarSign className="w-4 h-4" />
-                  Custos
+                  <span className="break-words">Custos</span>
                 </div>
               </TabsTrigger>
             )}
             {userRole === 'admin' && (
-              <TabsTrigger 
-                value="absences" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground shrink-0"
+              <TabsTrigger
+                value="absences"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2 text-xs sm:text-sm font-medium text-muted-foreground data-[state=active]:text-foreground transition-all hover:text-foreground min-w-0 whitespace-normal"
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <FileText className="w-4 h-4" />
-                  Faltas
+                  <span className="break-words">Faltas</span>
                 </div>
               </TabsTrigger>
             )}
@@ -481,42 +489,38 @@ export const EventDetail: React.FC = () => {
 
           <div className="min-h-[500px]">
             <TabsContent value="allocations" className="mt-0 focus-visible:ring-0 animate-in fade-in-50 duration-300">
-               <div ref={allocationsRef}>
-                 <AllocationManager eventId={event.id} />
-               </div>
+              <div ref={allocationsRef}>
+                <AllocationManager eventId={event.id} />
+              </div>
             </TabsContent>
 
             <TabsContent value="attendance" className="mt-0 focus-visible:ring-0 animate-in fade-in-50 duration-300">
-               <div ref={attendanceRef}>
+              <div ref={attendanceRef}>
                 <DailyAttendanceList eventId={event.id} />
-               </div>
+              </div>
             </TabsContent>
 
-            {user?.role === 'admin' && (
-              <>
-                <TabsContent value="costs" className="mt-0 focus-visible:ring-0 animate-in fade-in-50 duration-300">
-                   <div ref={costsRef}>
-                    <EventCostsTab eventId={event.id} />
-                   </div>
-                </TabsContent>
-                <TabsContent value="absences" className="mt-0 focus-visible:ring-0 animate-in fade-in-50 duration-300">
-                   <div ref={absencesRef}>
-                    <AbsenceHistory eventId={event.id} />
-                   </div>
-                </TabsContent>
-              </>
+            {(userRole === 'admin' || canManageCosts) && (
+              <TabsContent value="costs" className="mt-0 focus-visible:ring-0 animate-in fade-in-50 duration-300">
+                <div ref={costsRef}>
+                  <EventCostsTab eventId={event.id} />
+                </div>
+              </TabsContent>
+            )}
+
+            {userRole === 'admin' && (
+              <TabsContent value="absences" className="mt-0 focus-visible:ring-0 animate-in fade-in-50 duration-300">
+                <div ref={absencesRef}>
+                  <AbsenceHistory eventId={event.id} />
+                </div>
+              </TabsContent>
             )}
           </div>
         </Tabs>
 
-        {/* Permission Manager - Discrete Section */}
         {userRole === 'admin' && (
           <div className="mt-12 pt-8 border-t">
-            <Collapsible
-              open={isPermissionsOpen}
-              onOpenChange={setIsPermissionsOpen}
-              className="space-y-4"
-            >
+            <Collapsible open={isPermissionsOpen} onOpenChange={setIsPermissionsOpen} className="space-y-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
                   <ShieldAlert className="w-4 h-4" />
@@ -536,10 +540,7 @@ export const EventDetail: React.FC = () => {
               <CollapsibleContent>
                 <Card className="shadow-sm border-dashed">
                   <CardContent className="pt-6">
-                    <EventPermissionsManager
-                      eventId={event.id}
-                      eventName={event.name}
-                    />
+                    <EventPermissionsManager eventId={event.id} eventName={event.name} />
                   </CardContent>
                 </Card>
               </CollapsibleContent>
