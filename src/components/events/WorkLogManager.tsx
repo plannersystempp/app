@@ -91,10 +91,10 @@ export const WorkLogManager: React.FC<WorkLogManagerProps> = ({
     const hours = parseHoursInput(overtimeHoursText[date] ?? String(overtimeHours[date] ?? '')) || 0;
 
     // ValidaÃ§Ã£o bÃ¡sica
-    if (hours < 0 || hours > 8) {
+    if (hours < 0 || hours > 12) {
       toast({
         title: "Erro",
-        description: "Horas extras inválidas. Informe entre 0:00 e 08:00",
+        description: "Horas extras inválidas. Informe entre 0:00 e 12:00",
         variant: "destructive"
       });
       return;

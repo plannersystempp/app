@@ -4,14 +4,20 @@ import { useWorkLogsQuery, useCreateWorkLogMutation, useUpdateWorkLogMutation, u
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { CheckCircle2, XCircle, Search, Calendar, UserCheck, Clock, Users, Filter, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Search, Calendar, Users, Filter, Loader2, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { formatDateBR } from '@/utils/dateUtils';
 import { getExpectedWorkHours, formatTimeRange } from '@/utils/allocationUtils';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -27,6 +33,7 @@ import {
 } from "@/components/ui/tooltip";
 import { PaginationControl } from '@/components/shared/PaginationControl';
 import { useUrlState } from '@/hooks/useUrlState';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface DailyAttendanceListProps {
   eventId: string;
@@ -35,20 +42,173 @@ interface DailyAttendanceListProps {
 const ITEMS_PER_PAGE = 10;
 
 export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventId }) => {
+  const { user } = useAuth();
   const { assignments, personnel, functions, divisions, events } = useEnhancedData();
   const { data: globalWorkLogs = [] } = useWorkLogsQuery();
   const createWorkLog = useCreateWorkLogMutation();
   const updateWorkLog = useUpdateWorkLogMutation();
   const deleteWorkLog = useDeleteWorkLogMutation();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const [selectedDate, setSelectedDate] = useUrlState('att_date', '');
   const [searchTerm, setSearchTerm] = useUrlState('att_q', '');
   const [selectedFunction, setSelectedFunction] = useUrlState('att_func', 'all');
-  const [selectedStatus, setSelectedStatus] = useUrlState('att_status', 'all');
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [page, setPage] = useUrlState('att_page', 1);
+  const [timeDrafts, setTimeDrafts] = useState<Record<string, { checkIn: string; checkOut: string }>>({});
+  const [timeModalPerson, setTimeModalPerson] = useState<any | null>(null);
+  const [modalCheckIn, setModalCheckIn] = useState('');
+  const [modalCheckOut, setModalCheckOut] = useState('');
+
+  const [overtimeDialog, setOvertimeDialog] = useState<{ open: boolean; personName: string; hoursWorked: number; overtimeHours: number }>(
+    { open: false, personName: '', hoursWorked: 0, overtimeHours: 0 }
+  );
+  const [overtimeNotifiedKeys, setOvertimeNotifiedKeys] = useState<Record<string, boolean>>({});
+  const [photoModalPerson, setPhotoModalPerson] = useState<any | null>(null);
+
+  const toTimeInputValue = (value: string | null | undefined) => (value ? value.slice(0, 5) : '');
+  const toDbTimeValue = (value: string) => (value ? (value.length === 5 ? `${value}:00` : value) : null);
+  const getTimeKey = (personId: string) => `${eventId}:${selectedDate}:${personId}`;
+
+  const computeHoursFromTimes = (checkIn: string, checkOut: string) => {
+    if (!checkIn || !checkOut) return null;
+    const [inH, inM] = checkIn.split(':').map(Number);
+    const [outH, outM] = checkOut.split(':').map(Number);
+    if ([inH, inM, outH, outM].some(n => Number.isNaN(n))) return null;
+    const inMinutes = inH * 60 + inM;
+    const outMinutes = outH * 60 + outM;
+    let diff = outMinutes - inMinutes;
+    if (diff < 0) diff += 24 * 60;
+    const hours = Math.round((diff / 60) * 100) / 100;
+    const overtime = Math.max(0, Math.round((hours - 12) * 100) / 100);
+    return { hoursWorked: hours, overtimeHours: overtime };
+  };
+
+  const saveCheckTimes = async (person: any, nextCheckIn: string, nextCheckOut: string) => {
+    if (!selectedDate) return;
+
+    const hasAnyTime = Boolean(nextCheckIn || nextCheckOut);
+    const computed = computeHoursFromTimes(nextCheckIn, nextCheckOut);
+    const existingLog = person.workLog;
+
+    if (!existingLog && !hasAnyTime) return;
+
+    const check_in_time = toDbTimeValue(nextCheckIn);
+    const check_out_time = toDbTimeValue(nextCheckOut);
+
+    const attendance_status = hasAnyTime ? 'present' : (existingLog?.attendance_status ?? 'pending');
+    const hours_worked = computed ? computed.hoursWorked : (existingLog?.hours_worked ?? 0);
+    const overtime_hours = computed ? computed.overtimeHours : (existingLog?.overtime_hours ?? 0);
+
+    if (existingLog) {
+      await updateWorkLog.mutateAsync({
+        ...existingLog,
+        attendance_status,
+        check_in_time,
+        check_out_time,
+        hours_worked,
+        overtime_hours,
+        total_pay: 0,
+        logged_by_id: user?.id
+      });
+      return;
+    }
+
+    await createWorkLog.mutateAsync({
+      employee_id: person.id,
+      event_id: eventId,
+      work_date: selectedDate,
+      attendance_status,
+      check_in_time,
+      check_out_time,
+      hours_worked,
+      overtime_hours,
+      total_pay: 0,
+      logged_by_id: user?.id
+    });
+  };
+
+  const getDisplayedTimes = (person: any) => {
+    const key = getTimeKey(person.id);
+    return (
+      timeDrafts[key] ?? {
+        checkIn: toTimeInputValue(person.workLog?.check_in_time),
+        checkOut: toTimeInputValue(person.workLog?.check_out_time),
+      }
+    );
+  };
+
+  const handleTimeChange = async (person: any, field: 'checkIn' | 'checkOut', value: string) => {
+    const key = getTimeKey(person.id);
+    const current = getDisplayedTimes(person);
+    const next = { ...current, [field]: value } as { checkIn: string; checkOut: string };
+    setTimeDrafts(prev => ({ ...prev, [key]: next }));
+    try {
+      await saveCheckTimes(person, next.checkIn, next.checkOut);
+
+      const computed = computeHoursFromTimes(next.checkIn, next.checkOut);
+      if (!isMobile && computed) {
+        if (computed.overtimeHours > 0 && !overtimeNotifiedKeys[key]) {
+          setOvertimeDialog({
+            open: true,
+            personName: person.name,
+            hoursWorked: computed.hoursWorked,
+            overtimeHours: computed.overtimeHours,
+          });
+          setOvertimeNotifiedKeys(prev => ({ ...prev, [key]: true }));
+        }
+        if (computed.overtimeHours === 0 && overtimeNotifiedKeys[key]) {
+          setOvertimeNotifiedKeys(prev => ({ ...prev, [key]: false }));
+        }
+      }
+    } catch {
+      toast({
+        title: 'Erro',
+        description: 'Falha ao salvar horários de chegada/saída',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const openTimeModal = (person: any) => {
+    const times = getDisplayedTimes(person);
+    setTimeModalPerson(person);
+    setModalCheckIn(times.checkIn);
+    setModalCheckOut(times.checkOut);
+  };
+
+  const closeTimeModal = () => {
+    setTimeModalPerson(null);
+    setModalCheckIn('');
+    setModalCheckOut('');
+  };
+
+  const saveTimeModal = async () => {
+    if (!timeModalPerson) return;
+    setLoadingId(timeModalPerson.id);
+    const key = getTimeKey(timeModalPerson.id);
+    const previousTimes = getDisplayedTimes(timeModalPerson);
+    setTimeDrafts(prev => ({ ...prev, [key]: { checkIn: modalCheckIn, checkOut: modalCheckOut } }));
+    try {
+      await saveCheckTimes(timeModalPerson, modalCheckIn, modalCheckOut);
+      closeTimeModal();
+    } catch {
+      setTimeDrafts(prev => ({ ...prev, [key]: previousTimes }));
+      toast({
+        title: 'Erro',
+        description: 'Falha ao salvar horários de chegada/saída',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  const closePhotoModal = () => {
+    setPhotoModalPerson(null);
+  };
 
   // 1. Obter todas as alocações deste evento
   const eventAssignments = useMemo(() => 
@@ -128,6 +288,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
         name: person?.name || 'Desconhecido',
         avatar: person?.photo_url,
         functionName: assignment.function_name || func?.name || 'Função não definida',
+        divisionName: division?.name || '—',
         status: workLog?.attendance_status || 'pending',
         workLog,
         formattedTime: formatTimeRange(startTime, endTime)
@@ -148,15 +309,14 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
       const matchesSearch = (p.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
                           (p.functionName?.toLowerCase() || '').includes(searchTerm.toLowerCase());
       const matchesFunction = selectedFunction === 'all' || p.functionName === selectedFunction;
-      const matchesStatus = selectedStatus === 'all' || p.status === selectedStatus;
-      return matchesSearch && matchesFunction && matchesStatus;
+      return matchesSearch && matchesFunction;
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [rawDailyPersonnel, searchTerm, selectedFunction, selectedStatus]);
+  }, [rawDailyPersonnel, searchTerm, selectedFunction]);
 
   // Reset page when filters change
   React.useEffect(() => {
     setPage(1);
-  }, [searchTerm, selectedFunction, selectedStatus, selectedDate]);
+  }, [searchTerm, selectedFunction, selectedDate]);
 
   // Handler para alternar presença individual
   const handleToggleAttendance = async (person: any, clickedStatus: 'present' | 'absent') => {
@@ -170,6 +330,8 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
             await updateWorkLog.mutateAsync({
               ...person.workLog,
               attendance_status: 'pending',
+              check_in_time: null,
+              check_out_time: null,
               hours_worked: 0,
               overtime_hours: 0,
               total_pay: 0
@@ -189,12 +351,18 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
       }
 
       if (person.workLog) {
+        const currentCheckIn = toTimeInputValue(person.workLog.check_in_time);
+        const currentCheckOut = toTimeInputValue(person.workLog.check_out_time);
+        const computed = computeHoursFromTimes(currentCheckIn, currentCheckOut);
         await updateWorkLog.mutateAsync({
           ...person.workLog,
           attendance_status: clickedStatus,
-          hours_worked: clickedStatus === 'absent' ? 0 : 8,
-          overtime_hours: clickedStatus === 'absent' ? 0 : person.workLog.overtime_hours,
-          total_pay: 0
+          check_in_time: clickedStatus === 'absent' ? null : (person.workLog.check_in_time ?? null),
+          check_out_time: clickedStatus === 'absent' ? null : (person.workLog.check_out_time ?? null),
+          hours_worked: clickedStatus === 'absent' ? 0 : (computed?.hoursWorked ?? (person.workLog.hours_worked ?? 8)),
+          overtime_hours: clickedStatus === 'absent' ? 0 : (computed?.overtimeHours ?? (person.workLog.overtime_hours ?? 0)),
+          total_pay: 0,
+          logged_by_id: user?.id
         });
       } else {
         await createWorkLog.mutateAsync({
@@ -202,9 +370,12 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
           event_id: eventId,
           work_date: selectedDate,
           attendance_status: clickedStatus,
+          check_in_time: null,
+          check_out_time: null,
           hours_worked: clickedStatus === 'absent' ? 0 : 8,
           overtime_hours: 0,
-          total_pay: 0
+          total_pay: 0,
+          logged_by_id: user?.id
         });
       }
       
@@ -228,10 +399,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
   // Cálculos de estatísticas
   const stats = useMemo(() => {
     const total = rawDailyPersonnel.length;
-    const present = rawDailyPersonnel.filter(p => p.status === 'present').length;
-    const absent = rawDailyPersonnel.filter(p => p.status === 'absent').length;
-    const pending = total - present - absent;
-    return { total, present, absent, pending };
+    return { total };
   }, [rawDailyPersonnel]);
 
   // Paginação
@@ -285,21 +453,6 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
             <span className="text-sm font-medium">{stats.total}</span>
             <span className="text-xs text-muted-foreground">Total</span>
           </div>
-          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-green-50 rounded-md border border-green-100">
-            <CheckCircle2 className="w-4 h-4 text-green-600" />
-            <span className="text-sm font-medium text-green-700">{stats.present}</span>
-            <span className="text-xs text-green-600">Presentes</span>
-          </div>
-          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-red-50 rounded-md border border-red-100">
-            <XCircle className="w-4 h-4 text-red-600" />
-            <span className="text-sm font-medium text-red-700">{stats.absent}</span>
-            <span className="text-xs text-red-600">Faltas</span>
-          </div>
-          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-yellow-50 rounded-md border border-yellow-100">
-            <Clock className="w-4 h-4 text-yellow-600" />
-            <span className="text-sm font-medium text-yellow-700">{stats.pending}</span>
-            <span className="text-xs text-yellow-600">Pendentes</span>
-          </div>
         </div>
       </div>
 
@@ -326,18 +479,6 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
             ))}
           </SelectContent>
         </Select>
-        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-          <SelectTrigger className="w-full md:w-[200px]">
-            <UserCheck className="w-4 h-4 mr-2 text-muted-foreground" />
-            <SelectValue placeholder="Todos os status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os status</SelectItem>
-            <SelectItem value="present">Presente</SelectItem>
-            <SelectItem value="absent">Falta</SelectItem>
-            <SelectItem value="pending">Pendente</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* 3. Lista de Presença */}
@@ -347,70 +488,93 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
             <table className="w-full text-sm table-fixed">
               <thead className="bg-muted/50 text-left">
                 <tr>
-                  <th className="p-2 sm:p-4 font-medium w-[55%]">Profissional</th>
-                  <th className="p-2 sm:p-4 font-medium hidden md:table-cell w-[20%]">Função</th>
-                  <th className="p-2 sm:p-4 font-medium hidden sm:table-cell text-center w-[15%]">Horário</th>
-                  <th className="p-2 sm:p-4 font-medium text-center w-[15%]">Status</th>
-                  <th className="p-2 sm:p-4 font-medium text-right w-[15%]">Ações</th>
+                  <th className="p-2 sm:p-4 font-medium w-[60%] sm:w-[45%]">Profissional</th>
+                  <th className="p-2 sm:p-4 font-medium hidden sm:table-cell text-center w-[25%]">Entrada/Saída</th>
+                  <th className="p-2 sm:p-4 font-medium hidden sm:table-cell w-[20%]">Divisão</th>
+                  <th className="p-2 sm:p-4 font-medium text-right w-[40%] sm:w-[10%]">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredPersonnel.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-4 text-center text-muted-foreground">
+                    <td colSpan={4} className="p-4 text-center text-muted-foreground">
                       Nenhum profissional encontrado.
                     </td>
                   </tr>
                 ) : (
-                  filteredPersonnel.map((person) => (
-                    <tr key={person.id} className="border-t hover:bg-muted/30 transition-colors">
+                  paginatedPersonnel.map((person) => {
+                    const times = getDisplayedTimes(person);
+                    const computed = computeHoursFromTimes(times.checkIn, times.checkOut);
+                    const timeLabel = (times.checkIn || times.checkOut)
+                      ? `${times.checkIn || '--:--'} - ${times.checkOut || '--:--'}`
+                      : person.formattedTime;
+                    return (
+                      <tr key={person.id} className="border-t hover:bg-muted/30 transition-colors">
                       <td className="p-2 sm:p-4">
                         <div className="flex items-center gap-2 sm:gap-3">
-                          <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border">
-                            <AvatarImage src={person.avatar} />
-                            <AvatarFallback>{person.name.substring(0, 2).toUpperCase()}</AvatarFallback>
-                          </Avatar>
+                          <button
+                            type="button"
+                            className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            aria-label={`Ver foto de ${person.name}`}
+                            onClick={() => setPhotoModalPerson(person)}
+                          >
+                            <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border">
+                              <AvatarImage src={person.avatar} />
+                              <AvatarFallback>{person.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                          </button>
                           <div className="flex flex-col min-w-0">
                             <span className="font-medium break-words leading-tight text-xs sm:text-sm">{person.name}</span>
-                            <span className="text-[10px] sm:text-xs text-muted-foreground md:hidden break-words leading-tight">{person.functionName}</span>
+                            <span className="text-[10px] sm:text-xs text-muted-foreground break-words leading-tight">{person.functionName}</span>
+                            <span className="text-[10px] text-muted-foreground sm:hidden break-words leading-tight">{person.divisionName}</span>
+                            <div className="flex items-center gap-2 mt-1 sm:hidden">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => openTimeModal(person)}
+                                disabled={loadingId === person.id}
+                              >
+                                {timeLabel}
+                              </Button>
+                              {computed && computed.overtimeHours > 0 && (
+                                <Badge variant="destructive" className="text-[10px] px-1 py-0 h-5">
+                                  HE {computed.overtimeHours.toFixed(2)}h
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
-                      <td className="p-2 sm:p-4 hidden md:table-cell">
-                        <Badge variant="outline" className="font-normal">
-                          {person.functionName}
-                        </Badge>
-                      </td>
-                      <td className="p-2 sm:p-4 hidden sm:table-cell text-center text-muted-foreground">
-                        {person.formattedTime}
-                      </td>
-                      <td className="p-2 sm:p-4 text-center">
-                        {loadingId === person.id ? (
-                          <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
-                        ) : (
-                          <div className="flex items-center justify-center">
-                            {person.status === 'present' && (
-                              <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-green-200 shadow-none text-[10px] sm:text-xs px-1.5 py-0.5">
-                                <CheckCircle2 className="w-3 h-3 mr-1" />
-                                <span className="sm:hidden">P</span>
-                                <span className="hidden sm:inline">Presente</span>
-                              </Badge>
-                            )}
-                            {person.status === 'absent' && (
-                              <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-200 border-red-200 shadow-none text-[10px] sm:text-xs px-1.5 py-0.5">
-                                <XCircle className="w-3 h-3 mr-1" />
-                                <span className="sm:hidden">F</span>
-                                <span className="hidden sm:inline">Falta</span>
-                              </Badge>
-                            )}
-                            {person.status === 'pending' && (
-                              <Badge variant="outline" className="text-muted-foreground text-[10px] sm:text-xs px-1.5 py-0.5">
-                                <span className="sm:hidden">–</span>
-                                <span className="hidden sm:inline">Pendente</span>
-                              </Badge>
-                            )}
+                      <td className="p-2 sm:p-4 hidden sm:table-cell">
+                        <div className="flex items-center justify-center gap-2">
+                          <Input
+                            type="time"
+                            value={times.checkIn}
+                            onChange={(e) => handleTimeChange(person, 'checkIn', e.target.value)}
+                            className="h-8 w-[96px] px-2 text-xs"
+                            aria-label="Hora de chegada"
+                          />
+                          <Input
+                            type="time"
+                            value={times.checkOut}
+                            onChange={(e) => handleTimeChange(person, 'checkOut', e.target.value)}
+                            className="h-8 w-[96px] px-2 text-xs"
+                            aria-label="Hora de saída"
+                          />
+                        </div>
+                        <div className="mt-1 text-[10px] text-muted-foreground text-center">
+                          {person.formattedTime}
+                        </div>
+                        {computed && computed.overtimeHours > 0 && (
+                          <div className="mt-1 text-[10px] text-destructive text-center">
+                            HE: {computed.overtimeHours.toFixed(2)}h
                           </div>
                         )}
+                      </td>
+                      <td className="p-2 sm:p-4 hidden sm:table-cell text-muted-foreground">
+                        <span className="break-words">{person.divisionName}</span>
                       </td>
                       <td className="p-2 sm:p-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
@@ -464,13 +628,127 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                         </div>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={!!timeModalPerson} onOpenChange={(open) => { if (!open) closeTimeModal(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Horários</DialogTitle>
+          </DialogHeader>
+
+          {timeModalPerson && (
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <div className="font-medium break-words">{timeModalPerson.name}</div>
+                <div className="text-sm text-muted-foreground break-words">{timeModalPerson.functionName}</div>
+                <div className="text-sm text-muted-foreground break-words">{timeModalPerson.divisionName}</div>
+                <div className="text-xs text-muted-foreground">Previsto: {timeModalPerson.formattedTime}</div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Entrada</div>
+                  <Input type="time" value={modalCheckIn} onChange={(e) => setModalCheckIn(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Saída</div>
+                  <Input type="time" value={modalCheckOut} onChange={(e) => setModalCheckOut(e.target.value)} />
+                </div>
+              </div>
+
+              {(() => {
+                const computed = computeHoursFromTimes(modalCheckIn, modalCheckOut);
+                if (!computed) {
+                  return (
+                    <div className="text-xs text-muted-foreground">
+                      Preencha entrada e saída para calcular as horas extras.
+                    </div>
+                  );
+                }
+                return (
+                  <div className="flex items-center justify-between gap-2 rounded-md border p-3">
+                    <div className="text-sm">
+                      <div className="font-medium">Resumo</div>
+                      <div className="text-xs text-muted-foreground">Trabalhadas: {computed.hoursWorked.toFixed(2)}h</div>
+                    </div>
+                    <Badge variant={computed.overtimeHours > 0 ? 'destructive' : 'outline'}>
+                      HE: {computed.overtimeHours.toFixed(2)}h
+                    </Badge>
+                  </div>
+                );
+              })()}
+
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={closeTimeModal}>
+                  Cancelar
+                </Button>
+                <Button type="button" onClick={saveTimeModal} disabled={loadingId === timeModalPerson.id}>
+                  Salvar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={overtimeDialog.open} onOpenChange={(open) => setOvertimeDialog(prev => ({ ...prev, open }))}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Horas extras registradas</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-sm">
+              <div className="font-medium break-words">{overtimeDialog.personName}</div>
+              <div className="text-xs text-muted-foreground">Trabalhadas: {overtimeDialog.hoursWorked.toFixed(2)}h</div>
+            </div>
+            <Badge variant="destructive" className="w-fit">HE: {overtimeDialog.overtimeHours.toFixed(2)}h</Badge>
+            <div className="flex justify-end">
+              <Button type="button" onClick={() => setOvertimeDialog(prev => ({ ...prev, open: false }))}>Ok</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!photoModalPerson} onOpenChange={(open) => { if (!open) closePhotoModal(); }}>
+        <DialogContent className="w-screen h-screen max-w-none p-0 rounded-none border-0">
+          {photoModalPerson && (
+            <div className="relative w-full h-full bg-black">
+              <button
+                type="button"
+                onClick={closePhotoModal}
+                className="absolute top-3 right-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                aria-label="Fechar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              {photoModalPerson.avatar ? (
+                <img
+                  src={photoModalPerson.avatar}
+                  alt={photoModalPerson.name}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-white">
+                  <div className="text-center">
+                    <div className="text-7xl font-semibold">
+                      {String(photoModalPerson.name || '').substring(0, 2).toUpperCase()}
+                    </div>
+                    <div className="mt-3 text-lg break-words px-6">{photoModalPerson.name}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* 4. Paginação */}
       {filteredPersonnel.length > 0 && (

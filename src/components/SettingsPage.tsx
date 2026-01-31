@@ -14,7 +14,8 @@ import { APP_VERSION } from '@/constants/app';
 import { DangerZone } from '@/components/admin/DangerZone';
 import { TeamPayrollConfig } from './settings/TeamPayrollConfig';
 import { NotificationSettings } from './settings/NotificationSettings';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useTeam } from '@/contexts/TeamContext';
 
 export const SettingsPage: React.FC = () => {
@@ -209,6 +210,11 @@ export const SettingsPage: React.FC = () => {
               </Button>
             </SheetTrigger>
             <SheetContent side="bottom" className="h-auto touch-manipulation">
+              <SheetHeader>
+                <SheetTitle>
+                  <VisuallyHidden>Menu de configurações</VisuallyHidden>
+                </SheetTitle>
+              </SheetHeader>
               <div className="grid gap-2 py-4">
                 <Button
                   variant={activeTab === 'profile' ? 'default' : 'ghost'}

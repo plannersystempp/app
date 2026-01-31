@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -30,30 +30,25 @@ interface AbsenceHistoryProps {
 const ITEMS_PER_PAGE = 10;
 
 const fetchEventAbsenceHistory = async (eventId: string, teamId: string): Promise<AbsenceHistoryDetail[]> => {
-  const { data, error } = await supabase
-    .from('absences')
+  const { data: workLogs, error } = await supabase
+    .from('work_records')
     .select(`
       id,
       work_date,
       notes,
       created_at,
       logged_by_id,
-      personnel_allocations!inner(
-        personnel_id,
-        function_name,
-        event_divisions!inner(
-          name
-        ),
-        personnel!inner(
-          name
-        )
+      employee_id,
+      personnel:employee_id(
+        name
       ),
-      user_profiles(
+      user_profiles:logged_by_id(
         name
       )
     `)
     .eq('team_id', teamId)
-    .eq('personnel_allocations.event_id', eventId)
+    .eq('event_id', eventId)
+    .eq('attendance_status', 'absent')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -61,31 +56,77 @@ const fetchEventAbsenceHistory = async (eventId: string, teamId: string): Promis
     throw error;
   }
 
-  return (data || []).map(absence => ({
-    id: absence.id,
-    work_date: absence.work_date,
-    notes: absence.notes,
-    created_at: absence.created_at,
-    logged_by_id: absence.logged_by_id,
-    logged_by_name: absence.user_profiles?.name || 'Sistema',
-    personnel_name: absence.personnel_allocations.personnel.name,
-    division_name: absence.personnel_allocations.event_divisions.name,
-    function_name: absence.personnel_allocations.function_name,
-  }));
+  const { data: allocations } = await supabase
+    .from('personnel_allocations')
+    .select(`
+      personnel_id,
+      function_name,
+      event_divisions(
+        name
+      )
+    `)
+    .eq('event_id', eventId);
+
+  const allocationMap = new Map();
+  allocations?.forEach(a => {
+    allocationMap.set(a.personnel_id, {
+      function_name: a.function_name,
+      division_name: (a.event_divisions as any)?.name || '—'
+    });
+  });
+
+  return (workLogs || []).map(log => {
+    const alloc = allocationMap.get(log.employee_id);
+    return {
+      id: log.id,
+      work_date: log.work_date || '',
+      notes: log.notes || '',
+      created_at: log.created_at || '',
+      logged_by_id: log.logged_by_id || '',
+      logged_by_name: (log.user_profiles as any)?.name || 'Sistema',
+      personnel_name: (log.personnel as any)?.name || 'Desconhecido',
+      division_name: alloc?.division_name || '—',
+      function_name: alloc?.function_name || '—',
+    };
+  });
 };
 
 export const AbsenceHistory: React.FC<AbsenceHistoryProps> = ({ eventId }) => {
   const { user } = useAuth();
   const { activeTeam } = useTeam();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [divisionFilter, setDivisionFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
 
   const { data: absenceHistory = [], isLoading } = useQuery({
-    queryKey: ['absence-history', eventId, activeTeam?.id],
+    queryKey: ['workLogs', 'absence-history', eventId, activeTeam?.id],
     queryFn: () => fetchEventAbsenceHistory(eventId, activeTeam!.id),
     enabled: !!eventId && !!activeTeam?.id,
   });
+
+  // Sincronização em tempo real para refletir mudanças da "lista de presença" imediatamente
+  useEffect(() => {
+    if (!activeTeam?.id) return;
+
+    const channel = supabase
+      .channel(`realtime-absence-history-${eventId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'work_records',
+        filter: `event_id=eq.${eventId}`
+      }, () => {
+        console.log('🔄 Atualizando histórico de faltas via Realtime...');
+        queryClient.invalidateQueries({ queryKey: ['workLogs', 'absence-history', eventId] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeTeam?.id, eventId, queryClient]);
+
 
   // Get unique divisions for filter
   const divisions = Array.from(new Set(absenceHistory.map(a => a.division_name)));

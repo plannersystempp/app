@@ -136,6 +136,10 @@ export interface WorkRecord {
   employee_id: string;
   event_id: string;
   work_date: string;
+  attendance_status?: 'present' | 'absent' | 'pending';
+  notes?: string | null;
+  check_in_time?: string | null;
+  check_out_time?: string | null;
   hours_worked: number;
   overtime_hours: number;
   total_pay: number;

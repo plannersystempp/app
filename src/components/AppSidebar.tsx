@@ -165,7 +165,7 @@ export const AppSidebar = () => {
               {menuItems
                 .filter(item => {
                   if (userRole === 'superadmin') {
-                    return item.title !== 'Pessoal' && item.title !== 'Eventos' && item.title !== 'Funções' && item.title !== 'Fornecedores';
+                    return item.title !== 'Dashboard' && item.title !== 'Pessoal' && item.title !== 'Eventos' && item.title !== 'Funções' && item.title !== 'Fornecedores';
                   }
                   if (userRole === 'coordinator') {
                     // Coordenadores não veem Funções

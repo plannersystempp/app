@@ -24,6 +24,7 @@ serve(async (req) => {
     // Inicializar Stripe
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
     if (!stripeKey) {
+      console.error('❌ STRIPE_SECRET_KEY não configurado no ambiente');
       throw new Error('STRIPE_SECRET_KEY não configurado');
     }
     const stripe = new Stripe(stripeKey, {
@@ -32,8 +33,14 @@ serve(async (req) => {
     });
 
     // Inicializar Supabase Admin
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('❌ SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configurados');
+      throw new Error('Configuração do Supabase incompleta');
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Autenticar usuário

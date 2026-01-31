@@ -1,3 +1,40 @@
+## [2026-01-31] - feat: UX de Horas Extras ao Preencher Entrada/Saída
+ - Mudanças:
+   - `src/components/events/EventDailyAttendance.tsx`:
+     - Mobile: o modal de horários agora exibe o resumo de horas trabalhadas e horas extras (HE) em tempo real, antes de salvar.
+     - Desktop: exibe HE estimada abaixo do horário previsto e abre um dialog de alerta na primeira vez que HE > 0 (por pessoa/dia).
+ - Arquivos:
+   - `src/components/events/EventDailyAttendance.tsx`
+ - Impacto:
+   - Reduz erros operacionais ao registrar HE e torna explícito, no ato do preenchimento, quantas horas extras serão lançadas.
+
+## [2026-01-31] - fix: Acessibilidade em Sheets (Radix DialogTitle obrigatório)
+ - Mudanças:
+   - Adicionado título acessível (via `VisuallyHidden`) nos `SheetContent` que eram renderizados sem `SheetTitle`, eliminando warning do Radix e garantindo suporte correto a leitores de tela.
+ - Arquivos:
+   - `src/components/ui/sidebar.tsx`
+   - `src/components/SettingsPage.tsx`
+ - Impacto:
+   - Remove erros no console relacionados a acessibilidade e melhora a conformidade ARIA sem alterar o layout visual.
+
+## [2026-01-31] - feat: Sincronização em Tempo Real (Presença x Histórico de Faltas)
+ - Mudanças:
+   - `src/components/events/EventDailyAttendance.tsx`:
+     - Implementado registro de `logged_by_id` ao marcar presença/falta, permitindo auditoria de quem realizou a ação.
+   - `src/components/events/AbsenceHistory.tsx`:
+     - Migrada a fonte de dados da tabela legada `absences` para a tabela ativa `work_records`.
+     - Implementada sincronização em tempo real (Supabase Realtime) que reflete mudanças na lista de presença instantaneamente no histórico.
+     - Unificado o sistema de cache (React Query) para invalidar o histórico sempre que um registro de trabalho é alterado.
+   - `src/hooks/queries/usePersonnelHistoryQuery.ts`:
+     - Atualizada toda a lógica de histórico individual e estatísticas para ler de `work_records`.
+     - Garante consistência absoluta entre o que o administrador vê na lista de presença e o que é calculado para pagamentos e relatórios.
+ - Arquivos:
+   - `src/components/events/EventDailyAttendance.tsx`
+   - `src/components/events/AbsenceHistory.tsx`
+   - `src/hooks/queries/usePersonnelHistoryQuery.ts`
+ - Impacto:
+   - Elimina a divergência de dados entre abas, garante que faltas registradas apareçam imediatamente em todos os logs e assegura a integridade dos cálculos de pagamento baseados em presença.
+
 ## [2026-01-31] - infra: Configuração de Preview Estável (Porta 8080 + Build Estático)
  - Mudanças:
    - `vite.config.ts`:
@@ -45,6 +82,38 @@
    - `src/components/events/EventDailyAttendance.tsx`
  - Impacto:
    - Aumenta área útil em mobile e melhora legibilidade/operabilidade sem scroll horizontal.
+
+## [2026-01-31] - fix: Remoção de Coluna de Status (Lista de Presença)
+ - Mudanças:
+   - `src/components/events/EventDailyAttendance.tsx`:
+     - Removida coluna "Status" da tabela (tanto header quanto corpo) para evitar redundância e sobreposição com botões de ação em mobile.
+     - Ajustadas larguras das colunas restantes: Profissional (60% sm/50% md), Função (25% md), Ações (40% sm/25% sm/10% md).
+ - Arquivos:
+   - `src/components/events/EventDailyAttendance.tsx`
+ - Impacto:
+   - Elimina poluição visual e conflito de espaço em telas pequenas, já que os botões de ação já indicam visualmente o estado atual (verde/vermelho).
+
+## [2026-01-31] - feat: Lista de Presença (Divisão + Chegada/Saída + HE automática > 12h)
+ - Mudanças:
+   - `src/components/events/EventDailyAttendance.tsx`:
+     - Removidos filtro e cards de resumo por status (presente/falta/pendente), mantendo apenas total.
+     - Adicionada "Divisão" na lista: no mobile aparece abaixo da função; no desktop entra como coluna no lugar do status.
+     - Adicionados campos de `Entrada/Saída` (hora de chegada e saída) com `input[type=time]`.
+     - Ajuste UX: no desktop, a função também é exibida abaixo do nome (sem coluna separada).
+     - Ajuste UX: no mobile, exibe apenas o horário previsto; ao clicar abre modal para preencher Entrada/Saída individual.
+     - Ajuste UX: ao clicar na foto do profissional, abre em tela cheia para facilitar identificação.
+     - Cálculo automático: ao informar Entrada e Saída, calcula `hours_worked` e `overtime_hours = max(0, hours_worked - 12)` e persiste em `work_records`.
+   - `src/components/events/WorkLogManager.tsx`:
+     - Ajustado limite de validação de horas extras para até 12h (compatível com cenários de longas jornadas).
+   - `supabase/migrations/add_checkin_checkout_times.sql`:
+     - Adicionadas colunas `check_in_time` e `check_out_time` em `public.work_records`.
+ - Arquivos:
+   - `src/components/events/EventDailyAttendance.tsx`
+   - `src/components/events/WorkLogManager.tsx`
+   - `src/contexts/EnhancedDataContext.tsx`
+   - `supabase/migrations/add_checkin_checkout_times.sql`
+ - Impacto:
+   - Evita sobreposição no mobile, mostra a divisão alocada e sincroniza HE automaticamente com a folha via `work_records.overtime_hours`.
 
 ## [2026-01-31] - fix: Maximização de Área Útil (Gutters e Paddings Mínimos)
  - Mudanças:
@@ -130,3 +199,19 @@
    - `src/components/ui/alert-dialog.tsx`
  - Impacto:
    - Resolve bug onde modais de edição e exclusão abertos a partir do menu lateral (Sheet) ficavam inacessíveis ou "atrás" do menu.
+
+## [2026-01-31] - fix: Rota Super Admin e Erro 500 Checkout
+ - Mudanças:
+   - `src/App.tsx`:
+     - Adicionada lógica de redirecionamento condicional na rota raiz `/app`: usuários com role `superadmin` são redirecionados automaticamente para `/app/superadmin` em vez do Dashboard comum.
+   - `src/components/AppSidebar.tsx`:
+     - Removido link "Dashboard" do menu lateral para usuários Super Admin, mantendo apenas acesso às ferramentas de administração.
+   - `supabase/functions/create-checkout-session/index.ts`:
+     - Implementada validação explícita de variáveis de ambiente (`STRIPE_SECRET_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) com logs de erro claros (mas seguros) em caso de falha.
+     - Adicionado tratamento de erro global para garantir que falhas (500) retornem um corpo JSON parseável pelo frontend, facilitando o diagnóstico.
+ - Arquivos:
+   - `src/App.tsx`
+   - `src/components/AppSidebar.tsx`
+   - `supabase/functions/create-checkout-session/index.ts`
+ - Impacto:
+   - Melhora a UX do Super Admin (acesso direto) e fornece diagnósticos claros para erros de infraestrutura no checkout (evitando "Internal Server Error" opaco).

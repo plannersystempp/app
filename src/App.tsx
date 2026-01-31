@@ -347,11 +347,15 @@ const AppContent = () => {
             )}
             <Routes>
               <Route path="/" element={
-                <RouteErrorBoundary routeName="Dashboard" fallbackRoute="/app/eventos">
-                  <DashboardErrorBoundary sectionName="Principal">
-                    <Dashboard />
-                  </DashboardErrorBoundary>
-                </RouteErrorBoundary>
+                user.role === 'superadmin' ? (
+                  <Navigate to="/app/superadmin" replace />
+                ) : (
+                  <RouteErrorBoundary routeName="Dashboard" fallbackRoute="/app/eventos">
+                    <DashboardErrorBoundary sectionName="Principal">
+                      <Dashboard />
+                    </DashboardErrorBoundary>
+                  </RouteErrorBoundary>
+                )
               } />
               <Route path="/pessoal" element={
                 <RouteErrorBoundary routeName="Pessoal">
