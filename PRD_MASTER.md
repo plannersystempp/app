@@ -1,3 +1,14 @@
+## [2026-01-31] - infra: Configuração de Preview Estável (Porta 8080 + Build Estático)
+ - Mudanças:
+   - `vite.config.ts`:
+     - Alterado `host` para `true` e configurado `strictPort: true` na porta 8080 (conforme diretrizes SRE).
+   - Fluxo de Preview:
+     - Implementado build de produção (`npm run build`) seguido de `vite preview` para mitigar erros `ERR_ABORTED` causados por excesso de requisições a módulos individuais em ambiente de IDE.
+ - Arquivos:
+   - `vite.config.ts`
+ - Impacto:
+   - Garante que o sistema possa ser visualizado de forma estável e performática na porta 8080, eliminando timeouts de carregamento.
+
 ## [2026-01-31] - fix: Sistema Global de Responsividade (Gutters + Orientação + Sem Overflow)
  - Mudanças:
    - `src/index.css`:
@@ -20,6 +31,33 @@
    - `tests/responsividade-sem-scroll-horizontal.spec.ts`
  - Impacto:
    - Padroniza margens com unidades relativas e reduz risco de cortes/overflow horizontal, com validação automatizada em viewports-chave.
+
+## [2026-01-31] - fix: Compactação Mobile (Gutters menores + Status abreviado + Botões menores)
+ - Mudanças:
+   - `src/index.css`:
+     - Reduzido `--ps-gutter` para ganhar espaço útil sem encostar nas bordas (mantendo `safe-area-inset-*`).
+   - `src/components/events/EventDailyAttendance.tsx`:
+     - Status abreviado em mobile: "Presente" → "P", "Falta" → "F", "Pendente" → "–".
+     - Botões de ação menores em mobile e gap reduzido.
+     - Cards de estatísticas com bordas/raios mais compactos (`rounded-md`, padding menor).
+ - Arquivos:
+   - `src/index.css`
+   - `src/components/events/EventDailyAttendance.tsx`
+ - Impacto:
+   - Aumenta área útil em mobile e melhora legibilidade/operabilidade sem scroll horizontal.
+
+## [2026-01-31] - fix: Maximização de Área Útil (Gutters e Paddings Mínimos)
+ - Mudanças:
+   - `src/index.css`:
+     - Reduzido `--ps-gutter` mobile para `clamp(4px, 2vw, 12px)` e landscape para `clamp(4px, 1.5vw, 12px)`.
+   - `src/components/events/EventDailyAttendance.tsx`:
+     - Reduzido padding de células da tabela em mobile (`p-3` → `p-2`).
+     - Reduzido padding interno dos badges (`px-2` → `px-1.5`).
+ - Arquivos:
+   - `src/index.css`
+   - `src/components/events/EventDailyAttendance.tsx`
+ - Impacto:
+   - Maximiza o espaço para conteúdo em telas muito pequenas (320px), atendendo à solicitação de "diminuir mais as bordas".
 
 ## [2026-01-31] - fix: Layout Fluido e Correções de Truncamento (iPhone SE)
  - Mudanças:

@@ -4,24 +4,24 @@
 @tailwind utilities;
 
 :root {
-  --ps-gutter: clamp(12px, 4vw, 20px);
+  --ps-gutter: clamp(4px, 2vw, 12px);
 }
 
 @media (min-width: 768px) {
   :root {
-    --ps-gutter: clamp(16px, 3vw, 28px);
+    --ps-gutter: clamp(12px, 2.5vw, 24px);
   }
 }
 
 @media (min-width: 1024px) {
   :root {
-    --ps-gutter: clamp(20px, 2.5vw, 40px);
+    --ps-gutter: clamp(16px, 2vw, 32px);
   }
 }
 
 @media (max-width: 1024px) and (orientation: landscape) {
   :root {
-    --ps-gutter: clamp(10px, 2vw, 18px);
+    --ps-gutter: clamp(4px, 1.5vw, 12px);
   }
 }
 

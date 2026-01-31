@@ -257,7 +257,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
   return (
     <div className="space-y-6">
       {/* 1. Seleção de Data e Resumo */}
-      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-card p-4 rounded-lg border shadow-sm">
+      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-card p-3 sm:p-4 rounded-lg border shadow-sm">
         <div className="flex flex-col gap-2 w-full md:w-auto">
           <label className="text-sm font-medium text-muted-foreground">Data Selecionada</label>
           <div className="flex flex-wrap gap-2 w-full">
@@ -280,22 +280,22 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
         </div>
 
         <div className="flex flex-wrap gap-2 w-full md:w-auto pb-2 md:pb-0">
-          <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg border">
+          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-muted/50 rounded-md border">
             <Users className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium">{stats.total}</span>
             <span className="text-xs text-muted-foreground">Total</span>
           </div>
-          <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-100">
+          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-green-50 rounded-md border border-green-100">
             <CheckCircle2 className="w-4 h-4 text-green-600" />
             <span className="text-sm font-medium text-green-700">{stats.present}</span>
             <span className="text-xs text-green-600">Presentes</span>
           </div>
-          <div className="flex items-center gap-2 px-3 py-2 bg-red-50 rounded-lg border border-red-100">
+          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-red-50 rounded-md border border-red-100">
             <XCircle className="w-4 h-4 text-red-600" />
             <span className="text-sm font-medium text-red-700">{stats.absent}</span>
             <span className="text-xs text-red-600">Faltas</span>
           </div>
-          <div className="flex items-center gap-2 px-3 py-2 bg-yellow-50 rounded-lg border border-yellow-100">
+          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-yellow-50 rounded-md border border-yellow-100">
             <Clock className="w-4 h-4 text-yellow-600" />
             <span className="text-sm font-medium text-yellow-700">{stats.pending}</span>
             <span className="text-xs text-yellow-600">Pendentes</span>
@@ -347,70 +347,73 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
             <table className="w-full text-sm table-fixed">
               <thead className="bg-muted/50 text-left">
                 <tr>
-                  <th className="p-3 sm:p-4 font-medium w-[55%]">Profissional</th>
-                  <th className="p-3 sm:p-4 font-medium hidden md:table-cell w-[20%]">Função</th>
-                  <th className="p-3 sm:p-4 font-medium hidden sm:table-cell text-center w-[15%]">Horário</th>
-                  <th className="p-3 sm:p-4 font-medium text-center w-[15%]">Status</th>
-                  <th className="p-3 sm:p-4 font-medium text-right w-[15%]">Ações</th>
+                  <th className="p-2 sm:p-4 font-medium w-[55%]">Profissional</th>
+                  <th className="p-2 sm:p-4 font-medium hidden md:table-cell w-[20%]">Função</th>
+                  <th className="p-2 sm:p-4 font-medium hidden sm:table-cell text-center w-[15%]">Horário</th>
+                  <th className="p-2 sm:p-4 font-medium text-center w-[15%]">Status</th>
+                  <th className="p-2 sm:p-4 font-medium text-right w-[15%]">Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedPersonnel.length === 0 ? (
+                {filteredPersonnel.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-muted-foreground">
-                      Nenhum profissional encontrado com os filtros atuais.
+                    <td colSpan={5} className="p-4 text-center text-muted-foreground">
+                      Nenhum profissional encontrado.
                     </td>
                   </tr>
                 ) : (
-                  paginatedPersonnel.map((person) => (
+                  filteredPersonnel.map((person) => (
                     <tr key={person.id} className="border-t hover:bg-muted/30 transition-colors">
-                      <td className="p-3 sm:p-4">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9 border">
+                      <td className="p-2 sm:p-4">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border">
                             <AvatarImage src={person.avatar} />
                             <AvatarFallback>{person.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                           </Avatar>
                           <div className="flex flex-col min-w-0">
-                            <span className="font-medium break-words leading-tight">{person.name}</span>
-                            <span className="text-xs text-muted-foreground md:hidden break-words leading-tight">{person.functionName}</span>
+                            <span className="font-medium break-words leading-tight text-xs sm:text-sm">{person.name}</span>
+                            <span className="text-[10px] sm:text-xs text-muted-foreground md:hidden break-words leading-tight">{person.functionName}</span>
                           </div>
                         </div>
                       </td>
-                      <td className="p-3 sm:p-4 hidden md:table-cell">
+                      <td className="p-2 sm:p-4 hidden md:table-cell">
                         <Badge variant="outline" className="font-normal">
                           {person.functionName}
                         </Badge>
                       </td>
-                      <td className="p-3 sm:p-4 hidden sm:table-cell text-center text-muted-foreground">
+                      <td className="p-2 sm:p-4 hidden sm:table-cell text-center text-muted-foreground">
                         {person.formattedTime}
                       </td>
-                      <td className="p-3 sm:p-4 text-center">
+                      <td className="p-2 sm:p-4 text-center">
                         {loadingId === person.id ? (
                           <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
                         ) : (
                           <div className="flex items-center justify-center">
                             {person.status === 'present' && (
-                              <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-green-200 shadow-none">
+                              <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-green-200 shadow-none text-[10px] sm:text-xs px-1.5 py-0.5">
                                 <CheckCircle2 className="w-3 h-3 mr-1" />
-                                Presente
+                                <span className="sm:hidden">P</span>
+                                <span className="hidden sm:inline">Presente</span>
                               </Badge>
                             )}
                             {person.status === 'absent' && (
-                              <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-200 border-red-200 shadow-none">
+                              <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-200 border-red-200 shadow-none text-[10px] sm:text-xs px-1.5 py-0.5">
                                 <XCircle className="w-3 h-3 mr-1" />
-                                Falta
+                                <span className="sm:hidden">F</span>
+                                <span className="hidden sm:inline">Falta</span>
                               </Badge>
                             )}
                             {person.status === 'pending' && (
-                              <Badge variant="outline" className="text-muted-foreground">
-                                Pendente
+                              <Badge variant="outline" className="text-muted-foreground text-[10px] sm:text-xs px-1.5 py-0.5">
+                                <span className="sm:hidden">–</span>
+                                <span className="hidden sm:inline">Pendente</span>
                               </Badge>
                             )}
                           </div>
                         )}
                       </td>
-                      <td className="p-3 sm:p-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="p-2 sm:p-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -418,7 +421,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                                   size="sm"
                                   variant={person.status === 'present' ? "default" : "outline"}
                                   className={cn(
-                                    "h-8 w-8 p-0",
+                                    "h-7 w-7 sm:h-8 sm:w-8 p-0",
                                     person.status === 'present' 
                                       ? "bg-green-600 hover:bg-green-700 border-green-600" 
                                       : "hover:bg-green-50 hover:text-green-600 hover:border-green-200"
@@ -426,7 +429,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                                   onClick={() => handleToggleAttendance(person, 'present')}
                                   disabled={loadingId === person.id}
                                 >
-                                  <CheckCircle2 className="h-4 w-4" />
+                                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>
@@ -442,7 +445,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                                   size="sm"
                                   variant={person.status === 'absent' ? "destructive" : "outline"}
                                   className={cn(
-                                    "h-8 w-8 p-0",
+                                    "h-7 w-7 sm:h-8 sm:w-8 p-0",
                                     person.status === 'absent' 
                                       ? "bg-red-600 hover:bg-red-700 border-red-600" 
                                       : "hover:bg-red-50 hover:text-red-600 hover:border-red-200"
@@ -450,7 +453,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                                   onClick={() => handleToggleAttendance(person, 'absent')}
                                   disabled={loadingId === person.id}
                                 >
-                                  <XCircle className="h-4 w-4" />
+                                  <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>
