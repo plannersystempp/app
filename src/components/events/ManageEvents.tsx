@@ -387,12 +387,12 @@ export const ManageEvents: React.FC = () => {
                 <CardContent>
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      <Calendar className="w-4 h-4 text-muted-foreground dark:text-white" />
                       <span>{formatDate(event.start_date)} - {formatDate(event.end_date)}</span>
                     </div>
                     
                     <div className="flex items-center gap-2 text-sm">
-                      <Users className="w-4 h-4 text-muted-foreground" />
+                      <Users className="w-4 h-4 text-muted-foreground dark:text-white" />
                       <span>{stats.totalPeople} pessoas alocadas</span>
                     </div>
 

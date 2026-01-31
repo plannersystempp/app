@@ -403,6 +403,96 @@ export const updateCostPaymentStatus = async (
   }
 };
 
+// ============= SUPPLIER PAYMENTS =============
+
+export const createSupplierPayment = async (
+  payment: {
+    supplier_cost_id: string;
+    amount: number;
+    payment_date: string;
+    payment_type: 'partial' | 'full';
+    notes?: string;
+  },
+  userId: string
+): Promise<string> => {
+  try {
+    const { data, error } = await supabase
+      .from('event_supplier_payments')
+      .insert([{
+        ...payment,
+        created_by_id: userId
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    console.log('Supplier payment created:', data.id);
+    return data.id;
+  } catch (error) {
+    console.error('Error creating supplier payment:', error);
+    throw error;
+  }
+};
+
+export const fetchSupplierPayments = async (costId: string): Promise<any[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('event_supplier_payments')
+      .select(`
+        *
+      `)
+      .eq('supplier_cost_id', costId)
+      .order('payment_date', { ascending: false });
+
+    if (error) throw error;
+    
+    // Como não podemos fazer join com auth.users, buscamos os emails separadamente se necessário
+    // ou usamos uma tabela pública de perfis se disponível. 
+    // Por enquanto, retornamos os dados sem o email do usuário ou usamos user_profiles.
+    
+    // Tentar buscar perfis de usuário
+    if (data && data.length > 0) {
+        const userIds = [...new Set(data.map(p => p.created_by_id).filter(Boolean))];
+        if (userIds.length > 0) {
+            const { data: profiles } = await supabase
+                .from('user_profiles')
+                .select('user_id, email, name')
+                .in('user_id', userIds);
+                
+            if (profiles) {
+                return data.map(payment => {
+                    const profile = profiles.find(p => p.user_id === payment.created_by_id);
+                    return {
+                        ...payment,
+                        created_by: profile ? { email: profile.email || profile.name } : { email: 'Usuário' }
+                    };
+                });
+            }
+        }
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching supplier payments:', error);
+    throw error;
+  }
+};
+
+export const deleteSupplierPayment = async (id: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('event_supplier_payments')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    console.log('Supplier payment deleted:', id);
+  } catch (error) {
+    console.error('Error deleting supplier payment:', error);
+    throw error;
+  }
+};
+
 // ============= RATINGS =============
 
 export const createSupplierRating = async (

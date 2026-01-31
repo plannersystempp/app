@@ -15,6 +15,8 @@ interface SendNotificationParams extends NotificationData {
 }
 
 class NotificationService {
+  private static isPushDisabled = false;
+
   // Enviar notificação local (via Service Worker)
   async sendLocalNotification(notification: NotificationData) {
     if (!('Notification' in window)) {
@@ -43,6 +45,10 @@ class NotificationService {
 
   // Enviar notificação via Edge Function (para push notifications)
   async sendPushNotification(params: SendNotificationParams) {
+    if (NotificationService.isPushDisabled) {
+      return null;
+    }
+
     try {
       const { data, error } = await supabase.functions.invoke('send-push-notification', {
         body: {
@@ -69,8 +75,9 @@ class NotificationService {
       if (isConnectionError) {
         console.info(
           'ℹ️ Push notification não enviada: A Edge Function "send-push-notification" parece não estar implantada ou acessível.\n' +
-          'Para corrigir, execute: supabase functions deploy send-push-notification'
+          'Para evitar mais erros, as notificações push foram desabilitadas nesta sessão.'
         );
+        NotificationService.isPushDisabled = true;
         return null;
       }
 

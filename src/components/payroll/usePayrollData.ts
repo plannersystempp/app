@@ -172,9 +172,6 @@ export const usePayrollData = (selectedEventId: string) => {
       .on(
         'postgres_changes',
         {
-          event: '*',
-          schema: 'public',
-          table: 'absences',
           // Absences might be tricky to filter by event_id directly if it's not a column, 
           // but usually it's linked. However, absences table structure relies on personnel_allocations.
           // Realtime filters are limited to direct columns.

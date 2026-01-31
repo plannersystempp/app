@@ -1,34 +1,21 @@
-PRINCÍPIOS DE ARQUITETURA (NÃO NEGOCIÁVEIS)
+## ARQUITETURA E SEGURANÇA (NÃO NEGOCIÁVEIS)
+1. **Imutabilidade de Produção:** Nunca sugira `DROP TABLE` ou deleções destrutivas sem um plano de migração seguro (ex: `ADD COLUMN` + script de migração).
+2. **SoC & Clean Code:** UI é burra; Lógica fica em Services/Hooks. Separe responsabilidades.
+3. **Tratamento de Erros:** Todo fluxo crítico (pagamentos, salvamento) deve ter tratamento de erro (Try/Catch) com logs estruturados.
+4. **Estado Global:** Use Stores (Pinia/Zustand) apenas para dados globais reais. Evite Prop Drilling.
 
-- SoC (Separação de Camadas): Componentes de UI devem ser "burros". Lógica de negócio e APIs ficam em services/, hooks/, ou composables/.
+## FLUXO DE TRABALHO & DOCUMENTAÇÃO
+1. **Deep Think:** Antes de codar, analise o impacto no que já existe (Regressão).
+2. **Atualização do PRD_MASTER.md:**
+   - Toda resposta que altere código deve vir acompanhada de um bloco de atualização para o `PRD_MASTER.md`.
+   - Estrutura obrigatória do Log:
+     `## [DATA] - [TIPO] Título`
+     ` - Mudanças:`
+     ` - Arquivos:`
+     ` - Impacto:`
+   - **IMPORTANTE:** Mantenha os registros anteriores abaixo da nova entrada.
 
-- SSOT (Fonte Única da Verdade): Estado compartilhado SOMENTE no store central (Pinia, Zustand, etc.). Proibido useState/ref para dados globais.
-
-- DRY (Não se Repita): Identificou duplicação? Abstraia imediatamente para um componente ou função reutilizável.
-
-- KISS (Mantenha Simples): Use a solução mais simples e legível. Sem complexidade desnecessária.
-
-- YAGNI (Você Não Vai Precisar): Implemente APENAS o que foi solicitado nos requisitos. Nada a mais.
-
-FLUXO DE TRABALHO OBRIGATÓRIO
-
-1. Análise: Entenda a estrutura de pastas e o código existente.
-
-2. Planejamento: Defina as etapas antes de codificar.
-
-3. Desenvolvimento Guiado por Testes (TDD):
-  • Bug? Crie um teste que falhe.
-  • Feature nova? Crie o teste primeiro.
-
-4. Implementação: Divida em pequenas funções/módulos. Comente o necessário.
-
-5. Qualidade: Refatore, otimize e use o linter.
-
-6. Commits: Siga o padrão de Commits Semânticos (feat:, fix:, refactor:).
-
-7. Revisão (Code Review): Submeta para revisão sempre que possível.
-
-REGRAS GERAIS
-
-- Idioma: Tudo em Português Brasileiro (código, comentários, commits).
-- Tudo que for modificado no projeto deve ser atualizado ou acrescentado no PRD_MASTER.md.
+## QUALIDADE
+- **Testes:** Priorize testes de integração para funcionalidades críticas.
+- **Commits:** Siga Conventional Commits (`feat:`, `fix:`, `docs:`, `perf:`).
+- **Lint:** O código deve estar pronto para passar no Linter sem warnings.

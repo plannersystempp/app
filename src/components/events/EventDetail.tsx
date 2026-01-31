@@ -214,19 +214,19 @@ export const EventDetail: React.FC = () => {
             <div className="hidden md:flex items-center gap-4 mr-4 text-xs text-muted-foreground">
               {event.location && (
                 <div className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5" />
+                  <MapPin className="w-3.5 h-3.5 dark:text-white" />
                   <span className="truncate max-w-[150px]">{event.location}</span>
                 </div>
               )}
               <div className="flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5" />
+                <Calendar className="w-3.5 h-3.5 dark:text-white" />
                 <span>{formatDateBR(event.start_date)}</span>
               </div>
             </div>
 
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground dark:text-white">
                   <Info className="w-4 h-4" />
                 </Button>
               </SheetTrigger>

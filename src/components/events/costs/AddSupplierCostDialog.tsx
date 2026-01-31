@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useEnhancedData, type EventSupplierCost } from '@/contexts/EnhancedDataContext';
 import { useTeam } from '@/contexts/TeamContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { notificationService } from '@/services/notificationService';
@@ -65,6 +66,7 @@ export const AddSupplierCostDialog: React.FC<AddSupplierCostDialogProps> = ({
 }) => {
   const { suppliers, supplierItems, addEventSupplierCost, updateEventSupplierCost } = useEnhancedData();
   const { activeTeam } = useTeam();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState('');
@@ -163,23 +165,36 @@ export const AddSupplierCostDialog: React.FC<AddSupplierCostDialogProps> = ({
         category: sanitizedCategory,
         unit_price: unitPrice,
         quantity,
-        payment_status: formData.payment_status,
-        paid_amount: parseFloat(formData.paid_amount),
-        payment_date: formData.payment_date || undefined,
         notes: formData.notes || undefined
       };
 
       if (cost) {
+        // Na edição, não atualizamos campos de pagamento aqui. Devem ser geridos pelo diálogo de pagamentos.
         await updateEventSupplierCost({
           ...cost,
           ...data,
-          // total_amount é gerado no banco
         });
       } else {
-        const newId = await addEventSupplierCost(data);
-        if (!newId) {
-          // O contexto já mostra o toast de erro; apenas interrompe o fluxo
-          return;
+        const newId = await addEventSupplierCost({
+            ...data,
+            // Inicialmente 0, será atualizado se houver pagamento inicial
+            paid_amount: 0, 
+            payment_status: 'pending'
+        });
+        
+        if (!newId) return;
+
+        // Se houver pagamento inicial, cria o registro de pagamento
+        const initialPaidAmount = parseFloat(formData.paid_amount);
+        if (initialPaidAmount > 0 && user?.id) {
+            const { createSupplierPayment } = await import('@/services/supplierService');
+            await createSupplierPayment({
+                supplier_cost_id: newId,
+                amount: initialPaidAmount,
+                payment_date: formData.payment_date || new Date().toISOString().split('T')[0],
+                payment_type: initialPaidAmount >= (unitPrice * quantity) ? 'full' : 'partial',
+                notes: 'Pagamento inicial no cadastro'
+            }, user.id);
         }
         
         if (activeTeam?.id) {
@@ -333,46 +348,51 @@ export const AddSupplierCostDialog: React.FC<AddSupplierCostDialogProps> = ({
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="payment_status">Status do Pagamento</Label>
-              <Select
-                value={formData.payment_status}
-                onValueChange={(value: any) => setFormData({ ...formData, payment_status: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pendente</SelectItem>
-                  <SelectItem value="partially_paid">Pago Parcialmente</SelectItem>
-                  <SelectItem value="paid">Pago</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {!cost && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="payment_status">Status do Pagamento</Label>
+                  <Select
+                    value={formData.payment_status}
+                    onValueChange={(value: any) => setFormData({ ...formData, payment_status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pendente</SelectItem>
+                      <SelectItem value="partially_paid">Pago Parcialmente</SelectItem>
+                      <SelectItem value="paid">Pago</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="paid_amount">Valor Pago</Label>
-              <Input
-                id="paid_amount"
-                type="number"
-                step="0.01"
-                value={formData.paid_amount}
-                onChange={(e) => setFormData({ ...formData, paid_amount: e.target.value })}
-                placeholder="0.00"
-              />
-            </div>
-          </div>
+                <div className="space-y-2">
+                  <Label htmlFor="paid_amount">Valor Pago</Label>
+                  <Input
+                    id="paid_amount"
+                    type="number"
+                    step="0.01"
+                    value={formData.paid_amount}
+                    onChange={(e) => setFormData({ ...formData, paid_amount: e.target.value })}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="payment_date">Data do Pagamento</Label>
-            <Input
-              id="payment_date"
-              type="date"
-              value={formData.payment_date}
-              onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="payment_date">Data do Pagamento</Label>
+                <Input
+                  id="payment_date"
+                  type="date"
+                  value={formData.payment_date}
+                  onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
+                  className="dark:text-white dark:[color-scheme:dark]"
+                />
+              </div>
+            </>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="notes">Observações</Label>

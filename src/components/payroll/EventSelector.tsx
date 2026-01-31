@@ -114,10 +114,12 @@ export const EventSelector: React.FC<EventSelectorProps> = ({
       const hasPending = statusInfo?.has_pending_payments ?? false;
       
       // Regra para filtro "Pagamento Pendente":
-      // - Excluir cancelados
+      // - Excluir cancelados e planejados
       // - Incluir eventos com pending payments reais (baseado em alocações vs pagamentos)
       const matchesPendingFilter = (
-        event.status !== 'cancelado' && hasPending
+        event.status !== 'cancelado' && 
+        event.status !== 'planejado' &&
+        hasPending
       );
 
       const matchesStatus =
