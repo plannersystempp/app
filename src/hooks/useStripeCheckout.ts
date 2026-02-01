@@ -34,25 +34,29 @@ export function useStripeCheckout() {
         
         // Tentar extrair mensagem de erro do servidor
         try {
-          const res = (error as any)?.context?.response as Response | undefined;
-          if (res) {
-            const cloned = res.clone();
-            let body: any = undefined;
+          const ctx = (error as any)?.context;
+          const res = ctx?.response as Response | undefined;
+
+          let body: any = ctx?.data;
+          if (!body && res) {
             try {
-              body = await cloned.json();
+              body = await res.clone().json();
             } catch {
               try {
-                const text = await cloned.text();
-                console.error('Erro não-JSON do servidor:', text);
-                body = { message: text };
+                const text = await res.clone().text();
+                body = text ? { message: text } : undefined;
               } catch {
-                // ignore
+                body = undefined;
               }
             }
-            const serverMsg = body?.error || body?.details || body?.message;
-            if (serverMsg) {
-              throw new Error(serverMsg);
-            }
+          }
+
+          const serverMsg = body?.error || body?.details || body?.message;
+          const serverCode = body?.code;
+          const requestId = body?.request_id;
+          if (serverMsg) {
+            console.error('Detalhe do erro do servidor:', { serverCode, requestId, body });
+            throw new Error(serverMsg);
           }
         } catch (parseError) {
           // Se o erro for o que nós lançamos acima, repassar

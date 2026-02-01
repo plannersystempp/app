@@ -1,3 +1,16 @@
+## [2026-02-01] - fix: Checkout Stripe Mais Robusto (Edge Function + Erros)
+ - Mudanças:
+   - Edge Function `create-checkout-session` passa a retornar códigos HTTP corretos (401/403/404/400) em vez de 500 genérico para casos esperados.
+   - Permissão de billing alinhada: permite `owner`, `admin` do time e `superadmin` iniciar checkout (bloqueia `teams.is_system`).
+   - Auto-heal para `gateway_customer_id` inválido: valida customer no Stripe e recria/atualiza quando necessário; retry ao detectar customer inexistente no `sessions.create`.
+   - Payload de erro padronizado com `code` e `request_id` para rastreabilidade.
+   - Hook legacy `useStripeCheckout` melhora extração de mensagem retornada pela Edge Function.
+ - Arquivos:
+   - `supabase/functions/create-checkout-session/index.ts`
+   - `src/hooks/useStripeCheckout.ts`
+ - Impacto:
+   - Reduz falhas 500 no início do checkout, melhora diagnóstico operacional e evita bloqueio por customer antigo/inválido.
+
 ## [2026-01-31] - feat: Controle de Acesso por Permissões (Guard + Modal + Auditoria)
  - Mudanças:
    - Guard central de permissões por rota com bloqueio de acesso (inclusive via URL direta) e retorno automático para a última rota válida.
