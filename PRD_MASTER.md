@@ -1,3 +1,13 @@
+## [2026-02-01] - fix: Datas de Faltas sem "-1 dia" por Timezone
+ - Mudanças:
+   - `formatDate()` passa a formatar strings `YYYY-MM-DD` sem usar `Date` (evita shift UTC→local que gerava dia anterior).
+   - `formatDateTime()` passa a usar `parseDateSafe()` para tolerar formatos do Supabase com mais robustez.
+ - Arquivos:
+   - `src/utils/formatters.ts`
+   - `src/utils/__tests__/formatters.date.test.ts`
+ - Impacto:
+   - Corrige exibição de datas de falta (e demais datas “date-only”) em clientes com fuso negativo (ex.: Brasil), eliminando divergência visual.
+
 ## [2026-02-01] - fix: Checkout em Produção não Enviava Authorization (401)
  - Mudanças:
    - `supabase.functions.invoke('create-checkout-session')` passa a enviar explicitamente `Authorization: Bearer <access_token>`.

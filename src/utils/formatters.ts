@@ -1,4 +1,6 @@
 
+import { parseDateSafe } from './dateUtils';
+
 export const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -36,11 +38,24 @@ export const formatWhatsAppNumber = (phone: string): string => {
 };
 
 export const formatDate = (date: string): string => {
-  return new Date(date).toLocaleDateString('pt-BR');
+  if (!date) return '';
+
+  const s = String(date).trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (m) {
+    return `${m[3]}/${m[2]}/${m[1]}`;
+  }
+
+  const d = parseDateSafe(s);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('pt-BR');
 };
 
 export const formatDateTime = (date: string): string => {
-  return new Date(date).toLocaleString('pt-BR');
+  if (!date) return '';
+  const d = parseDateSafe(String(date));
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('pt-BR');
 };
 
 /**
