@@ -67,6 +67,8 @@ export function useStripeCheckoutEnhanced(): UseStripeCheckoutResult {
         const finalCancelUrl = cancelUrl || `${origin}/plans?payment=canceled`;
 
         // Chamar função do Supabase para criar sessão de checkout
+        // Em produção, já vimos casos em que o invoke não envia o Authorization automaticamente.
+        // Forçamos o header para garantir compatibilidade com verify_jwt=true.
         const { data, error } = await supabase.functions.invoke('create-checkout-session', {
           body: {
             planId,
@@ -75,6 +77,9 @@ export function useStripeCheckoutEnhanced(): UseStripeCheckoutResult {
             cancelUrl: finalCancelUrl,
             planName: plan.name,
             planPrice: plan.price
+          },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`
           }
         });
 
@@ -88,7 +93,13 @@ export function useStripeCheckoutEnhanced(): UseStripeCheckoutResult {
             const errorContext = (error as any)?.context;
             if (errorContext?.response) {
               const errorData = await errorContext.response.json();
-              errorMessage = errorData?.error || errorData?.message || errorMessage;
+              const message = errorData?.error || errorData?.message;
+              const code = errorData?.code;
+              if (code === 401) {
+                errorMessage = 'Sua sessão expirou. Faça login novamente e tente de novo.';
+              } else {
+                errorMessage = message || errorMessage;
+              }
             }
           } catch {
             // Se não conseguir parsear, usar mensagem padrão

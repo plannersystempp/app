@@ -1,3 +1,13 @@
+## [2026-02-01] - fix: Checkout em Produção não Enviava Authorization (401)
+ - Mudanças:
+   - `supabase.functions.invoke('create-checkout-session')` passa a enviar explicitamente `Authorization: Bearer <access_token>`.
+   - Mensagem de erro 401 fica mais clara para o usuário (sessão expirada / relogar).
+ - Arquivos:
+   - `src/hooks/useStripeCheckout.ts`
+   - `src/hooks/useStripeCheckoutEnhanced.ts`
+ - Impacto:
+   - Elimina 401 "Missing authorization header" no ambiente de produção quando o header não era propagado automaticamente.
+
 ## [2026-02-01] - fix: Checkout Stripe Mais Robusto (Edge Function + Erros)
  - Mudanças:
    - Edge Function `create-checkout-session` passa a retornar códigos HTTP corretos (401/403/404/400) em vez de 500 genérico para casos esperados.

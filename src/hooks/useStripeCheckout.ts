@@ -26,6 +26,9 @@ export function useStripeCheckout() {
           teamId,
           successUrl,
           cancelUrl
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
         }
       });
 
