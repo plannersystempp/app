@@ -70,6 +70,26 @@ export const DraggableAllocationCard: React.FC<DraggableAllocationCardProps> = (
   );
   const totalOvertimeHours = assignmentWorkLogs.reduce((sum, log) => sum + Number(log.overtime_hours || 0), 0);
 
+  const pickBestDailyLog = (day: string) => {
+    const sameDay = assignmentWorkLogs.filter(l => l.work_date === day);
+    if (sameDay.length === 0) return null;
+
+    const score = (status?: string) => {
+      if (status === 'absent') return 3;
+      if (status === 'present') return 2;
+      if (status === 'pending') return 1;
+      return 0;
+    };
+
+    return [...sameDay].sort((a, b) => {
+      const byStatus = score(b.attendance_status) - score(a.attendance_status);
+      if (byStatus !== 0) return byStatus;
+      const byCreated = String(b.created_at || '').localeCompare(String(a.created_at || ''));
+      if (byCreated !== 0) return byCreated;
+      return String(b.id || '').localeCompare(String(a.id || ''));
+    })[0];
+  };
+
   // Stop propagation for interactive elements to prevent drag start
   const handleAction = (e: React.MouseEvent, action: () => void) => {
     e.stopPropagation();
@@ -174,15 +194,16 @@ export const DraggableAllocationCard: React.FC<DraggableAllocationCardProps> = (
 
         {/* Indicadores de Presença */}
         <div className="flex justify-center gap-2 my-2">
-          {assignment.work_days.map((day) => {
-            const hasLog = assignmentWorkLogs.some(log => log.work_date === day);
+          {(assignment.work_days || []).map((day) => {
+            const dayLog = pickBestDailyLog(day);
+            const status = dayLog?.attendance_status;
             return (
               <div 
                 key={day}
                 className={`h-2 w-2 rounded-full transition-colors duration-300 ${
-                  hasLog ? 'bg-green-500' : 'bg-muted-foreground/30'
+                  status === 'absent' ? 'bg-red-500' : status === 'present' ? 'bg-green-500' : 'bg-muted-foreground/30'
                 }`}
-                title={new Date(day + 'T12:00:00').toLocaleDateString('pt-BR')}
+                title={`${new Date(day + 'T12:00:00').toLocaleDateString('pt-BR')}${status === 'absent' ? ' (Falta)' : ''}`}
               />
             );
           })}
