@@ -12,7 +12,6 @@ import { Badge } from '@/components/ui/badge';
 import { parseHoursInput, formatHours, formatHoursInputLive, pushLeftAddDigit, pushLeftBackspace } from '@/utils/formatters';
 import { Clock, Edit2, Save, X, Trash2, RotateCcw, UserX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useAbsencesQuery, useCreateAbsenceMutation, useDeleteAbsenceMutation } from '@/hooks/queries/useAbsencesQuery';
 
 import { type Assignment, type WorkRecord } from '@/contexts/EnhancedDataContext';
 
@@ -44,11 +43,6 @@ export const WorkLogManager: React.FC<WorkLogManagerProps> = ({
   const [overtimeHours, setOvertimeHours] = useState<{ [key: string]: number }>({});
   const [loading, setLoading] = useState(false);
   const [loggerNames, setLoggerNames] = useState<Record<string, string>>({});
-
-  // Fetch absences for this event
-  const { data: absences = [] } = useAbsencesQuery(assignment?.event_id);
-  const createAbsence = useCreateAbsenceMutation();
-  const deleteAbsence = useDeleteAbsenceMutation();
 
   // Carregar registros de trabalho existentes
   useEffect(() => {
@@ -198,16 +192,36 @@ export const WorkLogManager: React.FC<WorkLogManagerProps> = ({
     
     try {
       setLoading(true);
-      console.log('Creating absence with corrected data:', {
-        assignment_id: assignment.id,
+
+      const existingLog = workLogs.find(log => log.work_date === date);
+
+      const payload = {
+        employee_id: assignment.personnel_id,
+        event_id: assignment.event_id,
         work_date: date,
-        team_id: activeTeam.id
-      });
-      
-      await createAbsence.mutateAsync({
-        assignment_id: assignment.id,
-        work_date: date,
-        team_id: activeTeam.id
+        attendance_status: 'absent' as const,
+        check_in_time: null,
+        check_out_time: null,
+        hours_worked: 0,
+        overtime_hours: 0,
+        total_pay: 0,
+        logged_by_id: user?.id,
+        notes: existingLog?.notes ?? null,
+      };
+
+      if (existingLog) {
+        await updateWorkLog.mutateAsync({
+          ...existingLog,
+          ...payload,
+        });
+      } else {
+        await createWorkLog.mutateAsync(payload);
+      }
+
+      setOvertimeHours(prev => {
+        const next = { ...prev };
+        delete next[date];
+        return next;
       });
 
       toast({
@@ -236,13 +250,32 @@ export const WorkLogManager: React.FC<WorkLogManagerProps> = ({
     
     try {
       setLoading(true);
-      const absence = absences.find(absence => 
-        absence.assignment_id === assignment.id && absence.work_date === date
-      );
-      
-      if (absence) {
-        await deleteAbsence.mutateAsync(absence.id);
+
+      const existingLog = workLogs.find(log => log.work_date === date);
+      if (!existingLog || existingLog.attendance_status !== 'absent') return;
+
+      const hasAnyTime = Boolean(existingLog.check_in_time || existingLog.check_out_time);
+      const hasAnyHours = Boolean((existingLog.hours_worked || 0) > 0 || (existingLog.overtime_hours || 0) > 0);
+
+      if (existingLog.notes || hasAnyTime || hasAnyHours) {
+        await updateWorkLog.mutateAsync({
+          ...existingLog,
+          attendance_status: 'pending',
+          check_in_time: null,
+          check_out_time: null,
+          hours_worked: 0,
+          overtime_hours: 0,
+          total_pay: 0,
+          logged_by_id: user?.id,
+        });
+      } else {
+        await deleteWorkLog.mutateAsync(existingLog.id);
       }
+
+      toast({
+        title: 'Sucesso',
+        description: `Falta revertida para ${new Date(date + 'T12:00:00').toLocaleDateString('pt-BR')}`,
+      });
     } catch (error: any) {
       console.error('Error reverting absence:', error);
       const errorMessage = error?.message || error?.toString() || "Falha ao reverter falta";
@@ -302,9 +335,7 @@ export const WorkLogManager: React.FC<WorkLogManagerProps> = ({
                    const existingLog = workLogs.find(log => log.work_date === date);
                    const currentHours = overtimeHours[date] || existingLog?.overtime_hours || 0;
                    const isEditing = editingDate === date;
-                   const hasAbsence = absences.some(absence => 
-                     absence.assignment_id === assignment.id && absence.work_date === date
-                   );
+                   const hasAbsence = existingLog?.attendance_status === 'absent';
 
                    return (
                       <div key={date} className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 border rounded-lg transition-colors gap-3 sm:gap-3 min-w-0 ${isEditing ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}>
@@ -323,12 +354,12 @@ export const WorkLogManager: React.FC<WorkLogManagerProps> = ({
                                Falta
                              </Badge>
                            )}
-                           {!hasAbsence && existingLog && (
+                           {!hasAbsence && existingLog && existingLog.overtime_hours != null && Number(existingLog.overtime_hours) > 0 && (
                              <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
                                Registrado
                              </Badge>
                            )}
-                           {!hasAbsence && existingLog && (
+                           {!hasAbsence && existingLog && existingLog.overtime_hours != null && Number(existingLog.overtime_hours) > 0 && (
                              <span className="text-xs text-muted-foreground">
                                por {loggerNames[existingLog.logged_by_id || ''] || (existingLog.logged_by_id === user?.id ? 'você' : 'usuário')}
                              </span>

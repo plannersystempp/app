@@ -53,7 +53,10 @@ import PaymentForecastPage from './pages/PaymentForecastPage';
 import { useRealtimeSync } from './hooks/queries/useRealtimeSync';
 import { SetDemoRoleAdmin } from './pages/SetDemoRoleAdmin';
 import { useTeam } from './contexts/TeamContext';
-import { canShowSuppliersModule } from './lib/permissions';
+import { getUserPermissions, hasAllPermissions } from './lib/accessControl';
+import { findRouteAccessRule } from './lib/routeAccess';
+import { AccessControlProvider } from './contexts/AccessControlContext';
+import { PermissionGuard } from './components/shared/PermissionGuard';
 
 
 
@@ -63,13 +66,22 @@ import { canShowSuppliersModule } from './lib/permissions';
 // Componente para salvar a rota atual
 const RouteTracker = () => {
   const location = useLocation();
+  const { userRole, memberCaps } = useTeam();
   
   useEffect(() => {
     // Salva a rota atual no sessionStorage sempre que ela mudar
-    if (location.pathname !== '/auth' && location.pathname !== '/') {
-      sessionStorage.setItem('lastRoute', location.pathname);
+    if ((location.state as any)?.skipRouteSave) return;
+    if (location.pathname === '/auth' || location.pathname === '/') return;
+
+    const rule = findRouteAccessRule(location.pathname);
+    if (rule) {
+      const userPermissions = getUserPermissions({ userRole, memberCaps });
+      const allowed = hasAllPermissions({ userPermissions, required: rule.required });
+      if (!allowed) return;
     }
-  }, [location.pathname]);
+
+    sessionStorage.setItem('lastRoute', location.pathname);
+  }, [location.pathname, location.state, memberCaps, userRole]);
   
   return null;
 };
@@ -90,17 +102,6 @@ const RouteRestorer = () => {
   }, [navigate, location.pathname]);
   
   return null;
-};
-
-const SuppliersGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { userRole, activeTeam, memberCaps } = useTeam();
-  const allowed = canShowSuppliersModule(userRole, activeTeam?.allow_coordinators_suppliers, memberCaps);
-  return allowed ? <>{children}</> : <Navigate to="/app" replace />;
-};
-
-const AdminGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { userRole } = useTeam();
-  return userRole === 'admin' ? <>{children}</> : <Navigate to="/app" replace />;
 };
 
 const PendingApprovalMessage = () => {
@@ -330,179 +331,196 @@ const AppContent = () => {
     <ErrorBoundary>
       <TeamProvider>
         <RealtimeSyncInitializer />
-        <EnhancedDataProvider>
-          <RouteTracker />
-          <RouteRestorer />
-          <TermsAcceptanceModal />
-          <Layout>
-            {autoCheckoutStarting && (
-              <div className="fixed bottom-4 right-4 z-50">
-                <Card>
-                  <CardContent className="p-3 flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm">Iniciando checkout…</span>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-            <Routes>
-              <Route path="/" element={
-                user.role === 'superadmin' ? (
-                  <Navigate to="/app/superadmin" replace />
-                ) : (
-                  <RouteErrorBoundary routeName="Dashboard" fallbackRoute="/app/eventos">
-                    <DashboardErrorBoundary sectionName="Principal">
-                      <Dashboard />
-                    </DashboardErrorBoundary>
+        <AccessControlProvider>
+          <EnhancedDataProvider>
+            <RouteTracker />
+            <RouteRestorer />
+            <TermsAcceptanceModal />
+            <Layout>
+              {autoCheckoutStarting && (
+                <div className="fixed bottom-4 right-4 z-50">
+                  <Card>
+                    <CardContent className="p-3 flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Iniciando checkout…</span>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+              <Routes>
+                <Route path="/" element={
+                  user.role === 'superadmin' ? (
+                    <Navigate to="/app/superadmin" replace />
+                  ) : (
+                    <RouteErrorBoundary routeName="Dashboard" fallbackRoute="/app/eventos">
+                      <DashboardErrorBoundary sectionName="Principal">
+                        <Dashboard />
+                      </DashboardErrorBoundary>
+                    </RouteErrorBoundary>
+                  )
+                } />
+                <Route path="/pessoal" element={
+                  <RouteErrorBoundary routeName="Pessoal">
+                    <ManagePersonnel />
                   </RouteErrorBoundary>
-                )
-              } />
-              <Route path="/pessoal" element={
-                <RouteErrorBoundary routeName="Pessoal">
-                  <ManagePersonnel />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/funcoes" element={
-                <RouteErrorBoundary routeName="Funções">
-                  <ManageFunctions />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/eventos" element={
-                <RouteErrorBoundary routeName="Eventos">
-                  <ManageEvents />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/eventos/:id" element={
-                <RouteErrorBoundary routeName="Detalhes do Evento">
-                  <EventDetail />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/eventos/:id/avaliar-freelancers" element={
-                <RouteErrorBoundary routeName="Avaliar Freelancers">
-                  <EventFreelancersRatingPage />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/fornecedores" element={
-                <RouteErrorBoundary routeName="Fornecedores">
-                  <SuppliersGuard>
-                    <ManageSuppliers />
-                  </SuppliersGuard>
-                </RouteErrorBoundary>
-              } />
-              <Route path="/upgrade" element={
-                <RouteErrorBoundary routeName="Upgrade">
-                  <AdminGuard>
-                    <UpgradePlan />
-                  </AdminGuard>
-                </RouteErrorBoundary>
-              } />
-              <Route path="/plans" element={
-                <RouteErrorBoundary routeName="Planos">
-                  <AdminGuard>
-                    <PlansPage />
-                  </AdminGuard>
-                </RouteErrorBoundary>
-              } />
-              <Route path="/subscription" element={
-                <RouteErrorBoundary routeName="Assinatura">
-                  <AdminGuard>
-                    <ManageSubscription />
-                  </AdminGuard>
-                </RouteErrorBoundary>
-              } />
-              <Route path="/custos" element={
-                <RouteErrorBoundary routeName="Custos">
-                  <EstimatedCosts />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/folha" element={
-                <RouteErrorBoundary routeName="Folha de Pagamento">
-                  <PayrollManager />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/folha/:eventId" element={
-                <RouteErrorBoundary routeName="Visualização da Folha">
-                  <PayrollEventView />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/folha/mensal" element={
-                <RouteErrorBoundary routeName="Folha Mensal">
-                  <MonthlyPayrollPage />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/pagamentos-avulsos" element={
-                <RouteErrorBoundary routeName="Pagamentos Avulsos">
-                  <PersonnelPaymentsPage />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/pagamentos-avulsos/relatorio" element={
-                <RouteErrorBoundary routeName="Relatório de Pagamentos Avulsos">
-                  <PersonnelPaymentsReportPage />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/previsao-pagamentos" element={
-                <RouteErrorBoundary routeName="Previsão de Pagamentos">
-                  <PaymentForecastPage />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/previsao-pagamentos/relatorio" element={
-                <RouteErrorBoundary routeName="Relatório de Previsão de Pagamentos">
-                  <PaymentForecastReportPage />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/reportar-erro" element={
-                <RouteErrorBoundary routeName="Reportar Erro">
-                  <ReportarErroPage />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/equipe" element={
-                <RouteErrorBoundary routeName="Equipe">
-                  <TeamManagement />
-                </RouteErrorBoundary>
-              } />
-              <Route path="/configuracoes" element={
-                <RouteErrorBoundary routeName="Configurações">
-                  <FormErrorBoundary formName="Configuracoes">
-                    <SettingsPage />
-                  </FormErrorBoundary>
-                </RouteErrorBoundary>
-              } />
-              
-              {user.role === 'admin' && (
-                <Route path="/admin/configuracoes" element={
-                  <RouteErrorBoundary routeName="Admin - Configurações">
-                    <FormErrorBoundary formName="AdminConfiguracoes">
-                      <Settings />
+                } />
+                <Route path="/funcoes" element={
+                  <RouteErrorBoundary routeName="Funções">
+                    <ManageFunctions />
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/eventos" element={
+                  <RouteErrorBoundary routeName="Eventos">
+                    <ManageEvents />
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/eventos/:id" element={
+                  <RouteErrorBoundary routeName="Detalhes do Evento">
+                    <EventDetail />
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/eventos/:id/avaliar-freelancers" element={
+                  <RouteErrorBoundary routeName="Avaliar Freelancers">
+                    <EventFreelancersRatingPage />
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/fornecedores" element={
+                  <RouteErrorBoundary routeName="Fornecedores">
+                    <PermissionGuard pageLabel="Fornecedores" required="suppliers">
+                      <ManageSuppliers />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/upgrade" element={
+                  <RouteErrorBoundary routeName="Upgrade">
+                    <PermissionGuard pageLabel="Upgrade" required="billing">
+                      <UpgradePlan />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/plans" element={
+                  <RouteErrorBoundary routeName="Planos">
+                    <PermissionGuard pageLabel="Planos" required="billing">
+                      <PlansPage />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/subscription" element={
+                  <RouteErrorBoundary routeName="Assinatura">
+                    <PermissionGuard pageLabel="Assinatura" required="billing">
+                      <ManageSubscription />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/custos" element={
+                  <RouteErrorBoundary routeName="Custos">
+                    <PermissionGuard pageLabel="Custos" required="finance">
+                      <EstimatedCosts />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/folha" element={
+                  <RouteErrorBoundary routeName="Folha de Pagamento">
+                    <PermissionGuard pageLabel="Folha de Pagamento" required="finance">
+                      <PayrollManager />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/folha/:eventId" element={
+                  <RouteErrorBoundary routeName="Visualização da Folha">
+                    <PermissionGuard pageLabel="Visualização da Folha" required="finance">
+                      <PayrollEventView />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/folha/mensal" element={
+                  <RouteErrorBoundary routeName="Folha Mensal">
+                    <PermissionGuard pageLabel="Folha Mensal" required="finance">
+                      <MonthlyPayrollPage />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/pagamentos-avulsos" element={
+                  <RouteErrorBoundary routeName="Pagamentos Avulsos">
+                    <PermissionGuard pageLabel="Pagamentos Avulsos" required="finance">
+                      <PersonnelPaymentsPage />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/pagamentos-avulsos/relatorio" element={
+                  <RouteErrorBoundary routeName="Relatório de Pagamentos Avulsos">
+                    <PermissionGuard pageLabel="Relatório de Pagamentos Avulsos" required="finance">
+                      <PersonnelPaymentsReportPage />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/previsao-pagamentos" element={
+                  <RouteErrorBoundary routeName="Previsão de Pagamentos">
+                    <PermissionGuard pageLabel="Previsão de Pagamentos" required="finance">
+                      <PaymentForecastPage />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/previsao-pagamentos/relatorio" element={
+                  <RouteErrorBoundary routeName="Relatório de Previsão de Pagamentos">
+                    <PermissionGuard pageLabel="Relatório de Previsão de Pagamentos" required="finance">
+                      <PaymentForecastReportPage />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/reportar-erro" element={
+                  <RouteErrorBoundary routeName="Reportar Erro">
+                    <ReportarErroPage />
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/equipe" element={
+                  <RouteErrorBoundary routeName="Equipe">
+                    <TeamManagement />
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/configuracoes" element={
+                  <RouteErrorBoundary routeName="Configurações">
+                    <FormErrorBoundary formName="Configuracoes">
+                      <SettingsPage />
                     </FormErrorBoundary>
                   </RouteErrorBoundary>
                 } />
-              )}
-              {user.role === 'admin' && (
+
+                <Route path="/admin/configuracoes" element={
+                  <RouteErrorBoundary routeName="Admin - Configurações">
+                    <PermissionGuard pageLabel="Admin - Configurações" required="admin">
+                      <FormErrorBoundary formName="AdminConfiguracoes">
+                        <Settings />
+                      </FormErrorBoundary>
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
                 <Route path="/admin/telemetria-erros" element={
                   <RouteErrorBoundary routeName="Admin - Telemetria de Erros">
-                    <AdminGuard>
+                    <PermissionGuard pageLabel="Admin - Telemetria de Erros" required="admin">
                       <ErrorReportingTelemetry />
-                    </AdminGuard>
+                    </PermissionGuard>
                   </RouteErrorBoundary>
                 } />
-              )}
-              {user.role === 'superadmin' && (
                 <Route path="/superadmin" element={
                   <RouteErrorBoundary routeName="Super Admin">
-                    <SuperAdmin />
+                    <PermissionGuard pageLabel="Super Admin" required="superadmin">
+                      <SuperAdmin />
+                    </PermissionGuard>
                   </RouteErrorBoundary>
                 } />
-              )}
-              {/* Utilitário: atualizar papel da conta demo para admin */}
-              <Route path="/debug/set-role-admin" element={
-                <RouteErrorBoundary routeName="Debug - Set Role Admin">
-                  <SetDemoRoleAdmin />
-                </RouteErrorBoundary>
-              } />
-              <Route path="*" element={<Navigate to="/app" replace />} />
-            </Routes>
-          </Layout>
-        </EnhancedDataProvider>
+                <Route path="/debug/set-role-admin" element={
+                  <RouteErrorBoundary routeName="Debug - Set Role Admin">
+                    <PermissionGuard pageLabel="Debug - Set Role Admin" required="admin">
+                      <SetDemoRoleAdmin />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="*" element={<Navigate to="/app" replace />} />
+              </Routes>
+            </Layout>
+          </EnhancedDataProvider>
+        </AccessControlProvider>
       </TeamProvider>
     </ErrorBoundary>
   );
@@ -528,9 +546,13 @@ function App() {
             <Route path="/app/folha/relatorio/:eventId" element={
               <RouteErrorBoundary routeName="Relatório de Folha">
                 <TeamProvider>
-                  <EnhancedDataProvider>
-                    <PayrollReportPage />
-                  </EnhancedDataProvider>
+                  <AccessControlProvider>
+                    <EnhancedDataProvider>
+                      <PermissionGuard pageLabel="Relatório de Folha" required="finance">
+                        <PayrollReportPage />
+                      </PermissionGuard>
+                    </EnhancedDataProvider>
+                  </AccessControlProvider>
                 </TeamProvider>
               </RouteErrorBoundary>
             } />

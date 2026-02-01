@@ -1,3 +1,20 @@
+## [2026-01-31] - feat: Controle de Acesso por Permissões (Guard + Modal + Auditoria)
+ - Mudanças:
+   - Guard central de permissões por rota com bloqueio de acesso (inclusive via URL direta) e retorno automático para a última rota válida.
+   - Modal de “Acesso negado” com mensagem específica por página e botão de confirmação.
+   - Auditoria de tentativas de acesso não autorizado em `audit_logs` (timestamp, usuário, página tentada).
+ - Arquivos:
+   - `src/App.tsx`
+   - `src/lib/accessControl.ts`
+   - `src/lib/routeAccess.ts`
+   - `src/contexts/AccessControlContext.tsx`
+   - `src/components/shared/AccessDeniedDialog.tsx`
+   - `src/components/shared/PermissionGuard.tsx`
+   - `src/services/accessAuditService.ts`
+   - `src/types/auth.ts`
+ - Impacto:
+   - Coordenadores e demais perfis sem permissão deixam de acessar páginas restritas; tentativas ficam registradas para auditoria e rastreabilidade.
+
 ## [2026-01-31] - fix: Custos de Fornecedores Atualizam Imediatamente (Pagamentos/Total)
  - Mudanças:
    - Sincronização imediata de `paid_amount`/`payment_status` no estado local ao carregar/criar/excluir pagamentos (sem depender de refresh).
@@ -311,3 +328,39 @@
    - `src/components/events/AllocationCard.tsx`
  - Impacto:
    - Resolve o bug onde faltas lançadas "sumiam" do histórico e da lista diária. Agora a falta aparece corretamente no Histórico, na Lista de Presença (com botão "X" ativo) e no Resumo do Profissional (com indicador visual e desconto financeiro).
+
+## [2026-01-31] - fix: SSOT de Presença/Faltas em `work_records` (Sincronização Imediata)
+ - Mudanças:
+   - Fonte Única da Verdade: todo o app passa a considerar `work_records.attendance_status` como base para presença/falta, evitando divergência entre telas.
+   - `src/components/events/EventDailyAttendance.tsx`:
+     - Reescrito (arquivo estava corrompido) e normalizado para usar apenas `work_records`.
+   - `src/components/events/WorkLogManager.tsx`:
+     - Ação “Falta/Reverter” agora grava em `work_records` (sem depender de `absences`).
+   - `src/components/events/AbsenceHistory.tsx`:
+     - Histórico passa a ler `work_records(attendance_status='absent')` e corrige invalidação via Realtime para refletir imediatamente.
+   - `src/components/events/AllocationCard.tsx`:
+     - Indicadores e cálculo de dias/valores passam a descontar faltas via `work_records`.
+   - `src/hooks/queries/useAbsencesQuery.ts`:
+     - Fluxo legado em `absences` deixa de deletar `work_records` e passa a sincronizar `attendance_status` para manter compatibilidade sem divergência.
+   - `src/components/payroll/usePayrollData.ts` + `src/components/payroll/types.ts`:
+     - Payroll do evento deixa de depender de `absences` e passa a descontar faltas via `work_records` (mesma regra do restante do sistema).
+ - Arquivos:
+   - `src/components/events/EventDailyAttendance.tsx`
+   - `src/components/events/WorkLogManager.tsx`
+   - `src/components/events/AbsenceHistory.tsx`
+   - `src/components/events/AllocationCard.tsx`
+   - `src/hooks/queries/useAbsencesQuery.ts`
+   - `src/components/payroll/usePayrollData.ts`
+   - `src/components/payroll/types.ts`
+ - Impacto:
+   - Faltas lançadas atualizam imediatamente em todas as telas (lista diária, histórico, cards e payroll), reduzindo risco operacional e garantindo consistência de cálculo.
+
+## [2026-01-31] - fix: Indicador (Bolinha) prioriza Falta em registros duplicados
+ - Mudanças:
+   - `src/components/events/AllocationCard.tsx`:
+     - Ajustada a seleção do registro do dia para priorizar `attendance_status='absent'` quando houver mais de um `work_record` no mesmo dia (fallback por `created_at/id`).
+     - Contagem de faltas passa a considerar o status por dia (evita "bolinha verde" quando existe falta registrada).
+ - Arquivos:
+   - `src/components/events/AllocationCard.tsx`
+ - Impacto:
+   - Corrige inconsistência visual do indicador diário de presença/falta quando existe histórico legado/duplicado no banco.

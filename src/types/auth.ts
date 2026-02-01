@@ -1,7 +1,7 @@
 
 import type { User, Session } from '@supabase/supabase-js';
 
-export type UserRole = 'admin' | 'coordinator' | 'user' | 'superadmin';
+export type UserRole = 'admin' | 'coordinator' | 'financeiro' | 'user' | 'superadmin';
 
 export interface AppUser {
   id: string;

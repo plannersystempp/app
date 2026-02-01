@@ -14,7 +14,6 @@ export interface EventData {
   allocations: any[];
   workLogs: any[];
   closings: PayrollClosing[];
-  absences: any[];
 }
 
 export interface PayrollDetails {

@@ -30,32 +30,25 @@ interface AbsenceHistoryProps {
 const ITEMS_PER_PAGE = 10;
 
 const fetchEventAbsenceHistory = async (eventId: string, teamId: string): Promise<AbsenceHistoryDetail[]> => {
-  console.log('Fetching absence history for event:', eventId);
-  
-  const { data: absences, error } = await supabase
-    .from('absences')
+  const { data: workLogs, error } = await supabase
+    .from('work_records')
     .select(`
       id,
       work_date,
       notes,
       created_at,
       logged_by_id,
-      user_profiles:logged_by_id(
+      employee_id,
+      personnel:employee_id(
         name
       ),
-      personnel_allocations!inner(
-        event_id,
-        function_name,
-        personnel:personnel_id(
-          name
-        ),
-        event_divisions(
-          name
-        )
+      user_profiles:logged_by_id(
+        name
       )
     `)
     .eq('team_id', teamId)
-    .eq('personnel_allocations.event_id', eventId)
+    .eq('event_id', eventId)
+    .eq('attendance_status', 'absent')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -63,22 +56,39 @@ const fetchEventAbsenceHistory = async (eventId: string, teamId: string): Promis
     throw error;
   }
 
-  return (absences || []).map(absence => {
-    const allocation = absence.personnel_allocations as any;
-    const personnelName = allocation?.personnel?.name || 'Desconhecido';
-    const divisionName = allocation?.event_divisions?.name || '—';
-    const functionName = allocation?.function_name || '—';
-    
+  const { data: allocations } = await supabase
+    .from('personnel_allocations')
+    .select(
+      `
+      personnel_id,
+      function_name,
+      event_divisions(
+        name
+      )
+    `
+    )
+    .eq('event_id', eventId);
+
+  const allocationMap = new Map<string, { function_name: string; division_name: string }>();
+  allocations?.forEach((a: any) => {
+    allocationMap.set(a.personnel_id, {
+      function_name: a.function_name,
+      division_name: (a.event_divisions as any)?.name || '—',
+    });
+  });
+
+  return (workLogs || []).map((log: any) => {
+    const alloc = allocationMap.get(log.employee_id);
     return {
-      id: absence.id,
-      work_date: absence.work_date,
-      notes: absence.notes || '',
-      created_at: absence.created_at,
-      logged_by_id: absence.logged_by_id || '',
-      logged_by_name: (absence.user_profiles as any)?.name || 'Sistema',
-      personnel_name: personnelName,
-      division_name: divisionName,
-      function_name: functionName,
+      id: log.id,
+      work_date: log.work_date || '',
+      notes: log.notes || '',
+      created_at: log.created_at || '',
+      logged_by_id: log.logged_by_id || '',
+      logged_by_name: (log.user_profiles as any)?.name || 'Sistema',
+      personnel_name: (log.personnel as any)?.name || 'Desconhecido',
+      division_name: alloc?.division_name || '—',
+      function_name: alloc?.function_name || '—',
     };
   });
 };
@@ -109,8 +119,7 @@ export const AbsenceHistory: React.FC<AbsenceHistoryProps> = ({ eventId }) => {
         table: 'work_records',
         filter: `event_id=eq.${eventId}`
       }, () => {
-        console.log('🔄 Atualizando histórico de faltas via Realtime...');
-        queryClient.invalidateQueries({ queryKey: ['workLogs', 'absence-history', eventId] });
+        queryClient.invalidateQueries({ queryKey: ['workLogs', 'absence-history', eventId, activeTeam.id] });
       })
       .subscribe();
 

@@ -11,7 +11,7 @@ export const usePayrollData = (selectedEventId: string) => {
   const { personnel } = useEnhancedData();
   const { toast } = useToast();
   const { userRole, activeTeam } = useTeam();
-  const [eventData, setEventData] = useState<EventData>({ allocations: [], workLogs: [], closings: [], absences: [] });
+  const [eventData, setEventData] = useState<EventData>({ allocations: [], workLogs: [], closings: [] });
   const [pixKeys, setPixKeys] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [teamOvertimeConfig, setTeamOvertimeConfig] = useState({ default_convert_overtime_to_daily: false, default_overtime_threshold_hours: 8 });
@@ -68,7 +68,7 @@ export const usePayrollData = (selectedEventId: string) => {
 
   const fetchEventData = useCallback(async (showLoading = true) => {
     if (!selectedEventId || !activeTeam?.id) {
-      setEventData({ allocations: [], workLogs: [], closings: [], absences: [] });
+      setEventData({ allocations: [], workLogs: [], closings: [] });
       return;
     }
 
@@ -76,7 +76,7 @@ export const usePayrollData = (selectedEventId: string) => {
       if (showLoading) setLoading(true);
 
       // OTIMIZADO - SELECT específico ao invés de *
-      const [allocationsData, workLogsData, closingsData, absencesData] = await Promise.all([
+      const [allocationsData, workLogsData, closingsData] = await Promise.all([
         supabase
           .from('personnel_allocations')
           .select('id, event_id, personnel_id, division_id, team_id, work_days, event_specific_cache, function_name, created_at')
@@ -84,26 +84,20 @@ export const usePayrollData = (selectedEventId: string) => {
           .eq('team_id', activeTeam.id),
         supabase
           .from('work_records')
-          .select('id, event_id, employee_id, work_date, hours_worked, overtime_hours, total_pay, team_id, created_at, attendance_status')
+          .select('id, event_id, employee_id, work_date, hours_worked, overtime_hours, total_pay, team_id, created_at, attendance_status, notes, logged_by_id')
           .eq('event_id', selectedEventId)
           .eq('team_id', activeTeam.id),
         supabase
           .from('payroll_closings')
           .select('id, event_id, personnel_id, team_id, total_amount_paid, paid_at, paid_by_id, notes, created_at')
           .eq('event_id', selectedEventId)
-          .eq('team_id', activeTeam.id),
-        supabase
-          .from('absences')
-          .select('id, assignment_id, team_id, work_date, notes, logged_by_id, created_at, personnel_allocations!inner(event_id, team_id)')
-          .eq('personnel_allocations.event_id', selectedEventId)
-          .eq('personnel_allocations.team_id', activeTeam.id)
+          .eq('team_id', activeTeam.id)
       ]);
 
       setEventData({
         allocations: allocationsData.data || [],
         workLogs: workLogsData.data || [],
-        closings: closingsData.data || [],
-        absences: absencesData.data || []
+        closings: closingsData.data || []
       });
 
       // Fetch PIX keys for admins
@@ -167,33 +161,6 @@ export const usePayrollData = (selectedEventId: string) => {
         () => {
           console.log('Payroll: Closings changed, refreshing...');
           fetchEventData(false);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          // Absences might be tricky to filter by event_id directly if it's not a column, 
-          // but usually it's linked. However, absences table structure relies on personnel_allocations.
-          // Realtime filters are limited to direct columns.
-          // We'll rely on the fact that absences changes usually trigger UI updates elsewhere or
-          // we can just listen to 'absences' table globally for this team if needed, but 
-          // 'absences' doesn't have event_id directly usually.
-          // Based on the select: .eq('personnel_allocations.event_id', selectedEventId)
-          // It seems absences doesn't have event_id column.
-          // Let's omit direct filter on absences if we can't filter by event_id easily, 
-          // OR if we know absences has assignment_id which is allocation_id.
-          // For now, let's assume work_records and allocations cover most changes that affect payroll directly.
-          // Actually, absences affect payroll too.
-          // If absences has team_id, we can filter by that, but it might be too broad.
-          // Let's try to filter by team_id if available.
-          event: '*',
-          schema: 'public',
-          table: 'absences',
-          filter: `team_id=eq.${activeTeam?.id}` 
-        },
-        () => {
-           console.log('Payroll: Absences changed, refreshing...');
-           fetchEventData(false);
         }
       )
       .subscribe();
@@ -294,24 +261,33 @@ export const usePayrollData = (selectedEventId: string) => {
         log.employee_id === personnelId
       );
 
-      const personAbsences = (eventData.absences as any[]).filter((absence: any) => 
-        (allocations as any[]).some((allocation: any) => allocation.id === absence.assignment_id)
-      );
-
       // Converter para tipos do módulo de cálculo
       const allocationsData = allocations as PayrollCalc.AllocationData[];
       const workLogsData = personWorkLogs as PayrollCalc.WorkLogData[];
-      const absencesData = personAbsences as PayrollCalc.AbsenceData[];
+
+      const absencesData = workLogsData
+        .filter(wl => wl.attendance_status === 'absent' && Boolean(wl.work_date))
+        .map(wl => {
+          const workDate = String(wl.work_date);
+          const allocationForDate = allocationsData.find(a => (a.work_days || []).includes(workDate));
+          return {
+            id: String(wl.id),
+            assignment_id: String(allocationForDate?.id || allocationsData[0]?.id || ''),
+            work_date: workDate,
+            notes: (wl as any).notes || '',
+            created_at: (wl as any).created_at,
+          } as PayrollCalc.AbsenceData;
+        });
       const paymentRecords = eventData.closings.filter(
         closing => closing.personnel_id === person.id
       ) as PayrollCalc.PaymentRecord[];
 
       // === CÁLCULOS USANDO FUNÇÕES PURAS ===
-      const totalWorkDays = PayrollCalc.calculateWorkedDays(allocationsData, absencesData);
+      const totalWorkDays = PayrollCalc.calculateWorkedDays(allocationsData, workLogsData);
       const regularHours = PayrollCalc.calculateTotalRegularHours(workLogsData);
       const totalOvertimeHours = PayrollCalc.calculateTotalOvertimeHours(workLogsData);
       const baseSalary = PayrollCalc.calculateBaseSalary(person);
-      const cachePay = PayrollCalc.calculateCachePay(allocationsData, person, absencesData);
+      const cachePay = PayrollCalc.calculateCachePay(allocationsData, person, workLogsData);
       
       // Calcular pagamento de horas extras com conversão DIA A DIA (se configurado)
       const dailyCache = PayrollCalc.getDailyCacheRate(allocationsData, person);

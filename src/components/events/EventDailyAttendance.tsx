@@ -1,41 +1,38 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useWorkLogsQuery, useCreateWorkLogMutation, useUpdateWorkLogMutation, useDeleteWorkLogMutation } from '@/hooks/queries/useWorkLogsQuery';
-import { useAbsencesQuery, useCreateAbsenceMutation, useDeleteAbsenceMutation } from '@/hooks/queries/useAbsencesQuery';
-import { useTeam } from '@/contexts/TeamContext';
+import { useToast } from '@/hooks/use-toast';
+import { useUrlState } from '@/hooks/useUrlState';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { formatDateBR } from '@/utils/dateUtils';
+import { formatTimeRange, getExpectedWorkHours } from '@/utils/allocationUtils';
+import { cn } from '@/lib/utils';
+import { PaginationControl } from '@/components/shared/PaginationControl';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, XCircle, Search, Calendar, Users, Filter, Loader2, X } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { formatDateBR } from '@/utils/dateUtils';
-import { getExpectedWorkHours, formatTimeRange } from '@/utils/allocationUtils';
-import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { PaginationControl } from '@/components/shared/PaginationControl';
-import { useUrlState } from '@/hooks/useUrlState';
-import { useIsMobile } from '@/hooks/use-mobile';
+} from '@/components/ui/tooltip';
+import { Calendar, CheckCircle2, Filter, Search, Users, X, XCircle } from 'lucide-react';
 
 interface DailyAttendanceListProps {
   eventId: string;
@@ -44,13 +41,21 @@ interface DailyAttendanceListProps {
 const ITEMS_PER_PAGE = 10;
 
 export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventId }) => {
-  const { QateWorkLog = useCreateWorkLogMutation();
-  const  (eteWorkLog = useDeleteWorkLogMutation();
-  consts
+  const { user } = useAuth();
+  const { assignments, personnel, functions, divisions, events } = useEnhancedData();
+  const { data: globalWorkLogs = [] } = useWorkLogsQuery();
+  const createWorkLog = useCreateWorkLogMutation();
+  const updateWorkLog = useUpdateWorkLogMutation();
+  const deleteWorkLog = useDeleteWorkLogMutation();
+  const { toast } = useToast();
+  const isMobile = useIsMobile();
+
   const [selectedDate, setSelectedDate] = useUrlState('att_date', '');
-  const [loadingId, setLoadingId] = useState<string | null>(null);
-  const [isBulkLoading, setIsBulkLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useUrlState('att_q', '');
+  const [selectedFunction, setSelectedFunction] = useUrlState('att_func', 'all');
   const [page, setPage] = useUrlState('att_page', 1);
+
+  const [loadingId, setLoadingId] = useState<string | null>(null);
   const [timeDrafts, setTimeDrafts] = useState<Record<string, { checkIn: string; checkOut: string }>>({});
   const [timeModalPerson, setTimeModalPerson] = useState<any | null>(null);
   const [modalCheckIn, setModalCheckIn] = useState('');
@@ -91,7 +96,6 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
 
     const check_in_time = toDbTimeValue(nextCheckIn);
     const check_out_time = toDbTimeValue(nextCheckOut);
-
     const attendance_status = hasAnyTime ? 'present' : (existingLog?.attendance_status ?? 'pending');
     const hours_worked = computed ? computed.hoursWorked : (existingLog?.hours_worked ?? 0);
     const overtime_hours = computed ? computed.overtimeHours : (existingLog?.overtime_hours ?? 0);
@@ -105,7 +109,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
         hours_worked,
         overtime_hours,
         total_pay: 0,
-        logged_by_id: user?.id
+        logged_by_id: user?.id,
       });
       return;
     }
@@ -120,7 +124,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
       hours_worked,
       overtime_hours,
       total_pay: 0,
-      logged_by_id: user?.id
+      logged_by_id: user?.id,
     });
   };
 
@@ -204,22 +208,15 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
     setPhotoModalPerson(null);
   };
 
-  // 1. Obter todas as alocações deste evento
-  const eventAssignments = useMemo(() => 
-    assignments.filter(a => a.event_id === eventId),
-    [assignments, eventId]
-  );
-
+  const eventAssignments = useMemo(() => assignments.filter(a => a.event_id === eventId), [assignments, eventId]);
   const currentEvent = events.find(e => e.id === eventId);
 
-  // 2. Extrair dias do evento (Range completo)
   const uniqueWorkDays = useMemo(() => {
-    // Se tiver datas definidas no evento, usa o intervalo do evento
     if (currentEvent?.start_date && currentEvent?.end_date) {
       const dates: string[] = [];
       const [startYear, startMonth, startDay] = currentEvent.start_date.split('-').map(Number);
       const [endYear, endMonth, endDay] = currentEvent.end_date.split('-').map(Number);
-      
+
       const startDate = new Date(Date.UTC(startYear, startMonth - 1, startDay));
       const endDate = new Date(Date.UTC(endYear, endMonth - 1, endDay));
       const currentDate = new Date(startDate);
@@ -231,10 +228,10 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
         dates.push(`${year}-${month}-${day}`);
         currentDate.setUTCDate(currentDate.getUTCDate() + 1);
       }
+
       return dates;
     }
 
-    // Fallback: Se não tiver datas no evento, usa os dias das alocações
     const days = new Set<string>();
     eventAssignments.forEach(a => {
       a.work_days?.forEach(day => days.add(day));
@@ -242,97 +239,71 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
     return Array.from(days).sort();
   }, [currentEvent, eventAssignments]);
 
-  // Selecionar o primeiro dia por padrão se nenhum selecionado
   React.useEffect(() => {
     if (!selectedDate && uniqueWorkDays.length > 0) {
       setSelectedDate(uniqueWorkDays[0]);
     }
-  }, [uniqueWorkDays, selectedDate]);
+  }, [uniqueWorkDays, selectedDate, setSelectedDate]);
 
-  // 3. Filtrar worklogs para este evento
-  const eventWorkLogs = useMemo(() => 
-    globalWorkLogs.filter(log => log.event_id === eventId),
-    [globalWorkLogs, eventId]
-  );
+  const eventWorkLogs = useMemo(() => globalWorkLogs.filter(log => log.event_id === eventId), [globalWorkLogs, eventId]);
 
-  // 4. Obter lista de pessoas para o dia selecionado (Raw)
   const rawDailyPersonnel = useMemo(() => {
     if (!selectedDate) return [];
 
-    const assignmentsForDay = eventAssignments.filter(a => 
-      a.work_days?.includes(selectedDate)
-    );
+    const assignmentsForDay = eventAssignments.filter(a => a.work_days?.includes(selectedDate));
 
     return assignmentsForDay.map(assignment => {
       const person = personnel.find(p => p.id === assignment.personnel_id);
       const func = functions.find(f => f.id === assignment.function_id);
       const division = divisions.find(d => d.id === assignment.division_id);
       const event = events.find(e => e.id === eventId);
-      
+
       const { startTime, endTime } = getExpectedWorkHours(assignment, division, event);
-      
-      const workLog = eventWorkLogs.find(log => 
-        log.employee_id === assignment.personnel_id && 
-        log.work_date === selectedDate
-      );
 
-      re
-turn {
-      const absence = absences.find(a =>         id: assignment.personnel_id,
-        a.assignment_id === assignment.id && 
-        a.work_date === selectedDate
-      );
+      const workLog = eventWorkLogs.find(log => log.employee_id === assignment.personnel_id && log.work_date === selectedDate);
+      const status = workLog?.attendance_status || 'pending';
 
-      let status = 'pending';
-      if (workLog) {
-        status = workLog.attendance_status;
-      } else if (absence) {
-        status = 'absent';
-      }
-
+      return {
+        id: assignment.personnel_id,
         assignmentId: assignment.id,
         name: person?.name || 'Desconhecido',
         avatar: person?.photo_url,
         functionName: assignment.function_name || func?.name || 'Função não definida',
         divisionName: division?.name || '—',
-        status: workLog?.attendance_status || 'pending',
+        status,
         workLog,
-        format,
-       edTime:Tme)
-      };absence
+        formattedTime: formatTimeRange(startTime, endTime),
+      };
     });
-  }, [selectedDate, eventAssignments, personnel, functions, eventWorkLogs, divisions, events, eventId]);
+  }, [selectedDate, eventAssignments, personnel, functions, divisions, events, eventId, eventWorkLogs]);
 
-  // 5. Extrair funções únicas para o filtro, absences
   const uniqueFunctions = useMemo(() => {
     const funcs = new Set<string>();
     rawDailyPersonnel.forEach(p => funcs.add(p.functionName));
     return Array.from(funcs).sort();
   }, [rawDailyPersonnel]);
 
-  // 6. Aplicar filtros de busca e função
   const filteredPersonnel = useMemo(() => {
-    return rawDailyPersonnel.filter(p => {
-      const matchesSearch = (p.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                          (p.functionName?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-      const matchesFunction = selectedFunction === 'all' || p.functionName === selectedFunction;
-      return matchesSearch && matchesFunction;
-    }).sort((a, b) => a.name.localeCompare(b.name));
+    return rawDailyPersonnel
+      .filter(p => {
+        const matchesSearch = (p.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (p.functionName?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+        const matchesFunction = selectedFunction === 'all' || p.functionName === selectedFunction;
+        return matchesSearch && matchesFunction;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [rawDailyPersonnel, searchTerm, selectedFunction]);
 
-  // Reset page when filters change
   React.useEffect(() => {
     setPage(1);
-  }, [searchTerm, selectedFunction, selectedDate]);
+  }, [searchTerm, selectedFunction, selectedDate, setPage]);
 
-  // Handler para alternar presença individual
   const handleToggleAttendance = async (person: any, clickedStatus: 'present' | 'absent') => {
+    if (!selectedDate) return;
+
     setLoadingId(person.id);
     try {
-      // Se clicar no mesmo status, desmarcar (voltar para pending)
       if (person.status === clickedStatus) {
         if (person.workLog) {
-          // Se tiver notas, atualiza para pending para não perder as notas
           if (person.workLog.notes) {
             await updateWorkLog.mutateAsync({
               ...person.workLog,
@@ -340,111 +311,71 @@ turn {
               check_in_time: null,
               check_out_time: null,
               hours_worked: 0,
-        } else if (pers n. b ence) {
-          // Se for faloa, deleta a falta
-          await deleteAbsence.mutateAsyncvperson.absence.id);rtime_hours: 0,
+              overtime_hours: 0,
+              total_pay: 0,
+              logged_by_id: user?.id,
+            });
+          } else {
+            await deleteWorkLog.mutateAsync(person.workLog.id);
+          }
         }
-        
-         oast({
-          t total_pay: 0
-          });
+        toast({
+          title: 'Status removido',
+          description: `Presença/Falta de ${person.name} removida.`,
         });
-        
-        setLoadingId(null else {
-        return;   // Se não tiver notas, deleta o registro para limpar
+        setLoadingId(null);
+        return;
       }
 
-          awestiver mudaadt de sdatus
-      
-      // 1. Lempar status antetiorese necessário
-      if (person.absence) {
-        aWait deleteAbsence.mutateAsync(person.absence.id);
-      }
-      // Nota: workLogs.tãoalimpot aueomAsicamente pelo backend/hook ao criar absence? 
-      // Não, o hook yneCreateAbsenceMutationc(az issp no feontendr(clsent code).
-      // Mas se en estiver mud.ndo de Presente para Fawta,opreciskLgarantir.
-      
-      if (clickedStatgs ===i'abd)nt') {
-        // C;ar Falta
-        awitcreatAbence.mutaeAsync({
-          ssignmet_id:ersn.assgnmentId,
-          work_date:elecedDte,
-          eam_id:actieTa!.id,
-         ntes:person.?.notes
-        };
-        
-        // Se existir workLog ele serádeletopelouseCreteAbsencMutation logic?
-        // Sim, o useCreateAb enc Mu}to já tem lóica para deletar work_recors cofitantes.
-        ({
-        else {            description: `Presença/Falta de ${person.name} removida.`,
-        // Cr ar Pr)eça (
-        } person.workLog ? : null
-        // Se não tiver workLog person.workLog ? mas status for igual (o que seria estranho pois : null status vem do workLog), nada a fazer
-        setLoadingId(nul (currentCheckIn && currentCheckOut) ?l); : null
+      if (person.workLog) {
+        const currentCheckIn = toTimeInputValue(person.workLog.check_in_time);
+        const currentCheckOut = toTimeInputValue(person.workLog.check_out_time);
+        const computed = computeHoursFromTimes(currentCheckIn, currentCheckOut);
 
-        if (person.workLog) {
-          return;
-        }
-  'presn'
-        if (person.workL
-          const currentChpogcheck_in_time);
-          const curret =.wrkLog.check_out_time);
-          const computed cckn, currentCheckOut);
-          await updateWorkLog.mutateAsync({
-            ...person.workLog,
-            attendance_status: clickedStatus,
-            check_in_time: clickedStatus === 'absent' ? null : (person.workLog.check_in_time ?? null),
-            check_out_time: clickedStatus === 'absent' ? null : (person.workLog.check_out_time ?? null),
-            hours_worked: clickedStatus === 'absent' ? 0 : (computed?.hoursWorked ?? (person.workLog.hours_worked ?? 8)),
-            overtime_hours: clickedStatus === 'absent' ? 0 : (computed?.overtimeHours ?? (person.workLog.overtime_hours ?? 0)),
-            total_pay: 0,
-            logged_by_id: user?'presn'
-          });
-        } else {
-          await creatmut
-            employee_id: person.id,
-            event_id: eventId,
-            work_date: selectedDate,
-            a
-        }ttendance_status: clickedStatus,
+        await updateWorkLog.mutateAsync({
+          ...person.workLog,
+          attendance_status: clickedStatus,
+          check_in_time: clickedStatus === 'absent' ? null : (person.workLog.check_in_time ?? null),
+          check_out_time: clickedStatus === 'absent' ? null : (person.workLog.check_out_time ?? null),
+          hours_worked: clickedStatus === 'absent' ? 0 : (computed?.hoursWorked ?? (person.workLog.hours_worked ?? 8)),
+          overtime_hours: clickedStatus === 'absent' ? 0 : (computed?.overtimeHours ?? (person.workLog.overtime_hours ?? 0)),
+          total_pay: 0,
+          logged_by_id: user?.id,
+        });
+      } else {
+        await createWorkLog.mutateAsync({
+          employee_id: person.id,
+          event_id: eventId,
+          work_date: selectedDate,
+          attendance_status: clickedStatus,
           check_in_time: null,
           check_out_time: null,
           hours_worked: clickedStatus === 'absent' ? 0 : 8,
           overtime_hours: 0,
           total_pay: 0,
-          logged_by_id: user?.id
+          logged_by_id: user?.id,
         });
       }
-      
+
       toast({
-        title: clickedStatus === 'present' ? "Presença confirmada" : "Falta registrada",
+        title: clickedStatus === 'present' ? 'Presença confirmada' : 'Falta registrada',
         description: `${person.name} - ${formatDateBR(selectedDate)}`,
-        variant: clickedStatus === 'present' ? "default" : "destructive",
+        variant: clickedStatus === 'present' ? 'default' : 'destructive',
       });
     } catch (error) {
       console.error('Erro ao atualizar presença:', error);
       toast({
-        title: "Erro",
-        description: "Falha ao atualizar status de presença",
-        variant: "destructive"
+        title: 'Erro',
+        description: 'Falha ao atualizar status de presença',
+        variant: 'destructive',
       });
     } finally {
       setLoadingId(null);
     }
   };
 
-  // Cálculos de estatísticas
-  const stats = useMemo(() => {
-    const total = rawDailyPersonnel.length;
-    return { total };
-  }, [rawDailyPersonnel]);
-
-  // Paginação
   const totalPages = Math.ceil(filteredPersonnel.length / ITEMS_PER_PAGE);
-  const paginatedPersonnel = filteredPersonnel.slice(
-    (page - 1) * ITEMS_PER_PAGE,
-    page * ITEMS_PER_PAGE
-  );
+  const paginatedPersonnel = filteredPersonnel.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   if (uniqueWorkDays.length === 0) {
     return (
@@ -461,21 +392,17 @@ turn {
 
   return (
     <div className="space-y-6">
-      {/* 1. Seleção de Data e Resumo */}
       <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-card p-3 sm:p-4 rounded-lg border shadow-sm">
         <div className="flex flex-col gap-2 w-full md:w-auto">
           <label className="text-sm font-medium text-muted-foreground">Data Selecionada</label>
           <div className="flex flex-wrap gap-2 w-full">
-            {uniqueWorkDays.map((date) => (
+            {uniqueWorkDays.map(date => (
               <Button
                 key={date}
-                variant={selectedDate === date ? "default" : "outline"}
+                variant={selectedDate === date ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setSelectedDate(date)}
-                className={cn(
-                  "flex-shrink-0",
-                  selectedDate === date && "shadow-md"
-                )}
+                className={cn('flex-shrink-0', selectedDate === date && 'shadow-md')}
               >
                 <Calendar className="w-3 h-3 mr-2" />
                 {date.split('-').reverse().slice(0, 2).join('/')}
@@ -487,13 +414,12 @@ turn {
         <div className="flex flex-wrap gap-2 w-full md:w-auto pb-2 md:pb-0">
           <div className="flex items-center gap-2 px-2.5 py-1.5 bg-muted/50 rounded-md border">
             <Users className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium">{stats.total}</span>
+            <span className="text-sm font-medium">{rawDailyPersonnel.length}</span>
             <span className="text-xs text-muted-foreground">Total</span>
           </div>
         </div>
       </div>
 
-      {/* 2. Filtros */}
       <div className="flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -501,7 +427,7 @@ turn {
             placeholder="Buscar por nome ou função..."
             className="pl-9"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={e => setSearchTerm(e.target.value)}
           />
         </div>
         <Select value={selectedFunction} onValueChange={setSelectedFunction}>
@@ -512,13 +438,14 @@ turn {
           <SelectContent>
             <SelectItem value="all">Todas as funções</SelectItem>
             {uniqueFunctions.map(func => (
-              <SelectItem key={func} value={func}>{func}</SelectItem>
+              <SelectItem key={func} value={func}>
+                {func}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      {/* 3. Lista de Presença */}
       <Card>
         <CardContent className="p-0">
           <div className="rounded-md border">
@@ -539,132 +466,126 @@ turn {
                     </td>
                   </tr>
                 ) : (
-                  paginatedPersonnel.map((person) => {
+                  paginatedPersonnel.map(person => {
                     const times = getDisplayedTimes(person);
                     const computed = computeHoursFromTimes(times.checkIn, times.checkOut);
-                    const timeLabel = (times.checkIn || times.checkOut)
-                      ? `${times.checkIn || '--:--'} - ${times.checkOut || '--:--'}`
-                      : person.formattedTime;
+                    const timeLabel = (times.checkIn || times.checkOut) ? `${times.checkIn || '--:--'} - ${times.checkOut || '--:--'}` : person.formattedTime;
                     return (
                       <tr key={person.id} className="border-t hover:bg-muted/30 transition-colors">
-                      <td className="p-2 sm:p-4">
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          <button
-                            type="button"
-                            className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                            aria-label={`Ver foto de ${person.name}`}
-                            onClick={() => setPhotoModalPerson(person)}
-                          >
-                            <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border">
-                              <AvatarImage src={person.avatar} />
-                              <AvatarFallback>{person.name.substring(0, 2).toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                          </button>
-                          <div className="flex flex-col min-w-0">
-                            <span className="font-medium break-words leading-tight text-xs sm:text-sm">{person.name}</span>
-                            <span className="text-[10px] sm:text-xs text-muted-foreground break-words leading-tight">{person.functionName}</span>
-                            <span className="text-[10px] text-muted-foreground sm:hidden break-words leading-tight">{person.divisionName}</span>
-                            <div className="flex flex-col gap-1 mt-1 sm:hidden">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-7 px-2 text-xs w-full justify-start"
-                                onClick={() => openTimeModal(person)}
-                                disabled={loadingId === person.id}
-                              >
-                                {timeLabel}
-                              </Button>
-                              {computed && computed.overtimeHours > 0 && (
-                                <div className="text-[11px] text-red-600 font-medium whitespace-nowrap">
-                                  HE: {computed.overtimeHours.toFixed(2)}h
-                                </div>
-                              )}
+                        <td className="p-2 sm:p-4">
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <button
+                              type="button"
+                              className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              aria-label={`Ver foto de ${person.name}`}
+                              onClick={() => setPhotoModalPerson(person)}
+                            >
+                              <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border">
+                                <AvatarImage src={person.avatar} />
+                                <AvatarFallback>{String(person.name || '').substring(0, 2).toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                            </button>
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-medium break-words leading-tight text-xs sm:text-sm">{person.name}</span>
+                              <span className="text-[10px] sm:text-xs text-muted-foreground break-words leading-tight">{person.functionName}</span>
+                              <span className="text-[10px] text-muted-foreground sm:hidden break-words leading-tight">{person.divisionName}</span>
+                              <div className="flex flex-col gap-1 mt-1 sm:hidden">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs w-full justify-start"
+                                  onClick={() => openTimeModal(person)}
+                                  disabled={loadingId === person.id}
+                                >
+                                  {timeLabel}
+                                </Button>
+                                {computed && computed.overtimeHours > 0 && (
+                                  <div className="text-[11px] text-red-600 font-medium whitespace-nowrap">
+                                    HE: {computed.overtimeHours.toFixed(2)}h
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="p-2 sm:p-4 hidden sm:table-cell text-muted-foreground">
-                        <span className="break-words">{person.divisionName}</span>
-                      </td>
-                      <td className="p-2 sm:p-4 hidden sm:table-cell">
-                        <div className="flex items-center justify-center gap-2">
-                          <Input
-                            type="time"
-                            value={times.checkIn}
-                            onChange={(e) => handleTimeChange(person, 'checkIn', e.target.value)}
-                            className="h-8 w-[96px] px-2 text-xs"
-                            aria-label="Hora de chegada"
-                          />
-                          <Input
-                            type="time"
-                            value={times.checkOut}
-                            onChange={(e) => handleTimeChange(person, 'checkOut', e.target.value)}
-                            className="h-8 w-[96px] px-2 text-xs"
-                            aria-label="Hora de saída"
-                          />
-                        </div>
-                        <div className="mt-1 text-[10px] text-muted-foreground text-center">
-                          {person.formattedTime}
-                        </div>
-                        {computed && computed.overtimeHours > 0 && (
-                          <div className="mt-1 text-[10px] text-destructive text-center">
-                            HE: {computed.overtimeHours.toFixed(2)}h
+                        </td>
+                        <td className="p-2 sm:p-4 hidden sm:table-cell text-muted-foreground">
+                          <span className="break-words">{person.divisionName}</span>
+                        </td>
+                        <td className="p-2 sm:p-4 hidden sm:table-cell">
+                          <div className="flex items-center justify-center gap-2">
+                            <Input
+                              type="time"
+                              value={times.checkIn}
+                              onChange={e => handleTimeChange(person, 'checkIn', e.target.value)}
+                              className="h-8 w-[96px] px-2 text-xs"
+                              aria-label="Hora de chegada"
+                            />
+                            <Input
+                              type="time"
+                              value={times.checkOut}
+                              onChange={e => handleTimeChange(person, 'checkOut', e.target.value)}
+                              className="h-8 w-[96px] px-2 text-xs"
+                              aria-label="Hora de saída"
+                            />
                           </div>
-                        )}
-                      </td>
-                      <td className="p-2 sm:p-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5 lg:gap-2">
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant={person.status === 'present' ? "default" : "outline"}
-                                  className={cn(
-                                    "h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 p-0",
-                                    person.status === 'present' 
-                                      ? "bg-green-600 hover:bg-green-700 border-green-600" 
-                                      : "hover:bg-green-50 hover:text-green-600 hover:border-green-200"
-                                  )}
-                                  onClick={() => handleToggleAttendance(person, 'present')}
-                                  disabled={loadingId === person.id}
-                                >
-                                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Marcar como Presente</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                          <div className="mt-1 text-[10px] text-muted-foreground text-center">{person.formattedTime}</div>
+                          {computed && computed.overtimeHours > 0 && (
+                            <div className="mt-1 text-[10px] text-destructive text-center">HE: {computed.overtimeHours.toFixed(2)}h</div>
+                          )}
+                        </td>
+                        <td className="p-2 sm:p-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5 lg:gap-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant={person.status === 'present' ? 'default' : 'outline'}
+                                    className={cn(
+                                      'h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 p-0',
+                                      person.status === 'present'
+                                        ? 'bg-green-600 hover:bg-green-700 border-green-600'
+                                        : 'hover:bg-green-50 hover:text-green-600 hover:border-green-200'
+                                    )}
+                                    onClick={() => handleToggleAttendance(person, 'present')}
+                                    disabled={loadingId === person.id}
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Marcar como Presente</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
 
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant={person.status === 'absent' ? "destructive" : "outline"}
-                                  className={cn(
-                                    "h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 p-0",
-                                    person.status === 'absent' 
-                                      ? "bg-red-600 hover:bg-red-700 border-red-600" 
-                                      : "hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-                                  )}
-                                  onClick={() => handleToggleAttendance(person, 'absent')}
-                                  disabled={loadingId === person.id}
-                                >
-                                  <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Marcar como Falta</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                      </td>
-                    </tr>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant={person.status === 'absent' ? 'destructive' : 'outline'}
+                                    className={cn(
+                                      'h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 p-0',
+                                      person.status === 'absent'
+                                        ? 'bg-red-600 hover:bg-red-700 border-red-600'
+                                        : 'hover:bg-red-50 hover:text-red-600 hover:border-red-200'
+                                    )}
+                                    onClick={() => handleToggleAttendance(person, 'absent')}
+                                    disabled={loadingId === person.id}
+                                  >
+                                    <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Marcar como Falta</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </td>
+                      </tr>
                     );
                   })
                 )}
@@ -674,7 +595,7 @@ turn {
         </CardContent>
       </Card>
 
-      <Dialog open={!!timeModalPerson} onOpenChange={(open) => { if (!open) closeTimeModal(); }}>
+      <Dialog open={!!timeModalPerson} onOpenChange={open => { if (!open) closeTimeModal(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Horários</DialogTitle>
@@ -692,31 +613,24 @@ turn {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Entrada</div>
-                  <Input type="time" value={modalCheckIn} onChange={(e) => setModalCheckIn(e.target.value)} />
+                  <Input type="time" value={modalCheckIn} onChange={e => setModalCheckIn(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Saída</div>
-                  <Input type="time" value={modalCheckOut} onChange={(e) => setModalCheckOut(e.target.value)} />
+                  <Input type="time" value={modalCheckOut} onChange={e => setModalCheckOut(e.target.value)} />
                 </div>
               </div>
 
               {(() => {
                 const computed = computeHoursFromTimes(modalCheckIn, modalCheckOut);
                 if (!computed) {
-                  return (
-                    <div className="text-xs text-muted-foreground">
-                      Preencha entrada e saída para calcular as horas extras.
-                    </div>
-                  );
+                  return <div className="text-xs text-muted-foreground">Preencha entrada e saída para calcular as horas extras.</div>;
                 }
                 return (
                   <div className="rounded-md border p-3 space-y-1">
                     <div className="text-sm font-medium">Resumo</div>
                     <div className="text-xs text-muted-foreground">Trabalhadas: {computed.hoursWorked.toFixed(2)}h</div>
-                    <div className={cn(
-                      "text-xs font-medium",
-                      computed.overtimeHours > 0 ? "text-red-600" : "text-muted-foreground"
-                    )}>
+                    <div className={cn('text-xs font-medium', computed.overtimeHours > 0 ? 'text-red-600' : 'text-muted-foreground')}>
                       HE: {computed.overtimeHours.toFixed(2)}h
                     </div>
                   </div>
@@ -736,7 +650,7 @@ turn {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={overtimeDialog.open} onOpenChange={(open) => setOvertimeDialog(prev => ({ ...prev, open }))}>
+      <Dialog open={overtimeDialog.open} onOpenChange={open => setOvertimeDialog(prev => ({ ...prev, open }))}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Horas extras registradas</DialogTitle>
@@ -746,15 +660,17 @@ turn {
               <div className="font-medium break-words">{overtimeDialog.personName}</div>
               <div className="text-xs text-muted-foreground">Trabalhadas: {overtimeDialog.hoursWorked.toFixed(2)}h</div>
             </div>
-            <Badge variant="destructive" className="w-fit">HE: {overtimeDialog.overtimeHours.toFixed(2)}h</Badge>
+            <div className="text-xs font-medium text-destructive">HE: {overtimeDialog.overtimeHours.toFixed(2)}h</div>
             <div className="flex justify-end">
-              <Button type="button" onClick={() => setOvertimeDialog(prev => ({ ...prev, open: false }))}>Ok</Button>
+              <Button type="button" onClick={() => setOvertimeDialog(prev => ({ ...prev, open: false }))}>
+                Ok
+              </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!photoModalPerson} onOpenChange={(open) => { if (!open) closePhotoModal(); }}>
+      <Dialog open={!!photoModalPerson} onOpenChange={open => { if (!open) closePhotoModal(); }}>
         <DialogContent className="w-screen h-screen max-w-none p-0 rounded-none border-0">
           {photoModalPerson && (
             <div className="relative w-full h-full bg-black">
@@ -768,17 +684,11 @@ turn {
               </button>
 
               {photoModalPerson.avatar ? (
-                <img
-                  src={photoModalPerson.avatar}
-                  alt={photoModalPerson.name}
-                  className="w-full h-full object-contain"
-                />
+                <img src={photoModalPerson.avatar} alt={photoModalPerson.name} className="w-full h-full object-contain" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-white">
                   <div className="text-center">
-                    <div className="text-7xl font-semibold">
-                      {String(photoModalPerson.name || '').substring(0, 2).toUpperCase()}
-                    </div>
+                    <div className="text-7xl font-semibold">{String(photoModalPerson.name || '').substring(0, 2).toUpperCase()}</div>
                     <div className="mt-3 text-lg break-words px-6">{photoModalPerson.name}</div>
                   </div>
                 </div>
@@ -788,7 +698,6 @@ turn {
         </DialogContent>
       </Dialog>
 
-      {/* 4. Paginação */}
       {filteredPersonnel.length > 0 && (
         <PaginationControl
           currentPage={page}

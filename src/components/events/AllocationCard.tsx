@@ -13,7 +13,6 @@ import { formatCurrency } from '@/utils/formatters';
 import { useTeam } from '@/contexts/TeamContext';
 import { getDailyCacheRate, type AllocationData, type PersonnelData } from '@/components/payroll/payrollCalculations';
 import { useWorkLogsQuery } from '@/hooks/queries/useWorkLogsQuery';
-import { useAbsencesQuery } from '@/hooks/queries/useAbsencesQuery';
 
 interface AllocationCardProps {
   assignment: Assignment;
@@ -28,7 +27,6 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
 }) => {
   const { personnel, functions, divisions } = useEnhancedData();
   const { data: workLogs = [] } = useWorkLogsQuery();
-  const { data: absences = [] } = useAbsencesQuery(assignment.event_id);
   const { userRole } = useTeam();
   const [workLogManagerOpen, setWorkLogManagerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -45,6 +43,29 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
   );
   const totalHours = assignmentWorkLogs.reduce((sum, log) => sum + Number(log.hours_worked || 0), 0);
   const totalOvertimeHours = assignmentWorkLogs.reduce((sum, log) => sum + Number(log.overtime_hours || 0), 0);
+
+  const pickBestDailyLog = (day: string) => {
+    const sameDay = assignmentWorkLogs.filter(l => l.work_date === day);
+    if (sameDay.length === 0) return null;
+
+    const score = (status?: string) => {
+      if (status === 'absent') return 3;
+      if (status === 'present') return 2;
+      if (status === 'pending') return 1;
+      return 0;
+    };
+
+    return [...sameDay].sort((a, b) => {
+      const byStatus = score(b.attendance_status) - score(a.attendance_status);
+      if (byStatus !== 0) return byStatus;
+      const byCreated = String(b.created_at || '').localeCompare(String(a.created_at || ''));
+      if (byCreated !== 0) return byCreated;
+      return String(b.id || '').localeCompare(String(a.id || ''));
+    })[0];
+  };
+
+  const absentDaysCount = assignment.work_days.filter(day => pickBestDailyLog(day)?.attendance_status === 'absent').length;
+  const effectiveWorkDays = Math.max(0, assignment.work_days.length - absentDaysCount);
 
   if (!person) return null;
 
@@ -135,10 +156,12 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
               <span className="text-sm font-medium">Dias Trabalhados</span>
             </div>
             <div className="text-2xl font-bold text-primary">
-              {assignment.work_days.length}
+              {effectiveWorkDays}
+              {absentDaysCount > 0 && <span className="text-sm font-normal text-muted-foreground ml-1">/ {assignment.work_days.length}</span>}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              {assignment.work_days.length === 1 ? 'dia' : 'dias'}
+              {effectiveWorkDays === 1 ? 'dia' : 'dias'}
+              {absentDaysCount > 0 && <span className="text-red-500 ml-1">({absentDaysCount} falta{absentDaysCount > 1 ? 's' : ''})</span>}
             </div>
           </div>
 
@@ -161,14 +184,14 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
 
         <div className="flex justify-center gap-2 my-4">
           {assignment.work_days.map((day) => {
-            const hasLog = assignmentWorkLogs.some(log => log.work_date === day);
+            const dayLog = pickBestDailyLog(day);
             return (
               <div 
                 key={day}
                 className={`h-2 w-2 rounded-full transition-colors duration-300 ${
-                  hasLog ? 'bg-green-500' : 'bg-muted-foreground/30'
+                  dayLog?.attendance_status === 'absent' ? 'bg-red-500' : dayLog ? 'bg-green-500' : 'bg-muted-foreground/30'
                 }`}
-                title={new Date(day + 'T12:00:00').toLocaleDateString('pt-BR')}
+                title={`${new Date(day + 'T12:00:00').toLocaleDateString('pt-BR')}${dayLog?.attendance_status === 'absent' ? ' (Falta)' : ''}`}
               />
             );
           })}
