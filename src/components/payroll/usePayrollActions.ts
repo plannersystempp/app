@@ -1,17 +1,18 @@
 
+import { useQueryClient } from '@tanstack/react-query';
+import { payrollKeys } from '@/hooks/queries/usePayrollQuery';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/utils/formatters';
-import { EventData } from './types';
 import { invalidateCache } from './eventStatusCache';
 import { notificationService } from '@/services/notificationService';
 
 export const usePayrollActions = (
-  selectedEventId: string,
-  setEventData: React.Dispatch<React.SetStateAction<EventData>>
+  selectedEventId: string
 ) => {
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const { activeTeam } = useTeam();
   const { toast } = useToast();
@@ -67,19 +68,7 @@ export const usePayrollActions = (
 
       if (error) throw error;
 
-      setEventData(prev => ({
-        ...prev,
-        closings: [...prev.closings, {
-          id: data.id,
-          event_id: selectedEventId,
-          personnel_id: personnelId,
-          total_amount_paid: totalAmount,
-          paid_at: data.paid_at,
-          team_id: activeTeam.id,
-          created_at: data.created_at,
-          notes: notes || undefined
-        }]
-      }));
+      await queryClient.invalidateQueries({ queryKey: payrollKeys.event(selectedEventId) });
 
       // Obter nome do evento para notificação
       const { data: eventData } = await supabase
@@ -165,19 +154,7 @@ export const usePayrollActions = (
 
       if (error) throw error;
 
-      setEventData(prev => ({
-        ...prev,
-        closings: [...prev.closings, {
-          id: data.id,
-          event_id: selectedEventId,
-          personnel_id: personnelId,
-          total_amount_paid: amount,
-          paid_at: data.paid_at,
-          team_id: activeTeam.id,
-          created_at: data.created_at,
-          notes: notes || undefined
-        }]
-      }));
+      await queryClient.invalidateQueries({ queryKey: payrollKeys.event(selectedEventId) });
 
       // Obter nome do evento para notificação
       const { data: eventData } = await supabase
@@ -242,10 +219,7 @@ export const usePayrollActions = (
         throw new Error('Nenhum registro foi removido. Verifique políticas de acesso (RLS).');
       }
 
-      setEventData(prev => ({
-        ...prev,
-        closings: prev.closings.filter(closing => closing.id !== paymentId)
-      }));
+      await queryClient.invalidateQueries({ queryKey: payrollKeys.event(selectedEventId) });
 
       toast({
         title: "Sucesso",

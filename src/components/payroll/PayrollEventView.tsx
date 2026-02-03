@@ -27,7 +27,7 @@ export const PayrollEventView: React.FC = () => {
 
   // Hooks personalizados
   const { payrollDetails, pixKeys, loading, setEventData } = usePayrollData(eventId || '');
-  const { handleRegisterPayment, handleRegisterPartialPayment, handleCancelPayment } = usePayrollActions(eventId || '', setEventData);
+  const { handleRegisterPayment, handleRegisterPartialPayment, handleCancelPayment } = usePayrollActions(eventId || '');
 
   // Filtrar dados de acordo com o filtro selecionado
   const filteredPayrollDetails = useMemo(() => {
