@@ -10,62 +10,83 @@ interface CurrencyInputProps extends Omit<React.ComponentProps<"input">, "onChan
 }
 
 const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
-  ({ className, value, onChange, placeholder = "R$ 0,00", maxDecimals = 2, max, ...props }, forwardedRef) => {
-    
-    const formatToCurrency = React.useCallback((num: number): string => {
-      if (isNaN(num)) return maxDecimals === 2 ? "R$ 0,00" : `R$ ${(0).toFixed(maxDecimals)}`;
-      return new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-        minimumFractionDigits: maxDecimals,
-        maximumFractionDigits: maxDecimals
-      }).format(num);
+  ({ className, value, onChange, placeholder = "R$ 0,00", maxDecimals = 2, ...props }, ref) => {
+    const isFocusedRef = React.useRef(false);
+
+    const formatPlain = React.useCallback(
+      (num: number): string => {
+        if (!isFinite(num)) return "0";
+        return new Intl.NumberFormat('pt-BR', {
+          minimumFractionDigits: maxDecimals,
+          maximumFractionDigits: maxDecimals,
+        }).format(num);
+      },
+      [maxDecimals]
+    );
+
+    const formatToCurrency = React.useCallback(
+      (num: number): string => {
+        if (!isFinite(num)) return placeholder;
+        return new Intl.NumberFormat('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+          minimumFractionDigits: maxDecimals,
+          maximumFractionDigits: maxDecimals,
+        }).format(num);
+      },
+      [maxDecimals, placeholder]
+    );
+
+    const parseTextToNumber = React.useCallback((text: string): number => {
+      if (!text) return 0;
+      const normalized = text
+        .replace(/\s/g, '')
+        .replace(/R\$\s?/g, '')
+        .replace(/\./g, '')
+        .replace(/,/g, '.');
+      const n = parseFloat(normalized);
+      return isFinite(n) ? parseFloat(n.toFixed(maxDecimals)) : 0;
     }, [maxDecimals]);
 
-    const digitsToNumber = React.useCallback((str: string): number => {
-      const onlyDigits = str.replace(/\D/g, "");
-      if (!onlyDigits) return 0;
-      const divisor = Math.pow(10, maxDecimals);
-      const asNumber = parseFloat((parseInt(onlyDigits, 10) / divisor).toFixed(maxDecimals));
-      return isNaN(asNumber) ? 0 : asNumber;
-    }, [maxDecimals]);
+    const [inputText, setInputText] = React.useState<string>(formatToCurrency(value ?? 0));
 
-    // Initialize with prop value
-    const [displayValue, setDisplayValue] = React.useState(formatToCurrency(value));
-
-    // Sync state when value prop changes
     React.useEffect(() => {
-      setDisplayValue(formatToCurrency(value));
+      if (isFocusedRef.current) return;
+      setInputText(formatToCurrency(value ?? 0));
     }, [value, formatToCurrency]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const inputValue = e.target.value;
-      const numericValue = digitsToNumber(inputValue);
-      
-      // Update parent
-      onChange(numericValue);
-      
-      // We also update local state immediately for responsiveness,
-      // though the useEffect would catch it eventually.
-      // This helps with the "typing feel".
-      setDisplayValue(formatToCurrency(numericValue));
+      const text = e.target.value;
+      const sanitized = text.replace(/[^0-9.,\sR$]/g, '');
+      setInputText(sanitized);
+      onChange(parseTextToNumber(sanitized));
+    };
+
+    const handleFocus = () => {
+      isFocusedRef.current = true;
+      setInputText(formatPlain(value ?? 0));
+    };
+
+    const handleBlur = () => {
+      isFocusedRef.current = false;
+      const num = parseTextToNumber(inputText);
+      setInputText(formatToCurrency(num));
+      onChange(num);
     };
 
     return (
       <Input
         {...props}
-        ref={forwardedRef}
+        ref={ref}
         type="text"
-        inputMode="numeric"
-        value={displayValue}
+        inputMode="decimal"
+        value={inputText}
         onChange={handleChange}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         placeholder={placeholder}
         autoComplete="off"
-        className={cn("", className)}
-        onFocus={(e) => {
-           e.target.select();
-           props.onFocus?.(e);
-        }}
+        className={cn(className)}
       />
     );
   }

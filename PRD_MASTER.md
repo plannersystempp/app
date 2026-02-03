@@ -1,3 +1,14 @@
+## [2026-02-03] - fix: Modal Gerenciar Pagamentos (digitação e histórico)
+ - Mudanças:
+   - `src/components/events/costs/SupplierPaymentDialog.tsx`: estabilizado o carregamento do histórico para rodar apenas ao abrir o modal ou trocar `cost.id`, evitando reset contínuo de `amount` e spinner infinito.
+   - `src/components/events/costs/SupplierPaymentDialog.tsx`: adicionado timeout no fetch do histórico para não ficar preso em loading em caso de rede lenta/travada.
+   - `src/components/ui/currency-input.tsx`: ajustado fluxo de foco/blur para não sobrescrever o texto durante a digitação (formata em moeda apenas no blur).
+ - Arquivos:
+   - `src/components/events/costs/SupplierPaymentDialog.tsx`
+   - `src/components/ui/currency-input.tsx`
+ - Impacto:
+   - Permite digitar valores normalmente no campo "Valor" e evita o carregamento infinito do histórico no modal.
+
 ## [2026-02-03] - fix: Estabilidade no Cadastro de Fornecedores (loading state)
  - Mudanças:
    - `src/contexts/TeamContext.tsx`: `refreshTeams` deixa de setar `loading=true` se já existir um time ativo, evitando unmount/remount de componentes protegidos por `PermissionGuard` quando o usuário é atualizado (ex: refresh de token ao focar na janela).
@@ -41,7 +52,9 @@
 ## [2026-02-03] - fix: Correção Robusta do CurrencyInput (Cursor e Digitação)
  - Mudanças:
    - `src/components/ui/currency-input.tsx`: Simplificada a lógica de cursor para comportamento padrão do navegador, removendo `useLayoutEffect` que forçava posição e causava conflitos visuais (mouse sumindo).
-   - Removido `text-right` e `font-mono` temporariamente para validar se o alinhamento estava causando a "perda" do cursor visualmente.
+   - Removido `console.log` de depuração.
+   - Propriedade `max` filtrada para não ser repassada ao elemento DOM, evitando validações nativas indesejadas em inputs de texto.
+   - Ajustado para `type="tel"` para melhor suporte mobile e menos interferência nativa de desktop.
  - Arquivos:
    - `src/components/ui/currency-input.tsx`
  - Impacto:

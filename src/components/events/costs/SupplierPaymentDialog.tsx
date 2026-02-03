@@ -70,37 +70,62 @@ export const SupplierPaymentDialog: React.FC<SupplierPaymentDialogProps> = ({
   const remainingAmount = Math.max(0, (cost.total_amount || 0) - effectivePaidAmount);
   const isValidAmount = amount > 0 && amount <= remainingAmount + 0.01; // tolerance for rounding
 
+  const toastRef = React.useRef(toast);
+  const patchPaymentsRef = React.useRef(patchEventSupplierCostPayments);
+
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
+
+  useEffect(() => {
+    patchPaymentsRef.current = patchEventSupplierCostPayments;
+  }, [patchEventSupplierCostPayments]);
+
+  const withTimeout = React.useCallback(<T,>(promise: Promise<T>, ms: number): Promise<T> => {
+    return new Promise<T>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('timeout')), ms);
+      promise
+        .then((v) => {
+          clearTimeout(t);
+          resolve(v);
+        })
+        .catch((e) => {
+          clearTimeout(t);
+          reject(e);
+        });
+    });
+  }, []);
+
   const loadHistory = React.useCallback(async () => {
     setLoadingHistory(true);
     try {
-      const data = (await fetchSupplierPayments(cost.id)) as SupplierPaymentRow[];
+      const data = (await withTimeout(fetchSupplierPayments(cost.id), 15000)) as SupplierPaymentRow[];
       setHistory(data);
       setHistoryLoaded(true);
 
       const totalPaid = (data || []).reduce((sum, p) => sum + toAmount(p.amount), 0);
-      patchEventSupplierCostPayments(cost.id, totalPaid);
+      patchPaymentsRef.current(cost.id, totalPaid);
     } catch (error) {
       console.error(error);
-      toast({
-        title: "Erro",
-        description: "Falha ao carregar histórico de pagamentos",
-        variant: "destructive"
+      toastRef.current({
+        title: 'Erro',
+        description: 'Falha ao carregar histórico de pagamentos',
+        variant: 'destructive',
       });
     } finally {
       setLoadingHistory(false);
     }
-  }, [cost.id, patchEventSupplierCostPayments, toast, toAmount]);
+  }, [cost.id, toAmount, withTimeout]);
 
   useEffect(() => {
-    if (open) {
-      setAmount(0);
-      setNotes('');
-      setDate(new Date().toISOString().split('T')[0]);
-      setHistory([]);
-      setHistoryLoaded(false);
-      loadHistory();
-    }
-  }, [open, loadHistory]);
+    if (!open) return;
+    setAmount(0);
+    setNotes('');
+    setDate(new Date().toISOString().split('T')[0]);
+    setHistory([]);
+    setHistoryLoaded(false);
+    loadHistory();
+  }, [open, cost.id, loadHistory]);
 
   const handleFullPayment = () => {
     setAmount(remainingAmount);
@@ -126,12 +151,7 @@ export const SupplierPaymentDialog: React.FC<SupplierPaymentDialogProps> = ({
       setAmount(0);
       setNotes('');
       onSuccess();
-      loadHistory();
-      // Keep dialog open to show history or close? Usually close for action completion.
-      // But if user wants to see history, they might want it open. 
-      // Requirement says "Botões de ação... com interface idêntica à folha".
-      // In payroll, it closes. But here we have history in the same place?
-      // Let's keep it open to show the updated history/status, or close if it was full payment.
+      await loadHistory();
       if (amount >= remainingAmount - 0.01) {
         onOpenChange(false);
       }
@@ -156,8 +176,8 @@ export const SupplierPaymentDialog: React.FC<SupplierPaymentDialogProps> = ({
         description: "Pagamento excluído com sucesso"
       });
       setDeleteId(null);
-      onSuccess(); // Update parent
-      loadHistory(); // Update local history
+      onSuccess();
+      await loadHistory();
     } catch (error) {
       console.error(error);
       toast({
