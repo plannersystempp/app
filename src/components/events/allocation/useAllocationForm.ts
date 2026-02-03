@@ -26,8 +26,8 @@ export const useAllocationForm = ({
   const [divisionMode, setDivisionMode] = useState<'existing' | 'new'>('existing');
   const [selectedDivisionId, setSelectedDivisionId] = useState('');
   const [newDivisionName, setNewDivisionName] = useState('');
-  const [startTime, setStartTime] = useState('08:00');
-  const [endTime, setEndTime] = useState('17:00');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Get divisions for this specific event

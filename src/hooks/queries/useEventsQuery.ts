@@ -22,7 +22,7 @@ const fetchEvents = async (teamId: string): Promise<Event[]> => {
 
   const { data, error } = await supabase
     .from('events')
-    .select('id, team_id, name, description, start_date, end_date, status, created_at, location, client_contact_phone, payment_due_date, setup_start_date, setup_end_date, event_revenue')
+    .select('id, team_id, name, description, start_date, end_date, status, created_at, location, client_contact_phone, payment_due_date, setup_start_date, setup_end_date, default_entry_time, default_exit_time, event_revenue')
     .eq('team_id', teamId)
     .gte('created_at', twelveMonthsAgo.toISOString())
     .order('created_at', { ascending: false });
@@ -43,7 +43,9 @@ const fetchEvents = async (teamId: string): Promise<Event[]> => {
     client_contact_phone: event.client_contact_phone || '',
     payment_due_date: event.payment_due_date || '',
     setup_start_date: event.setup_start_date || '',
-    setup_end_date: event.setup_end_date || ''
+    setup_end_date: event.setup_end_date || '',
+    default_entry_time: event.default_entry_time || '',
+    default_exit_time: event.default_exit_time || '',
   }));
 };
 
@@ -164,6 +166,8 @@ export const useUpdateEventMutation = () => {
           client_contact_phone: event.client_contact_phone,
           setup_start_date: event.setup_start_date,
           setup_end_date: event.setup_end_date,
+          default_entry_time: event.default_entry_time ?? null,
+          default_exit_time: event.default_exit_time ?? null,
           status: event.status,
         })
         .eq('id', event.id)

@@ -47,7 +47,7 @@ import {
 export const EventDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { assignments, personnel, divisions, loading } = useEnhancedData();
+  const { assignments, personnel, divisions, loading, refreshEvents } = useEnhancedData();
   const { data: workLogs = [] } = useWorkLogsQuery();
   const { data: eventsList } = useEventsQuery();
   const deleteEventMutation = useDeleteEventMutation();
@@ -669,7 +669,9 @@ export const EventDetail: React.FC = () => {
         <EventForm
           event={event}
           onClose={() => setShowEditForm(false)}
-          onSuccess={() => setShowEditForm(false)}
+          onSuccess={() => {
+            refreshEvents().finally(() => setShowEditForm(false));
+          }}
         />
       )}
     </div>

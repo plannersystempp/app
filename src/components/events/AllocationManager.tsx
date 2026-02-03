@@ -58,7 +58,8 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
     // workLogs, // Remover do EnhancedData para evitar dados obsoletos
     deleteAssignment, 
     updateAssignment, 
-    updateDivision 
+    updateDivision,
+    reorderAssignments
   } = useEnhancedData();
   
   // Persist allocation form state in sessionStorage
@@ -130,9 +131,11 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
     return divisions
       .filter(d => d.event_id === eventId)
       .sort((a, b) => {
-        if (a.order_index !== undefined && b.order_index !== undefined) {
-            return a.order_index - b.order_index;
-        }
+        const aHas = a.order_index !== undefined;
+        const bHas = b.order_index !== undefined;
+        if (aHas && bHas) return (a.order_index as number) - (b.order_index as number);
+        if (aHas && !bHas) return -1;
+        if (!aHas && bHas) return 1;
         return a.name.localeCompare(b.name);
       });
   }, [divisions, eventId]);
@@ -171,6 +174,32 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
       return personName.includes(searchLower) || functionName.includes(searchLower);
     });
   }, [eventAssignments, searchTerm, personnel]);
+
+  const sortedAssignmentsByDivision = useMemo(() => {
+    const byDivision = new Map<string, typeof filteredAssignments>();
+    for (const a of filteredAssignments) {
+      const key = a.division_id;
+      const list = byDivision.get(key);
+      if (list) list.push(a);
+      else byDivision.set(key, [a]);
+    }
+
+    for (const [divisionId, list] of byDivision.entries()) {
+      const next = [...list].sort((a, b) => {
+        const aHas = a.order_index !== undefined;
+        const bHas = b.order_index !== undefined;
+        if (aHas && bHas) return (a.order_index as number) - (b.order_index as number);
+        if (aHas && !bHas) return -1;
+        if (!aHas && bHas) return 1;
+        const byCreated = String(a.created_at || '').localeCompare(String(b.created_at || ''));
+        if (byCreated !== 0) return byCreated;
+        return String(a.id || '').localeCompare(String(b.id || ''));
+      });
+      byDivision.set(divisionId, next);
+    }
+
+    return byDivision;
+  }, [filteredAssignments]);
 
   // Date Logic
   const availableDays = useMemo(() => {
@@ -365,17 +394,61 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
         newDivisionId = overData.divisionId;
       }
 
-      if (newDivisionId && newDivisionId !== assignment.division_id) {
-        // Move to new division
-        await updateAssignment({
-          ...assignment,
-          division_id: newDivisionId
-        });
-        
-        // Auto expand target division
+      if (!newDivisionId) return;
+
+      const sourceDivisionId = assignment.division_id;
+      const isOverAssignment = overData?.type === 'assignment';
+
+      if (newDivisionId === sourceDivisionId) {
+        if (!isOverAssignment || active.id === over.id) return;
+
+        const list = sortedAssignmentsByDivision.get(sourceDivisionId) || [];
+        const oldIndex = list.findIndex(a => a.id === active.id);
+        const newIndex = list.findIndex(a => a.id === over.id);
+        if (oldIndex === -1 || newIndex === -1) return;
+
+        const newOrder = arrayMove(list, oldIndex, newIndex);
+        const updates = newOrder.map((a, idx) => ({ id: a.id, order_index: idx }));
+
+        try {
+          await reorderAssignments(updates);
+          toast({
+            title: 'Ordem atualizada',
+            description: 'A nova ordem foi salva.',
+          });
+        } catch {
+          return;
+        }
+        return;
+      }
+
+      const sourceList = (sortedAssignmentsByDivision.get(sourceDivisionId) || []).filter(a => a.id !== assignment.id);
+      const targetList = (sortedAssignmentsByDivision.get(newDivisionId) || []).filter(a => a.id !== assignment.id);
+
+      const moved = { ...assignment, division_id: newDivisionId };
+      const overIndex = isOverAssignment ? targetList.findIndex(a => a.id === (over.id as string)) : -1;
+      const insertAt = overIndex === -1 ? targetList.length : overIndex;
+
+      const nextTarget = [...targetList];
+      nextTarget.splice(insertAt, 0, moved);
+
+      try {
+        await updateAssignment(moved, { silent: true });
+        await Promise.all([
+          reorderAssignments(sourceList.map((a, idx) => ({ id: a.id, order_index: idx }))),
+          reorderAssignments(nextTarget.map((a, idx) => ({ id: a.id, order_index: idx }))),
+        ]);
+
         if (!expandedDivisions.includes(newDivisionId)) {
           toggleDivision(newDivisionId);
         }
+
+        toast({
+          title: 'Alocação movida',
+          description: 'A alocação foi movida e a ordem foi salva.',
+        });
+      } catch {
+        return;
       }
     }
   };
@@ -393,7 +466,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   const renderDivisionList = (divs: typeof eventDivisions, gridClass: string) => (
     <div className={gridClass}>
       {divs.map((division) => {
-        const divisionAssignments = filteredAssignments.filter(a => a.division_id === division.id);
+        const divisionAssignments = sortedAssignmentsByDivision.get(division.id) || [];
         return (
           <DivisionCard
             key={division.id}
@@ -547,7 +620,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
              <div className="opacity-90 rotate-2 cursor-grabbing">
                 <DivisionCard
                   division={activeDragItem}
-                  assignments={filteredAssignments.filter(a => a.division_id === activeDragItem.id)}
+                  assignments={sortedAssignmentsByDivision.get(activeDragItem.id) || []}
                   availableDays={availableDays}
                   isExpanded={expandedDivisions.includes(activeDragItem.id)}
                   onToggle={() => {}}

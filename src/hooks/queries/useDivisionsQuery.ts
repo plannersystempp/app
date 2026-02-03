@@ -97,12 +97,21 @@ export const useUpdateDivisionMutation = () => {
   const { toast } = useToast();
   const { broadcast } = useBroadcastInvalidation();
 
+  type DivisionUpdateInput = {
+    id: string;
+    name: string;
+    description: string | null;
+    default_entry_time: string | null;
+    default_exit_time: string | null;
+  };
+
   return useMutation({
-    mutationFn: async (division: Division) => {
+    mutationFn: async (input: DivisionUpdateInput) => {
+      const { id, ...update } = input;
       const { data, error } = await supabase
         .from('event_divisions')
-        .update(division)
-        .eq('id', division.id)
+        .update(update)
+        .eq('id', id)
         .eq('team_id', activeTeam!.id)
         .select()
         .single();

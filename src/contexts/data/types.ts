@@ -65,6 +65,7 @@ export interface EventAssignment {
   start_time?: string;
   end_time?: string;
   event_specific_cache?: number;
+  order_index?: number;
   team_id: string;
   created_at: string;
 }

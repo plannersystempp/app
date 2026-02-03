@@ -1,3 +1,45 @@
+## [2026-02-03] - fix: Horário padrão persiste e reflete em Presença/Alocações
+ - Mudanças:
+   - `events.default_entry_time/default_exit_time` passam a ser buscados e atualizados no caminho React Query.
+   - UI baseada no `EnhancedDataContext` passa a atualizar após editar evento/divisão via `refreshEvents/refreshDivisions`.
+   - Criação/edição de alocação deixa de “fixar” 08:00/17:00; campos vazios viram `NULL` para herdar (Divisão -> Evento).
+   - Removido DEFAULT de `personnel_allocations.start_time/end_time` para não quebrar herança.
+   - Exibição de horário “Previsto” normalizada para HH:MM.
+ - Arquivos:
+   - `src/hooks/queries/useEventsQuery.ts`
+   - `src/components/events/EventDetail.tsx`
+   - `src/components/events/DivisionForm.tsx`
+   - `src/components/events/allocation/useAllocationForm.ts`
+   - `src/contexts/EnhancedDataContext.tsx`
+   - `src/utils/allocationUtils.ts`
+   - `supabase/migrations/zz_drop_allocation_time_defaults.sql`
+ - Impacto:
+   - Alterações de horário padrão passam a refletir corretamente na lista de presença e na listagem de alocações quando não há override por alocação.
+
+## [2026-02-03] - fix: Reordenação de alocações no celular (DnD + persistência)
+ - Mudanças:
+   - Implementada reordenação de alocações dentro da mesma divisão via drag-and-drop (antes só movia entre divisões).
+   - Persistência da ordem por `order_index` nas alocações, com atualização segura (scoped por `team_id`).
+   - Ordenação consistente das alocações na UI por `order_index` (fallback estável por `created_at/id`).
+   - Feedback visual melhor no gesto de “segurar e arrastar” no mobile (handle com destaque ao pressionar).
+ - Arquivos:
+   - `src/components/events/AllocationManager.tsx`
+   - `src/components/events/DivisionCard.tsx`
+   - `src/components/events/DraggableAllocationCard.tsx`
+   - `src/contexts/EnhancedDataContext.tsx`
+   - `src/contexts/data/types.ts`
+ - Impacto:
+   - Reordenar cards de alocação no celular passa a funcionar e ficar salvo após reload.
+
+## [2026-02-03] - fix: Cadastro de fornecedores não fecha ao trocar de aba
+ - Mudanças:
+   - `TabsTrigger` passa a aplicar `type="button"` por padrão (mantém override via prop `type`).
+ - Arquivos:
+   - `src/components/ui/tabs.tsx`
+   - `src/components/ui/__tests__/TabsTrigger.type.test.tsx`
+ - Impacto:
+   - Evita submit/fechamento acidental do modal quando Tabs estiver dentro de `<form>` (ex.: cadastro de fornecedores).
+
 ## [2026-02-01] - fix: Datas de Faltas sem "-1 dia" por Timezone
  - Mudanças:
    - `formatDate()` passa a formatar strings `YYYY-MM-DD` sem usar `Date` (evita shift UTC→local que gerava dia anterior).

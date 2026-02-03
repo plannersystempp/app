@@ -113,6 +113,7 @@ export interface Division {
   description?: string;
   default_entry_time?: string;
   default_exit_time?: string;
+  order_index?: number;
   created_at: string;
 }
 
@@ -127,6 +128,7 @@ export interface Assignment {
   start_time?: string;
   end_time?: string;
   event_specific_cache?: number;
+  order_index?: number;
   created_at: string;
 }
 
@@ -189,7 +191,10 @@ interface EnhancedDataContextType {
   deleteDivision: (id: string) => Promise<void>;
   addAssignment: (assignment: Omit<Assignment, 'id' | 'created_at' | 'team_id'>) => Promise<void>;
   deleteAssignment: (id: string) => Promise<void>;
-  updateAssignment: (assignment: Assignment) => Promise<void>;
+  updateAssignment: (assignment: Assignment, opts?: { silent?: boolean }) => Promise<void>;
+  reorderAssignments: (updates: Array<{ id: string; order_index: number }>) => Promise<void>;
+  refreshEvents: () => Promise<void>;
+  refreshDivisions: () => Promise<void>;
   refreshAssignments: () => Promise<void>;
   addWorkLog: (workLog: Omit<WorkRecord, 'id' | 'created_at' | 'team_id'>) => Promise<void>;
   updateWorkLog: (workLog: WorkRecord) => Promise<void>;
@@ -492,6 +497,9 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
               description: division.description || '',
               default_entry_time: division.default_entry_time || '',
               default_exit_time: division.default_exit_time || '',
+              order_index: division.order_index != null && !Number.isNaN(Number(division.order_index))
+                ? Number(division.order_index)
+                : undefined,
               created_at: division.created_at || ''
             });
           }
@@ -518,6 +526,9 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
               start_time: assignment.start_time || '',
               end_time: assignment.end_time || '',
               event_specific_cache: assignment.event_specific_cache || undefined,
+              order_index: assignment.order_index != null && !Number.isNaN(Number(assignment.order_index))
+                ? Number(assignment.order_index)
+                : undefined,
               created_at: assignment.created_at || ''
             });
           }
@@ -1102,6 +1113,38 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  const reorderAssignments = async (updates: Array<{ id: string; order_index: number }>): Promise<void> => {
+    if (!activeTeam) return;
+
+    try {
+      await Promise.all(
+        updates.map(async (u) => {
+          const { error } = await supabase
+            .from('personnel_allocations')
+            .update({ order_index: u.order_index })
+            .eq('id', u.id)
+            .eq('team_id', activeTeam.id);
+
+          if (error) throw error;
+        })
+      );
+
+      const byId = new Map(updates.map(u => [u.id, u.order_index] as const));
+      setAssignments(prev => prev.map(a => {
+        const next = byId.get(a.id);
+        return next === undefined ? a : { ...a, order_index: next };
+      }));
+    } catch (error) {
+      console.error('Error reordering assignments:', error);
+      toast({
+        title: 'Erro',
+        description: 'Falha ao salvar a ordem das alocações',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
   const deleteDivision = async (id: string): Promise<void> => {
     try {
       const { error } = await supabase
@@ -1138,7 +1181,9 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       // 1. CORREÇÃO: Remove user_id da inserção, apenas adiciona team_id
       const newAssignmentData = { 
-        ...assignmentData, 
+        ...assignmentData,
+        start_time: assignmentData.start_time ? assignmentData.start_time : null,
+        end_time: assignmentData.end_time ? assignmentData.end_time : null,
         team_id: activeTeam.id
       };
       
@@ -1203,6 +1248,8 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
           personnel_id: newAssignment.personnel_id,
           function_name: newAssignment.function_name,
           work_days: newAssignment.work_days || [],
+          start_time: newAssignment.start_time ?? undefined,
+          end_time: newAssignment.end_time ?? undefined,
           event_specific_cache: newAssignment.event_specific_cache || undefined,
           created_at: newAssignment.created_at
         };
@@ -1253,21 +1300,25 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  const updateAssignment = async (assignment: Assignment): Promise<void> => {
+  const updateAssignment = async (assignment: Assignment, opts?: { silent?: boolean }): Promise<void> => {
     if (!activeTeam) return;
 
     try {
+      const updateData: any = {
+        personnel_id: assignment.personnel_id,
+        function_name: assignment.function_name,
+        work_days: assignment.work_days,
+        division_id: assignment.division_id,
+        start_time: assignment.start_time ? assignment.start_time : null,
+        end_time: assignment.end_time ? assignment.end_time : null,
+        event_specific_cache: assignment.event_specific_cache ?? null,
+      };
+
+      if (assignment.order_index !== undefined) updateData.order_index = assignment.order_index;
+
       const { error } = await supabase
         .from('personnel_allocations')
-        .update({
-          personnel_id: assignment.personnel_id,
-          function_name: assignment.function_name,
-          work_days: assignment.work_days,
-          division_id: assignment.division_id,
-          start_time: assignment.start_time,
-          end_time: assignment.end_time,
-          event_specific_cache: assignment.event_specific_cache ?? null
-        })
+        .update(updateData)
         .eq('id', assignment.id)
         .eq('team_id', activeTeam.id);
 
@@ -1279,10 +1330,12 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
           : a
       )));
 
-      toast({
-        title: "Sucesso",
-        description: "Alocação atualizada com sucesso!",
-      });
+      if (!opts?.silent) {
+        toast({
+          title: "Sucesso",
+          description: "Alocação atualizada com sucesso!",
+        });
+      }
     } catch (error) {
       console.error('Error updating assignment:', error);
       toast({
@@ -1290,6 +1343,7 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         description: "Falha ao atualizar alocação",
         variant: "destructive"
       });
+      if (opts?.silent) throw error;
     }
   };
 
@@ -1314,7 +1368,12 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
               personnel_id: assignment.personnel_id || '',
               function_name: assignment.function_name || '',
               work_days: assignment.work_days || [],
+              start_time: assignment.start_time ?? undefined,
+              end_time: assignment.end_time ?? undefined,
               event_specific_cache: assignment.event_specific_cache || undefined,
+              order_index: assignment.order_index != null && !Number.isNaN(Number(assignment.order_index))
+                ? Number(assignment.order_index)
+                : undefined,
               created_at: assignment.created_at || ''
             });
           }
@@ -1328,6 +1387,83 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         description: "Falha ao atualizar alocações",
         variant: "destructive"
       });
+    }
+  };
+
+  const refreshEvents = async (): Promise<void> => {
+    try {
+      const isSuperAdmin = user?.role === 'superadmin';
+      if (!isSuperAdmin && !activeTeam?.id) return;
+      const { data, error } = isSuperAdmin
+        ? await supabase.from('events').select('*')
+        : await supabase.from('events').select('*').eq('team_id', activeTeam!.id);
+
+      if (error) throw error;
+
+      if (data && Array.isArray(data)) {
+        const validEvents: Event[] = [];
+        for (const event of data) {
+          if (isValidDataObject(event)) {
+            validEvents.push({
+              id: event.id || '',
+              team_id: event.team_id || (activeTeam?.id || ''),
+              name: event.name || '',
+              description: event.description || '',
+              start_date: event.start_date || '',
+              end_date: event.end_date || '',
+              payment_due_date: event.payment_due_date || '',
+              setup_start_date: event.setup_start_date || '',
+              setup_end_date: event.setup_end_date || '',
+              default_entry_time: event.default_entry_time || '',
+              default_exit_time: event.default_exit_time || '',
+              location: event.location || '',
+              client_contact_phone: event.client_contact_phone || '',
+              status: event.status as 'planejado' | 'em_andamento' | 'concluido' | 'cancelado' || 'planejado',
+              user_id: '',
+              created_at: event.created_at || ''
+            });
+          }
+        }
+        setEvents(validEvents);
+      }
+    } catch (error) {
+      console.error('Error refreshing events:', error);
+    }
+  };
+
+  const refreshDivisions = async (): Promise<void> => {
+    try {
+      const isSuperAdmin = user?.role === 'superadmin';
+      if (!isSuperAdmin && !activeTeam?.id) return;
+      const { data, error } = isSuperAdmin
+        ? await supabase.from('event_divisions').select('*')
+        : await supabase.from('event_divisions').select('*').eq('team_id', activeTeam!.id);
+
+      if (error) throw error;
+
+      if (data && Array.isArray(data)) {
+        const validDivisions: Division[] = [];
+        for (const division of data) {
+          if (isValidDataObject(division)) {
+            validDivisions.push({
+              id: division.id || '',
+              team_id: division.team_id || (activeTeam?.id || ''),
+              event_id: division.event_id || '',
+              name: division.name || '',
+              description: division.description || '',
+              default_entry_time: division.default_entry_time || '',
+              default_exit_time: division.default_exit_time || '',
+              order_index: division.order_index != null && !Number.isNaN(Number(division.order_index))
+                ? Number(division.order_index)
+                : undefined,
+              created_at: division.created_at || ''
+            });
+          }
+        }
+        setDivisions(validDivisions);
+      }
+    } catch (error) {
+      console.error('Error refreshing divisions:', error);
     }
   };
 
@@ -1709,6 +1845,9 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     addAssignment,
     deleteAssignment,
     updateAssignment,
+    reorderAssignments,
+    refreshEvents,
+    refreshDivisions,
     refreshAssignments,
     addWorkLog,
     updateWorkLog,

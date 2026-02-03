@@ -39,5 +39,7 @@ export const getExpectedWorkHours = (
 
 export const formatTimeRange = (startTime: string | null, endTime: string | null): string => {
   if (!startTime || !endTime) return 'Horário não definido';
-  return `${startTime} - ${endTime}`;
+  const s = String(startTime).slice(0, 5);
+  const e = String(endTime).slice(0, 5);
+  return `${s} - ${e}`;
 };
