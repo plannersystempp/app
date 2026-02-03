@@ -44,6 +44,11 @@ export function useStripeCheckout() {
              const res = context.response;
              console.log('Status da resposta do checkout:', res.status);
              
+             if (res.status === 404) {
+                console.error('Função create-checkout-session não encontrada (404). Verifique o deploy.');
+                throw new Error('Serviço de pagamento temporariamente indisponível (404). Por favor, contate o suporte.');
+             }
+
              try {
                 // Tenta ler JSON primeiro
                 const data = await res.clone().json();

@@ -31,9 +31,9 @@
 
 ## [2026-02-03] - fix: Tratamento de Erro no Checkout
  - Mudanças:
-   - `src/hooks/useStripeCheckout.ts`: Melhoria na extração de erros da Edge Function. Agora tenta ler o corpo da resposta (JSON ou Texto) mesmo em falhas 500/400, e expõe a mensagem real do servidor em vez de um erro genérico.
+   - `src/hooks/useStripeCheckout.ts`: Melhoria na extração de erros da Edge Function. Agora detecta explicitamente erro 404 (Função não deployada) e tenta ler o corpo da resposta (JSON ou Texto) em outras falhas, expondo a mensagem real do servidor.
  - Arquivos:
    - `src/hooks/useStripeCheckout.ts`
  - Impacto:
-   - Permite diagnosticar falhas de produção (como config do Stripe ou timeouts) que antes eram mascaradas como "Falha ao iniciar o checkout".
-   - Melhora a UX informando erros mais precisos quando disponíveis.
+   - Identifica claramente quando a função de checkout não está deployada (404), instruindo correções de infraestrutura.
+   - Melhora a UX informando "Serviço indisponível" em vez de erro genérico em caso de falha de rota.
