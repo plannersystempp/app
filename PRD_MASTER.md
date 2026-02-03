@@ -40,10 +40,9 @@
 
 ## [2026-02-03] - fix: Correção Robusta do CurrencyInput (Cursor e Digitação)
  - Mudanças:
-   - `src/components/ui/currency-input.tsx`: Reimplementado com estado local sincronizado para garantir feedback visual imediato e desacoplado da re-renderização do pai.
-   - Adicionado `useLayoutEffect` para forçar o cursor sempre para o final do input (estilo ATM), resolvendo o problema de "mouse sumindo" ou cursor pulando.
-   - Adicionado `onFocus` para selecionar todo o conteúdo, facilitando a edição rápida.
+   - `src/components/ui/currency-input.tsx`: Simplificada a lógica de cursor para comportamento padrão do navegador, removendo `useLayoutEffect` que forçava posição e causava conflitos visuais (mouse sumindo).
+   - Removido `text-right` e `font-mono` temporariamente para validar se o alinhamento estava causando a "perda" do cursor visualmente.
  - Arquivos:
    - `src/components/ui/currency-input.tsx`
  - Impacto:
-   - Resolve definitivamente o problema de digitação "travada" e cursor instável. A experiência agora é de um input estilo ATM fluido e responsivo.
+   - Restaura a capacidade de digitação normal e visibilidade do cursor/ponteiro, eliminando comportamentos "mágicos" que quebravam a UX em certas condições.

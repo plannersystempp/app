@@ -49,11 +49,11 @@ serve(async (req) => {
     }
 
     // Parse do corpo da requisição
-    const { sessionId, teamId, planId }: VerifyPaymentRequest = await req.json();
+    const { sessionId, teamId: requestTeamId, planId: requestPlanId }: VerifyPaymentRequest = await req.json();
 
-    if (!sessionId || !teamId || !planId) {
+    if (!sessionId) {
       return new Response(
-        JSON.stringify({ error: 'sessionId, teamId e planId são obrigatórios' }),
+        JSON.stringify({ error: 'sessionId é obrigatório' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -62,6 +62,18 @@ serve(async (req) => {
 
     // Buscar session no Stripe
     const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    // Recuperar teamId e planId do metadata da sessão se não vieram na requisição
+    const teamId = requestTeamId || session.metadata?.team_id;
+    const planId = requestPlanId || session.metadata?.plan_id;
+
+    if (!teamId || !planId) {
+      console.error('❌ teamId ou planId não encontrados no request nem no metadata do Stripe');
+      return new Response(
+        JSON.stringify({ error: 'Não foi possível identificar o time ou plano da assinatura' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (session.payment_status !== 'paid') {
       return new Response(

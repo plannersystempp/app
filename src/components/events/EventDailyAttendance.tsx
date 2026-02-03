@@ -295,7 +295,8 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
 
   React.useEffect(() => {
     setPage(1);
-  }, [searchTerm, selectedFunction, selectedDate, setPage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, selectedFunction, selectedDate]);
 
   const handleToggleAttendance = async (person: any, clickedStatus: 'present' | 'absent') => {
     if (!selectedDate) return;

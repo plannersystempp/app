@@ -30,6 +30,7 @@ export const PaginationControl: React.FC<PaginationControlProps> = ({
       </div>
       <div className="flex items-center space-x-2">
         <Button
+          type="button"
           variant="outline"
           size="sm"
           onClick={() => onPageChange(currentPage - 1)}
@@ -39,6 +40,7 @@ export const PaginationControl: React.FC<PaginationControlProps> = ({
           <span className="sr-only">Anterior</span>
         </Button>
         <Button
+          type="button"
           variant="outline"
           size="sm"
           onClick={() => onPageChange(currentPage + 1)}

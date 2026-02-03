@@ -90,27 +90,47 @@ export function useStripeCheckoutEnhanced(): UseStripeCheckoutResult {
           let errorMessage = 'Erro ao processar pagamento';
           
           try {
+            // Tenta verificar se é um erro estruturado do Edge Function (ex: jsonResponse)
             const errorContext = (error as any)?.context;
             if (errorContext?.response) {
-              const errorData = await errorContext.response.json();
-              const message = errorData?.error || errorData?.message;
-              const code = errorData?.code;
-              if (code === 401) {
-                errorMessage = 'Sua sessão expirou. Faça login novamente e tente de novo.';
-              } else {
-                errorMessage = message || errorMessage;
+              const response = errorContext.response;
+              
+              // Se a resposta for JSON, tenta extrair
+              try {
+                const errorData = await response.clone().json();
+                const message = errorData?.error || errorData?.message;
+                const code = errorData?.code;
+                
+                if (code === 401 || response.status === 401) {
+                  errorMessage = 'Sua sessão expirou. Faça login novamente e tente de novo.';
+                } else if (message) {
+                  errorMessage = message;
+                }
+              } catch {
+                 // Se não for JSON, pega o texto
+                 const text = await response.clone().text();
+                 if (text) errorMessage = text;
               }
+            } else if ((error as any).message) {
+                 // Fallback para message do erro
+                 errorMessage = (error as any).message;
             }
-          } catch {
-            // Se não conseguir parsear, usar mensagem padrão
-            const message = (error as any)?.message || '';
-            if (message.includes('stripe')) {
+          } catch (e) {
+             console.error('Falha ao parsear erro:', e);
+             // Se não conseguir parsear, usar mensagem padrão ou do erro original
+             const message = (error as any)?.message || '';
+             if (message) errorMessage = message;
+          }
+
+          // Tratamento de mensagens comuns
+          if (errorMessage.includes('stripe')) {
               errorMessage = 'Erro ao conectar com o Stripe. Tente novamente em alguns instantes.';
-            } else if (message.includes('network')) {
+          } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
               errorMessage = 'Erro de conexão. Verifique sua internet.';
-            } else if (message.includes('permission')) {
+          } else if (errorMessage.includes('permission') || errorMessage.includes('403')) {
               errorMessage = 'Você não tem permissão para realizar esta ação.';
-            }
+          } else if (errorMessage.includes('FunctionsHttpError') && errorMessage.includes('500')) {
+              errorMessage = 'Erro interno no servidor de pagamentos. Tente novamente.';
           }
           
           throw new Error(errorMessage);
