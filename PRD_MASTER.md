@@ -38,10 +38,12 @@
    - Identifica claramente quando a função de checkout não está deployada (404), instruindo correções de infraestrutura.
    - Melhora a UX informando "Serviço indisponível" em vez de erro genérico em caso de falha de rota.
 
-## [2026-02-03] - fix: Correção do CurrencyInput (input travado/cursor sumindo)
+## [2026-02-03] - fix: Correção Robusta do CurrencyInput (Cursor e Digitação)
  - Mudanças:
-   - `src/components/ui/currency-input.tsx`: Removido estado local `displayValue` e `useEffect` de sincronização que causavam race condition e renderização dupla. Implementação simplificada como Controlled Component puro.
+   - `src/components/ui/currency-input.tsx`: Reimplementado com estado local sincronizado para garantir feedback visual imediato e desacoplado da re-renderização do pai.
+   - Adicionado `useLayoutEffect` para forçar o cursor sempre para o final do input (estilo ATM), resolvendo o problema de "mouse sumindo" ou cursor pulando.
+   - Adicionado `onFocus` para selecionar todo o conteúdo, facilitando a edição rápida.
  - Arquivos:
    - `src/components/ui/currency-input.tsx`
  - Impacto:
-   - Resolve o problema onde o usuário não conseguia digitar valores ou o cursor se comportava de forma errática (sumindo/pulando) devido a conflitos de re-renderização entre o componente e o pai.
+   - Resolve definitivamente o problema de digitação "travada" e cursor instável. A experiência agora é de um input estilo ATM fluido e responsivo.
