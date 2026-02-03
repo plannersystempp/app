@@ -11,10 +11,9 @@ interface CurrencyInputProps extends Omit<React.ComponentProps<"input">, "onChan
 
 const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
   ({ className, value, onChange, placeholder = "R$ 0,00", maxDecimals = 2, ...props }, ref) => {
-    const [displayValue, setDisplayValue] = React.useState("");
-
+    
     // Format number to currency display
-    const formatToCurrency = (num: number): string => {
+    const formatToCurrency = React.useCallback((num: number): string => {
       if (isNaN(num)) return maxDecimals === 2 ? "R$ 0,00" : `R$ ${(0).toFixed(maxDecimals)}`;
       return new Intl.NumberFormat('pt-BR', {
         style: 'currency',
@@ -22,21 +21,16 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
         minimumFractionDigits: maxDecimals,
         maximumFractionDigits: maxDecimals
       }).format(num);
-    };
+    }, [maxDecimals]);
 
     // Convert digits-only string to number
-    const digitsToNumber = (str: string): number => {
+    const digitsToNumber = React.useCallback((str: string): number => {
       const onlyDigits = str.replace(/\D/g, "");
       if (!onlyDigits) return 0;
       const divisor = Math.pow(10, maxDecimals);
       const asNumber = parseFloat((parseInt(onlyDigits, 10) / divisor).toFixed(maxDecimals));
       return isNaN(asNumber) ? 0 : asNumber;
-    };
-
-    // Update display when value prop changes
-    React.useEffect(() => {
-      setDisplayValue(formatToCurrency(value ?? 0));
-    }, [value]);
+    }, [maxDecimals]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const inputValue = e.target.value;
@@ -44,25 +38,20 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
       // Extract digits and compute numeric value as cents
       const numericValue = digitsToNumber(inputValue);
 
-      // Always show formatted BRL while typing
-      setDisplayValue(formatToCurrency(numericValue));
-
       onChange(numericValue);
     };
 
-    const handleBlur = () => {
-      // Ensure display is formatted on blur
-      setDisplayValue(formatToCurrency(value ?? 0));
-    };
+    // Calculate display value directly from props to avoid sync issues
+    const displayValue = formatToCurrency(value ?? 0);
 
     return (
       <Input
         {...props}
         ref={ref}
         type="text"
+        inputMode="numeric"
         value={displayValue}
         onChange={handleChange}
-        onBlur={handleBlur}
         placeholder={placeholder}
         className={cn(className)}
       />
