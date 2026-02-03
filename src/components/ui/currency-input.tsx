@@ -10,7 +10,7 @@ interface CurrencyInputProps extends Omit<React.ComponentProps<"input">, "onChan
 }
 
 const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
-  ({ className, value, onChange, placeholder = "R$ 0,00", maxDecimals = 2, ...props }, forwardedRef) => {
+  ({ className, value, onChange, placeholder = "R$ 0,00", maxDecimals = 2, max, ...props }, forwardedRef) => {
     
     const formatToCurrency = React.useCallback((num: number): string => {
       if (isNaN(num)) return maxDecimals === 2 ? "R$ 0,00" : `R$ ${(0).toFixed(maxDecimals)}`;
@@ -30,9 +30,10 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
       return isNaN(asNumber) ? 0 : asNumber;
     }, [maxDecimals]);
 
+    // Initialize with prop value
     const [displayValue, setDisplayValue] = React.useState(formatToCurrency(value));
 
-    // Sync when value prop changes externally
+    // Sync state when value prop changes
     React.useEffect(() => {
       setDisplayValue(formatToCurrency(value));
     }, [value, formatToCurrency]);
@@ -41,7 +42,12 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
       const inputValue = e.target.value;
       const numericValue = digitsToNumber(inputValue);
       
+      // Update parent
       onChange(numericValue);
+      
+      // We also update local state immediately for responsiveness,
+      // though the useEffect would catch it eventually.
+      // This helps with the "typing feel".
       setDisplayValue(formatToCurrency(numericValue));
     };
 
@@ -54,8 +60,8 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
         value={displayValue}
         onChange={handleChange}
         placeholder={placeholder}
-        // Removed text-right and font-mono to see if it fixes cursor visibility issues
-        className={cn("", className)} 
+        autoComplete="off"
+        className={cn("", className)}
         onFocus={(e) => {
            e.target.select();
            props.onFocus?.(e);
