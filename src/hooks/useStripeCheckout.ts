@@ -35,47 +35,52 @@ export function useStripeCheckout() {
       if (error) {
         console.error('Erro detalhado do checkout:', error);
         
-        // Tentar extrair mensagem de erro do servidor
-        try {
-          const ctx = (error as any)?.context;
-          const res = ctx?.response as Response | undefined;
-
-          let body: any = ctx?.data;
-          if (!body && res) {
-            try {
-              body = await res.clone().json();
-            } catch {
-              try {
-                const text = await res.clone().text();
-                body = text ? { message: text } : undefined;
-              } catch {
-                body = undefined;
-              }
-            }
-          }
-
-          const serverMsg = body?.error || body?.details || body?.message;
-          const serverCode = body?.code;
-          const requestId = body?.request_id;
-          if (serverMsg) {
-            console.error('Detalhe do erro do servidor:', { serverCode, requestId, body });
-            throw new Error(serverMsg);
-          }
-        } catch (parseError) {
-          // Se o erro for o que nós lançamos acima, repassar
-          if (parseError instanceof Error && parseError.message && parseError.message !== 'Falha ao iniciar o checkout. Tente novamente em alguns instantes.') {
-            throw parseError;
-          }
-        }
+        let serverErrorMsg = '';
         
+        try {
+          // Tenta extrair erro do contexto do Supabase (FunctionsHttpError)
+          const context = (error as any)?.context;
+          if (context && context.response instanceof Response) {
+             const res = context.response;
+             console.log('Status da resposta do checkout:', res.status);
+             
+             try {
+                // Tenta ler JSON primeiro
+                const data = await res.clone().json();
+                serverErrorMsg = data.error || data.message || data.details || '';
+                if (data.code) console.error('Código de erro do servidor:', data.code);
+             } catch {
+                // Se falhar, tenta ler texto
+                serverErrorMsg = await res.clone().text();
+             }
+          }
+        } catch (extractError) {
+          console.error('Erro ao extrair detalhes do erro:', extractError);
+        }
+
+        if (serverErrorMsg) {
+           throw new Error(serverErrorMsg);
+        }
+
         // Mensagens específicas por tipo de erro
         const errorMessage = (error as any)?.message || '';
+        
         if (errorMessage.includes('not found')) {
           throw new Error('Plano não encontrado. Por favor, tente novamente.');
         } else if (errorMessage.includes('stripe')) {
           throw new Error('Erro ao processar com Stripe. Verifique sua configuração.');
         } else if (errorMessage.includes('network')) {
           throw new Error('Erro de conexão. Verifique sua internet e tente novamente.');
+        }
+        
+        // Se for o erro genérico do Supabase e não conseguimos extrair o body
+        if (errorMessage === 'Edge Function returned a non-2xx status code') {
+           throw new Error('Erro de comunicação com o servidor de pagamentos. Tente novamente.');
+        }
+        
+        // Se tiver mensagem original, usa ela, senão fallback
+        if (errorMessage) {
+            throw new Error(errorMessage);
         }
         
         throw new Error('Falha ao iniciar o checkout. Tente novamente em alguns instantes.');

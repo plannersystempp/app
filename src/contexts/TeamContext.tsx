@@ -37,7 +37,12 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    setLoading(true);
+    // Apenas define loading=true se não houver time ativo, para evitar 
+    // unmount/remount de componentes quando o objeto user é atualizado (ex: refresh de token)
+    if (!activeTeam) {
+      setLoading(true);
+    }
+    
     try {
       console.log('[TeamContext] Refreshing teams for user:', user.id, user.email);
       
