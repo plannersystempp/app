@@ -412,7 +412,7 @@ export const payrollDataService = {
       const baseSalary = PayrollCalc.calculateBaseSalary(person);
       const cachePay = PayrollCalc.calculateCachePay(allocationsData, person, workLogsData);
       
-      const overtimeRate = person.overtime_rate || 0;
+      const overtimeRate = PayrollCalc.getOvertimeRate(allocationsData, person);
       const dailyCache = PayrollCalc.getDailyCacheRate(allocationsData, person);
       
       const overtimeResult = PayrollCalc.calculateOvertimePayWithDailyConversion(
@@ -447,7 +447,7 @@ export const payrollDataService = {
         overtimePay: overtimeResult.payAmount,
         totalPay,
         cacheRate: person.event_cache || 0,
-        overtimeRate: person.overtime_rate || 0,
+        overtimeRate: overtimeRate,
         paid: isPaid,
         paidAmount: totalPaidAmount,
         pendingAmount,

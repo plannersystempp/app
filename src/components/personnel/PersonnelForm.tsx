@@ -13,6 +13,7 @@ import { validateUniquePersonnelName, validateUniqueCPF, validateUniqueCNPJ } fr
 import { useCheckSubscriptionLimits } from '@/hooks/useCheckSubscriptionLimits';
 import { UpgradePrompt } from '@/components/subscriptions/UpgradePrompt';
 import { useCreatePersonnelMutation, useUpdatePersonnelMutation, usePersonnelQuery } from '@/hooks/queries/usePersonnelQuery';
+import { stripUrlQuery } from '@/utils/url';
 
 interface PersonnelFormProps {
   personnel?: Personnel;
@@ -83,6 +84,7 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
     functionOvertimes: {}
   });
   const [loading, setLoading] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   // Snapshot do estado inicial para detectar alterações (isDirty)
   const initialDataRef = useRef<PersonnelFormData>(formData);
@@ -103,7 +105,7 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
         cpf: personnel.cpf || '',
         cnpj: personnel.cnpj || '',
         pixKey: '',
-        photo_url: personnel.photo_url || '',
+        photo_url: personnel.photo_url ? stripUrlQuery(personnel.photo_url) : '',
         shirt_size: personnel.shirt_size || '',
         address_zip_code: personnel.address_zip_code || '',
         address_street: personnel.address_street || '',
@@ -178,6 +180,15 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (photoUploading) {
+      toast({
+        title: 'Aguarde o upload',
+        description: 'Finalize o upload da foto antes de salvar.',
+        variant: 'destructive'
+      });
+      return;
+    }
     
     // Verificar limites apenas ao criar novo pessoal
     if (!personnel && activeTeam) {
@@ -463,12 +474,15 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
           personnelId={personnel?.id}
           onFieldChange={handleFieldChange}
           onPhoneChange={handlePhoneChange}
+          onPhotoUploadingChange={setPhotoUploading}
         />
             
             <PersonnelFormActions
               loading={loading}
               onCancel={handleCloseRequest}
-              hasUnsavedPhoto={formData.photo_url !== (personnel?.photo_url || '')}
+              hasUnsavedPhoto={formData.photo_url !== (personnel?.photo_url ? stripUrlQuery(personnel.photo_url) : '')}
+              disabled={loading || photoUploading}
+              saveLabel={photoUploading ? 'Enviando foto...' : undefined}
             />
           </form>
         </CardContent>

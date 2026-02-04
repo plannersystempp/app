@@ -167,14 +167,7 @@ export const usePersonnelQuery = () => {
     queryKey: personnelKeys.list(activeTeam?.id),
     queryFn: async () => {
       // Passar userRole para evitar RPCs redundantes
-      const personnel = await fetchPersonnelWithFunctions(activeTeam!.id, userRole);
-      // Usar created_at como cache-bust estável (não muda em cada refetch)
-      return personnel.map(p => ({
-        ...p,
-        photo_url: p.photo_url && p.created_at 
-          ? `${p.photo_url.split('?')[0]}?v=${new Date(p.created_at).getTime()}`
-          : p.photo_url
-      }));
+      return fetchPersonnelWithFunctions(activeTeam!.id, userRole);
     },
     enabled: !!user && !!activeTeam?.id,
     staleTime: 10000, // ⚡ OTIMIZADO: 10 segundos

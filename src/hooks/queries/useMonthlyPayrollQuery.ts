@@ -195,7 +195,7 @@ export const useMonthlyPayrollQuery = (month: number, year: number) => {
           );
 
           const dailyCache = PayrollCalc.getDailyCacheRate(eventAllocations as any, person);
-          const overtimeRate = person.overtime_rate || 0;
+          const overtimeRate = PayrollCalc.getOvertimeRate(eventAllocations as any, person);
 
           const overtimeResult = PayrollCalc.calculateOvertimePayWithDailyConversion(
             eventWorkLogs as any,

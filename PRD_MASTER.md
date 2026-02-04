@@ -1,3 +1,36 @@
+## [2026-02-04] - fix: Correção no Cálculo de Horas Extras (Taxa por Função)
+ - Mudanças:
+   - `src/components/payroll/payrollCalculations.ts`: Atualizada função `calculateOvertimePay` para receber alocações e buscar a taxa de hora extra correta (priorizando função/cargo sobre taxa padrão).
+   - `src/services/payrollDataService.ts`: Ajustado para usar `getOvertimeRate` com as alocações ao montar os detalhes de pagamento.
+   - `src/hooks/queries/useMonthlyPayrollQuery.ts`: Ajustado para usar `getOvertimeRate` com as alocações nos cálculos mensais.
+   - `src/components/payroll/__tests__/payrollCalculations.overtime.test.ts`: Adicionado teste de unidade para garantir regressão e comportamento correto de fallback.
+ - Arquivos:
+   - `src/components/payroll/payrollCalculations.ts`
+   - `src/services/payrollDataService.ts`
+   - `src/hooks/queries/useMonthlyPayrollQuery.ts`
+   - `src/components/payroll/__tests__/payrollCalculations.overtime.test.ts`
+ - Impacto:
+   - Resolve o bug onde horas extras apareciam com valor "R$ 0,00" quando o profissional tinha taxa definida na função mas não no perfil base. O valor agora é calculado e somado corretamente ao total.
+
+## [2026-02-04] - fix: Anti-sumiço de fotos no Cadastro de Pessoal (photo_url canônico)
+ - Mudanças:
+   - `photo_url` deixa de receber cache-busting via querystring no hook de pessoal, evitando persistência de URLs com `?v=` no banco.
+   - Formulário normaliza `photo_url` (remove querystring) antes de salvar e bloqueia submit enquanto upload da foto estiver em andamento.
+   - Rotina de limpeza de fotos órfãs passa a ignorar querystring ao comparar referências e pagina a listagem do bucket para maior confiabilidade.
+   - Remoção de foto no formulário passa a extrair o filename sem querystring.
+ - Arquivos:
+   - `src/hooks/queries/usePersonnelQuery.ts`
+   - `src/components/personnel/PersonnelForm.tsx`
+   - `src/components/personnel/PersonnelFormFields.tsx`
+   - `src/components/personnel/PersonnelFormActions.tsx`
+   - `src/components/personnel/PersonnelPhotoUpload.tsx`
+   - `src/utils/url.ts`
+   - `supabase/functions/cleanup-orphan-photos/index.ts`
+   - `supabase/migrations/strip_photo_url_querystring.sql`
+   - `supabase/migrations/sanitize_personnel_fields_strip_photo_url_query.sql`
+ - Impacto:
+   - Evita deleção indevida de imagens por rotina de “órfãs” e reduz risco de perder referência de foto em edições/salvamentos.
+
 ## [2026-02-03] - fix: Modal Gerenciar Pagamentos (digitação e histórico)
  - Mudanças:
    - `src/components/events/costs/SupplierPaymentDialog.tsx`: estabilizado o carregamento do histórico para rodar apenas ao abrir o modal ou trocar `cost.id`, evitando reset contínuo de `amount` e spinner infinito.

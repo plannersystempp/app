@@ -7,6 +7,7 @@ import { Camera, Upload, X, User, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { isIOSSafari } from '@/utils/device';
+import { extractUrlFileName } from '@/utils/url';
 
 interface PersonnelPhotoUploadProps {
   currentPhotoUrl?: string;
@@ -14,6 +15,7 @@ interface PersonnelPhotoUploadProps {
   personnelName?: string;
   onPhotoChange: (photoUrl: string | null) => void;
   disabled?: boolean;
+  onUploadingChange?: (uploading: boolean) => void;
 }
 
 export const PersonnelPhotoUpload: React.FC<PersonnelPhotoUploadProps> = ({
@@ -21,7 +23,8 @@ export const PersonnelPhotoUpload: React.FC<PersonnelPhotoUploadProps> = ({
   personnelId,
   personnelName,
   onPhotoChange,
-  disabled = false
+  disabled = false,
+  onUploadingChange
 }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'success' | 'error'>('idle');
@@ -31,6 +34,10 @@ export const PersonnelPhotoUpload: React.FC<PersonnelPhotoUploadProps> = ({
   const [isInternalUpload, setIsInternalUpload] = useState(false);
   const [lastUploadTime, setLastUploadTime] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    onUploadingChange?.(uploading);
+  }, [onUploadingChange, uploading]);
 
   // Sync previewUrl with currentPhotoUrl when it changes (e.g., when editing existing personnel)
   useEffect(() => {
@@ -269,14 +276,12 @@ export const PersonnelPhotoUpload: React.FC<PersonnelPhotoUploadProps> = ({
     if (!previewUrl) return;
 
     try {
-      // Extrair nome do arquivo da URL
-      const urlParts = previewUrl.split('/');
-      const fileName = urlParts[urlParts.length - 1];
-
-      // Tentar deletar do storage (pode falhar se não for admin, mas não é crítico)
-      await supabase.storage
-        .from('personnel-photos')
-        .remove([fileName]);
+      const fileName = extractUrlFileName(previewUrl);
+      if (fileName) {
+        await supabase.storage
+          .from('personnel-photos')
+          .remove([fileName]);
+      }
 
       setPreviewUrl(null);
       onPhotoChange(null);

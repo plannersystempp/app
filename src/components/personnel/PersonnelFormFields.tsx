@@ -52,6 +52,7 @@ interface PersonnelFormFieldsProps {
   personnelId?: string;
   onFieldChange: (field: keyof PersonnelFormData, value: string | number | string[] | Record<string, number>) => void;
   onPhoneChange: (value: string) => void;
+  onPhotoUploadingChange?: (uploading: boolean) => void;
 }
 
 export const PersonnelFormFields: React.FC<PersonnelFormFieldsProps> = ({
@@ -59,7 +60,8 @@ export const PersonnelFormFields: React.FC<PersonnelFormFieldsProps> = ({
   functions,
   personnelId,
   onFieldChange,
-  onPhoneChange
+  onPhoneChange,
+  onPhotoUploadingChange
 }) => {
   const { userRole } = useTeam();
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
@@ -150,6 +152,7 @@ export const PersonnelFormFields: React.FC<PersonnelFormFieldsProps> = ({
           personnelId={personnelId}
           personnelName={formData.name}
           onPhotoChange={(url) => onFieldChange('photo_url', url || '')}
+          onUploadingChange={onPhotoUploadingChange}
         />
       </div>
 

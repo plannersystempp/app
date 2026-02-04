@@ -27,15 +27,26 @@ serve(async (req) => {
     console.log('Starting orphan photos cleanup...');
 
     // 1. Buscar todas as fotos no bucket personnel-photos
-    const { data: allFiles, error: listError } = await supabaseClient.storage
-      .from('personnel-photos')
-      .list();
+    const allFiles: { name: string; created_at: string }[] = [];
+    const limit = 1000;
+    let offset = 0;
+    for (;;) {
+      const { data, error: listError } = await supabaseClient.storage
+        .from('personnel-photos')
+        .list('', { limit, offset });
 
-    if (listError) {
-      throw new Error(`Error listing files: ${listError.message}`);
+      if (listError) {
+        throw new Error(`Error listing files: ${listError.message}`);
+      }
+
+      const page = (data || []) as any[];
+      allFiles.push(...page.filter(f => typeof f?.name === 'string' && typeof f?.created_at === 'string'));
+
+      if (page.length < limit) break;
+      offset += limit;
     }
 
-    console.log(`Found ${allFiles?.length || 0} files in storage`);
+    console.log(`Found ${allFiles.length} files in storage`);
 
     // 2. Buscar todas as URLs de fotos referenciadas no banco
     const { data: personnel, error: dbError } = await supabaseClient
@@ -47,11 +58,22 @@ serve(async (req) => {
       throw new Error(`Error fetching personnel: ${dbError.message}`);
     }
 
+    const extractFileName = (photoUrl: string): string | null => {
+      try {
+        const u = new URL(photoUrl);
+        const parts = u.pathname.split('/').filter(Boolean);
+        return parts.length ? parts[parts.length - 1] : null;
+      } catch {
+        const withoutQuery = photoUrl.split('?')[0];
+        const parts = withoutQuery.split('/').filter(Boolean);
+        return parts.length ? parts[parts.length - 1] : null;
+      }
+    };
+
     const referencedFiles = new Set(
       personnel?.map(p => {
         if (!p.photo_url) return null;
-        const parts = p.photo_url.split('/');
-        return parts[parts.length - 1];
+        return extractFileName(p.photo_url);
       }).filter(Boolean) || []
     );
 
@@ -61,11 +83,11 @@ serve(async (req) => {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const orphanFiles = allFiles?.filter(file => {
+    const orphanFiles = allFiles.filter(file => {
       const isReferenced = referencedFiles.has(file.name);
       const isOld = new Date(file.created_at) < sevenDaysAgo;
       return !isReferenced && isOld;
-    }) || [];
+    });
 
     console.log(`Found ${orphanFiles.length} orphan photos to delete`);
 
@@ -94,7 +116,7 @@ serve(async (req) => {
 
     const result = {
       success: true,
-      totalFiles: allFiles?.length || 0,
+      totalFiles: allFiles.length,
       referencedFiles: referencedFiles.size,
       orphanFiles: orphanFiles.length,
       deletedCount,

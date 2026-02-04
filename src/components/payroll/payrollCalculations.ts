@@ -246,9 +246,13 @@ export function calculateTotalRegularHours(workLogs: WorkLogData[]): number {
  * // 10 horas extras × R$ 50/hora = R$ 500
  * calculateOvertimePay([workLog], person) // => 500
  */
-export const calculateOvertimePay = (workLogs: WorkLogData[], person: PersonnelData): number => {
+export const calculateOvertimePay = (
+  workLogs: WorkLogData[], 
+  person: PersonnelData, 
+  allocations: AllocationData[] = []
+): number => {
   const totalOvertimeHours = calculateTotalOvertimeHours(workLogs);
-  const rate = getOvertimeRate([], person);
+  const rate = getOvertimeRate(allocations, person);
   return totalOvertimeHours * rate;
 };
 
@@ -397,7 +401,7 @@ export function calculateTotalPay(
     const result = calculateOvertimePayWithDailyConversion(workLogs, overtimeConfig);
     overtimePay = result.payAmount;
   } else {
-    overtimePay = calculateOvertimePay(workLogs, person);
+    overtimePay = calculateOvertimePay(workLogs, person, allocations);
   }
   
   return baseSalary + cachePay + overtimePay;
