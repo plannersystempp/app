@@ -1,3 +1,25 @@
+## [2026-02-04] - fix: Estabilização do Preview e Otimização Vite
+ - Mudanças:
+   - `src/hooks/usePWA.ts`: Registro do Service Worker restringido apenas para modo produção ou via parâmetro `?pwa=1`, evitando conflitos de cache e `ERR_ABORTED` durante o desenvolvimento.
+   - `vite.config.ts`: Adicionadas configurações de `hmr`, `watch` (polling) e expansão de `optimizeDeps` para melhorar a estabilidade do servidor de desenvolvimento em projetos de grande escala.
+   - Executado build de produção e inicializado via `npm run preview` para garantir disponibilidade imediata e estável na porta 8080.
+ - Arquivos:
+   - `src/hooks/usePWA.ts`
+   - `vite.config.ts`
+   - `PRD_MASTER.md`
+ - Impacto:
+   - Preview funcional e estável na porta 8080. Melhor performance do HMR e eliminação de erros de carregamento de módulos causados por Service Workers residuais.
+
+## [2026-02-04] - feat: Filtros rápidos na Gestão de Eventos
+ - Mudanças:
+   - Adicionado dropdown de filtro rápido com opções: Mês atual, Mês passado, Últimos 3 meses, Ano atual, Últimos 12 eventos.
+   - Implementada lógica de filtragem por período e limite de quantidade (top N recentes).
+   - Atualizada a listagem e exportação para respeitar os filtros e limites aplicados.
+ - Arquivos:
+   - `src/components/events/ManageEvents.tsx`
+ - Impacto:
+   - Facilita a navegação e visualização de eventos recentes ou de períodos específicos, melhorando a UX para listas longas.
+
 ## [2026-02-04] - fix: Ajuste Divisor Hora Extra (10h -> 12h)
  - Mudanças:
    - `src/components/payroll/payrollCalculations.ts`: Atualizado divisor de cálculo de taxa implícita de hora extra de 10h para 12h, refletindo a jornada padrão correta do negócio.

@@ -10,6 +10,13 @@ export default defineConfig(({ mode }) => ({
     host: true,
     port: 8080,
     strictPort: true,
+    hmr: {
+      overlay: false,
+    },
+    watch: {
+      usePolling: true,
+      interval: 100,
+    },
   },
   preview: {
     host: true,
@@ -32,6 +39,15 @@ export default defineConfig(({ mode }) => ({
     dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', '@tanstack/react-query'],
+    include: [
+      'react', 
+      'react-dom', 
+      '@tanstack/react-query',
+      'lucide-react',
+      'recharts',
+      'date-fns',
+      'clsx',
+      'tailwind-merge'
+    ],
   },
 }));

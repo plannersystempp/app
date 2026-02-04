@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
@@ -45,11 +44,59 @@ export const ManageEvents: React.FC = () => {
   const [limitCheckResult, setLimitCheckResult] = useState<any>(null);
   const checkLimits = useCheckSubscriptionLimits();
   const [confirmPermanent, setConfirmPermanent] = useState(false);
+  const [quickFilter, setQuickFilter] = useState<string>('all');
+  const [limitEvents, setLimitEvents] = useState<number | null>(null);
 
   const clearFilters = () => {
     setSearchTerm('');
     setPeriodStart('');
     setPeriodEnd('');
+    setQuickFilter('all');
+    setLimitEvents(null);
+  };
+
+  const handleQuickFilterChange = (value: string) => {
+    setQuickFilter(value);
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+
+    const formatDateInput = (d: Date) => d.toISOString().split('T')[0];
+
+    if (value === 'current_month') {
+      const start = new Date(y, m, 1);
+      const end = new Date(y, m + 1, 0);
+      setPeriodStart(formatDateInput(start));
+      setPeriodEnd(formatDateInput(end));
+      setLimitEvents(null);
+    } else if (value === 'last_month') {
+      const start = new Date(y, m - 1, 1);
+      const end = new Date(y, m, 0);
+      setPeriodStart(formatDateInput(start));
+      setPeriodEnd(formatDateInput(end));
+      setLimitEvents(null);
+    } else if (value === 'last_3_months') {
+      const start = new Date(y, m - 2, 1);
+      const end = new Date(y, m + 1, 0);
+      setPeriodStart(formatDateInput(start));
+      setPeriodEnd(formatDateInput(end));
+      setLimitEvents(null);
+    } else if (value === 'current_year') {
+      const start = new Date(y, 0, 1);
+      const end = new Date(y, 11, 31);
+      setPeriodStart(formatDateInput(start));
+      setPeriodEnd(formatDateInput(end));
+      setLimitEvents(null);
+    } else if (value === 'last_12_events') {
+      setPeriodStart('');
+      setPeriodEnd('');
+      setLimitEvents(12);
+      setSortOption('date_newest');
+    } else {
+      setPeriodStart('');
+      setPeriodEnd('');
+      setLimitEvents(null);
+    }
   };
   
   // Criar map de permissões para lookup rápido
@@ -128,6 +175,8 @@ export const ManageEvents: React.FC = () => {
       }
     }
   });
+
+  const displayedEvents = limitEvents ? sortedEvents.slice(0, limitEvents) : sortedEvents;
 
   const getEventStats = (eventId: string) => {
     const eventAssignments = assignments.filter(a => a.event_id === eventId);
@@ -238,7 +287,7 @@ export const ManageEvents: React.FC = () => {
   };
 
   // Preparar dados para exportação
-  const exportData = filteredEvents.map(event => {
+  const exportData = displayedEvents.map(event => {
     const stats = getEventStats(event.id);
     return {
       nome: event.name,
@@ -268,7 +317,7 @@ export const ManageEvents: React.FC = () => {
               headers={exportHeaders}
               filename="eventos_filtrados"
               title="Relatório de Eventos"
-              disabled={filteredEvents.length === 0}
+              disabled={displayedEvents.length === 0}
             />
           </div>
           {canManageEvents && (
@@ -292,6 +341,19 @@ export const ManageEvents: React.FC = () => {
         </div>
         
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full">
+          <Select value={quickFilter} onValueChange={handleQuickFilterChange}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os períodos</SelectItem>
+              <SelectItem value="current_month">Mês atual</SelectItem>
+              <SelectItem value="last_month">Mês passado</SelectItem>
+              <SelectItem value="last_3_months">Últimos 3 meses</SelectItem>
+              <SelectItem value="current_year">Ano atual</SelectItem>
+              <SelectItem value="last_12_events">Últimos 12 eventos</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <Input
               type="date"
@@ -299,6 +361,7 @@ export const ManageEvents: React.FC = () => {
               onChange={(e) => setPeriodStart(e.target.value)}
               placeholder="Data inicial"
               className="flex-1 sm:w-[140px]"
+              maxLength={10}
             />
             <span className="text-muted-foreground text-xs sm:text-sm">até</span>
             <Input
@@ -307,6 +370,7 @@ export const ManageEvents: React.FC = () => {
               onChange={(e) => setPeriodEnd(e.target.value)}
               placeholder="Data final"
               className="flex-1 sm:w-[140px]"
+              maxLength={10}
             />
           </div>
           
@@ -329,7 +393,7 @@ export const ManageEvents: React.FC = () => {
         </Select>
       </div>
 
-      {filteredEvents.length === 0 ? (
+      {displayedEvents.length === 0 ? (
         <EmptyState
           icon={<Calendar className="w-12 h-12" />}
           title="Nenhum evento encontrado"
@@ -347,7 +411,7 @@ export const ManageEvents: React.FC = () => {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
-          {sortedEvents.map((event) => {
+          {displayedEvents.map((event) => {
             const stats = getEventStats(event.id);
             const hasAccess = canViewEventDetails(event.id);
             

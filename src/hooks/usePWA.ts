@@ -38,10 +38,11 @@ export const usePWA = () => {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // Registrar Service Worker (também fora de PWA para melhor compatibilidade/caching em Safari)
+    // Registrar Service Worker apenas em produção ou se explicitamente solicitado via query param
     const isPwaQuery = new URLSearchParams(window.location.search).get('pwa') === '1';
     const isPWA = isStandalone || isInWebAppiOS || isPwaQuery;
-    if ('serviceWorker' in navigator) {
+    
+    if ('serviceWorker' in navigator && (import.meta.env.PROD || isPwaQuery)) {
       navigator.serviceWorker
         .register('/sw.js')
         .then((registration) => {
