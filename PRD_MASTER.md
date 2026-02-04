@@ -1,3 +1,23 @@
+## [2026-02-04] - fix: Ajuste Divisor Hora Extra (10h -> 12h)
+ - Mudanças:
+   - `src/components/payroll/payrollCalculations.ts`: Atualizado divisor de cálculo de taxa implícita de hora extra de 10h para 12h, refletindo a jornada padrão correta do negócio.
+   - `src/components/payroll/__tests__/payrollCalculations.overtime.test.ts`: Atualizados casos de teste para validar o novo divisor.
+ - Arquivos:
+   - `src/components/payroll/payrollCalculations.ts`
+   - `src/components/payroll/__tests__/payrollCalculations.overtime.test.ts`
+ - Impacto:
+   - A taxa implícita de hora extra (calculada a partir do cachê) será menor (Cachê/12 em vez de Cachê/10), tornando o cálculo mais preciso em relação à jornada real de 12 horas.
+
+## [2026-02-04] - fix: Ajuste Proporcional da Taxa de Hora Extra (Cachê Específico)
+ - Mudanças:
+   - `src/components/payroll/payrollCalculations.ts`: Atualizada a função `getOvertimeRate` para calcular uma taxa implícita baseada no cachê diário (dividido por 10h, padrão de eventos) quando esta for maior que a taxa fixa da função.
+   - `src/components/payroll/__tests__/payrollCalculations.overtime.test.ts`: Adicionados testes para garantir que o sistema escolha a maior taxa entre a fixa e a proporcional ao cachê.
+ - Arquivos:
+   - `src/components/payroll/payrollCalculations.ts`
+   - `src/components/payroll/__tests__/payrollCalculations.overtime.test.ts`
+ - Impacto:
+   - Garante que profissionais com cachê específico elevado recebam horas extras proporcionais ao valor do dia, corrigindo a discrepância onde a taxa de HE ficava defasada em relação ao cachê.
+
 ## [2026-02-04] - fix: Correção no Cálculo de Horas Extras (Taxa por Função)
  - Mudanças:
    - `src/components/payroll/payrollCalculations.ts`: Atualizada função `calculateOvertimePay` para receber alocações e buscar a taxa de hora extra correta (priorizando função/cargo sobre taxa padrão).

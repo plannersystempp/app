@@ -520,6 +520,9 @@ export function getOvertimeRate(
   allocations: AllocationData[],
   person: PersonnelData
 ): number {
+  let explicitRate = 0;
+
+  // 1. Tenta encontrar taxa específica por função
   if (person.functions && allocations.length > 0) {
     const functionRates = allocations
       .map(alloc => {
@@ -538,9 +541,21 @@ export function getOvertimeRate(
       .filter(rate => rate > 0);
 
     if (functionRates.length > 0) {
-      return Math.max(...functionRates);
+      explicitRate = Math.max(...functionRates);
     }
   }
 
-  return Number(person.overtime_rate || 0);
+  // 2. Fallback para taxa padrão da pessoa
+  if (explicitRate === 0) {
+    explicitRate = Number(person.overtime_rate || 0);
+  }
+
+  // 3. Calcular taxa implícita baseada no cachê diário
+  // Assume jornada de 12h (padrão eventos) para garantir que HE seja proporcional ao cachê
+  const dailyRate = getDailyCacheRate(allocations, person);
+  const DEFAULT_WORK_HOURS = 12;
+  const implicitRate = dailyRate > 0 ? (dailyRate / DEFAULT_WORK_HOURS) : 0;
+
+  // Retorna o maior valor entre a taxa explícita e a implícita
+  return Math.max(explicitRate, implicitRate);
 }

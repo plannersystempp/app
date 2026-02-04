@@ -65,6 +65,32 @@ describe('Payroll Calculations - Overtime', () => {
     expect(pay).toBe(100);
   });
 
+  it('should use implicit rate from daily cache if it is higher than explicit rate', () => {
+    // Cachê de 720 -> Taxa implícita 720/12 = 60
+    // Taxa da função é 50
+    // Deve escolher 60
+    const allocationsWithHighCache = [{ 
+      ...mockAllocations[0], 
+      event_specific_cache: 720 
+    }];
+    
+    const rate = getOvertimeRate(allocationsWithHighCache, mockPerson);
+    expect(rate).toBe(60);
+  });
+
+  it('should use explicit rate if it is higher than implicit rate', () => {
+    // Cachê de 400 -> Taxa implícita 400/12 = 33.33...
+    // Taxa da função é 50
+    // Deve escolher 50
+    const allocationsWithLowCache = [{ 
+      ...mockAllocations[0], 
+      event_specific_cache: 400 
+    }];
+    
+    const rate = getOvertimeRate(allocationsWithLowCache, mockPerson);
+    expect(rate).toBe(50);
+  });
+
   it('should return 0 if allocations are not provided (legacy behavior fallback to person rate)', () => {
     // Como a pessoa tem taxa 0, se não passar alocações, deve dar 0
     const pay = calculateOvertimePay(mockWorkLogs, mockPerson); // Sem allocations
