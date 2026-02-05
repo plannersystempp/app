@@ -93,6 +93,9 @@ export interface Personnel {
   cpf_masked?: string;
   cnpj_masked?: string;
   salary_range?: string;
+  rg?: string;
+  birth_date?: string;
+  mothers_name?: string;
 }
 
 export interface Func {
@@ -163,6 +166,9 @@ interface PersonnelFormData {
   functionIds: string[];
   primaryFunctionId?: string;
   pixKey?: string;
+  rg?: string;
+  birth_date?: string;
+  mothers_name?: string;
 }
 
 interface EnhancedDataContextType {
@@ -296,6 +302,9 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
           monthly_salary: person.monthly_salary || 0,
           event_cache: person.event_cache || 0,
           overtime_rate: person.overtime_rate || 0,
+          rg: person.rg,
+          birth_date: person.birth_date,
+          mothers_name: person.mothers_name,
         };
       });
 

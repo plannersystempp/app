@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useUpdateDivisionMutation } from '@/hooks/queries/useDivisionsQuery';
+import { useUpdateDivisionMutation, useCreateDivisionMutation } from '@/hooks/queries/useDivisionsQuery';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +17,7 @@ import { type Division } from '@/contexts/EnhancedDataContext';
 
 interface DivisionFormProps {
   division: Division | null;
+  eventId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
@@ -25,16 +25,17 @@ interface DivisionFormProps {
 
 export const DivisionForm: React.FC<DivisionFormProps> = ({
   division,
+  eventId,
   open,
   onOpenChange,
   onSuccess
 }) => {
   const updateDivision = useUpdateDivisionMutation();
+  const createDivision = useCreateDivisionMutation();
   const { refreshDivisions } = useEnhancedData();
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: '',
-    description: '',
     default_entry_time: '',
     default_exit_time: ''
   });
@@ -44,7 +45,6 @@ export const DivisionForm: React.FC<DivisionFormProps> = ({
     if (division) {
       setFormData({
         name: division.name || '',
-        description: division.description || '',
         default_entry_time: division.default_entry_time || '',
         default_exit_time: division.default_exit_time || ''
       });
@@ -63,26 +63,38 @@ export const DivisionForm: React.FC<DivisionFormProps> = ({
       return;
     }
 
-    if (!division) return;
-
     setLoading(true);
     try {
-      await updateDivision.mutateAsync({
-        id: division.id,
-        name: formData.name.trim(),
-        description: formData.description.trim() || null,
-        default_entry_time: formData.default_entry_time || null,
-        default_exit_time: formData.default_exit_time || null,
-      });
+      if (division) {
+        // Update mode
+        await updateDivision.mutateAsync({
+          id: division.id,
+          name: formData.name.trim(),
+          description: null, // Removed from form but keeping for API compatibility if needed
+          default_entry_time: formData.default_entry_time || null,
+          default_exit_time: formData.default_exit_time || null,
+        });
+      } else if (eventId) {
+        // Create mode
+        await createDivision.mutateAsync({
+          event_id: eventId,
+          name: formData.name.trim(),
+          description: null,
+          default_entry_time: formData.default_entry_time || null,
+          default_exit_time: formData.default_exit_time || null,
+          order_index: 0 // Default order index
+        });
+      }
+      
       await refreshDivisions();
       
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
-      console.error('Error updating division:', error);
+      console.error('Error saving division:', error);
       toast({
         title: "Erro",
-        description: "Falha ao atualizar divisão",
+        description: division ? "Falha ao atualizar divisão" : "Falha ao criar divisão",
         variant: "destructive"
       });
     } finally {
@@ -96,7 +108,6 @@ export const DivisionForm: React.FC<DivisionFormProps> = ({
     if (!newOpen) {
       setFormData({ 
         name: '', 
-        description: '',
         default_entry_time: '',
         default_exit_time: ''
       });
@@ -107,9 +118,11 @@ export const DivisionForm: React.FC<DivisionFormProps> = ({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Editar Divisão</DialogTitle>
+          <DialogTitle>{division ? 'Editar Divisão' : 'Nova Divisão'}</DialogTitle>
           <DialogDescription>
-            Altere as informações da divisão do evento.
+            {division 
+              ? 'Altere as informações da divisão do evento.' 
+              : 'Crie uma nova divisão para organizar as alocações do evento.'}
           </DialogDescription>
         </DialogHeader>
         
@@ -124,17 +137,6 @@ export const DivisionForm: React.FC<DivisionFormProps> = ({
               onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
               placeholder="Digite o nome da divisão"
               required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Descrição</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Digite uma descrição opcional"
-              rows={3}
             />
           </div>
 

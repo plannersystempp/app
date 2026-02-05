@@ -211,8 +211,15 @@ export const useUpdateEventMutation = () => {
         refetchType: 'active'
       });
       
+      // Também invalidar alocações pois podem depender dos horários do evento
+      queryClient.invalidateQueries({ 
+        queryKey: ['allocations'],
+        refetchType: 'active'
+      });
+      
       // ✅ FASE 3: Notificar outras abas
       broadcast(eventKeys.all);
+      broadcast(['allocations']);
       
       toast({
         title: "Sucesso",

@@ -126,8 +126,15 @@ export const useUpdateDivisionMutation = () => {
         refetchType: 'active'
       });
       
+      // Também invalidar alocações pois podem depender dos horários da divisão
+      queryClient.invalidateQueries({ 
+        queryKey: ['allocations'],
+        refetchType: 'active'
+      });
+      
       // ✅ FASE 3: Notificar outras abas
       broadcast(divisionsKeys.all);
+      broadcast(['allocations']);
       
       toast({
         title: "Sucesso",

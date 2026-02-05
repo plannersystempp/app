@@ -141,7 +141,7 @@ export const PersonnelSelector: React.FC<PersonnelSelectorProps> = ({
       </div>
       {showCreateForm && (
         <PersonnelForm
-          personnel={null as any}
+          personnel={undefined}
           onClose={() => setShowCreateForm(false)}
           onSuccess={() => {
             setShowCreateForm(false);

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface AllocationFormState {
   selectedPersonnel: string;
@@ -20,6 +20,14 @@ export const useAllocationFormPersistence = (
   excludeFields?: string[]
 ) => {
   const storageKey = `plannersystem-allocation-form-state-${eventId}`;
+  const lastLoadedKeyRef = useRef<string | null>(null);
+
+  // Reset loaded state when closed
+  useEffect(() => {
+    if (!open) {
+      lastLoadedKeyRef.current = null;
+    }
+  }, [open]);
 
   // Save to sessionStorage whenever form state changes
   useEffect(() => {
@@ -28,9 +36,12 @@ export const useAllocationFormPersistence = (
     }
   }, [storageKey, formState, open, eventId]);
 
-  // Load from sessionStorage when component mounts
+  // Load from sessionStorage when component opens
   useEffect(() => {
     if (open && eventId) {
+      // Prevent reloading if already loaded for this key
+      if (lastLoadedKeyRef.current === storageKey) return;
+
       const savedState = sessionStorage.getItem(storageKey);
       if (savedState) {
         try {
@@ -44,11 +55,16 @@ export const useAllocationFormPersistence = (
                 return acc;
               }, {} as any)
             : parsedState;
+          
           setFormState(filteredState);
+          lastLoadedKeyRef.current = storageKey;
         } catch (error) {
           console.error('Error parsing saved allocation form state:', error);
           sessionStorage.removeItem(storageKey);
         }
+      } else {
+        // Mark as loaded even if empty, to prevent loop
+        lastLoadedKeyRef.current = storageKey;
       }
     }
   }, [storageKey, setFormState, open, eventId, excludeFields]);
@@ -56,6 +72,7 @@ export const useAllocationFormPersistence = (
   // Clear storage on successful submit or explicit close
   const clearPersistedState = () => {
     sessionStorage.removeItem(storageKey);
+    lastLoadedKeyRef.current = null;
   };
 
   return { clearPersistedState };

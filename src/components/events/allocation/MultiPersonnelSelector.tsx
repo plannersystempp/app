@@ -160,14 +160,6 @@ export const MultiPersonnelSelector: React.FC<MultiPersonnelSelectorProps> = ({
                             {person.type === 'fixo' ? 'Fixo' : 'Freelancer'}
                           </Badge>
       </div>
-      {showCreateForm && (
-        <PersonnelForm
-          personnel={null as any}
-          onClose={() => setShowCreateForm(false)}
-          onSuccess={() => setShowCreateForm(false)}
-        />
-      )}
-                        
                         {/* Person Details */}
                         <div className="space-y-0.5 md:space-y-1 text-sm text-muted-foreground">
                           {person.email && <div className="truncate">{person.email}</div>}
@@ -240,6 +232,13 @@ export const MultiPersonnelSelector: React.FC<MultiPersonnelSelectorProps> = ({
             </Button>
           </div>
         </div>}
+      {showCreateForm && (
+        <PersonnelForm
+          personnel={undefined}
+          onClose={() => setShowCreateForm(false)}
+          onSuccess={() => setShowCreateForm(false)}
+        />
+      )}
       {blocked && <div className="absolute inset-0 z-10"></div>}
     </div>;
 };

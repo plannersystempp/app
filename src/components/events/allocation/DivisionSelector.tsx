@@ -1,77 +1,60 @@
-
 import React from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus } from 'lucide-react';
+import { CreatableCombobox } from '@/components/ui/creatable-combobox';
 import { type Division } from '@/contexts/EnhancedDataContext';
 
 interface DivisionSelectorProps {
   eventDivisions: Division[];
-  divisionMode: 'existing' | 'new';
   selectedDivisionId: string;
-  newDivisionName: string;
-  onDivisionModeChange: (mode: 'existing' | 'new') => void;
   onSelectedDivisionChange: (divisionId: string) => void;
-  onNewDivisionNameChange: (name: string) => void;
+  // Callback for when a new division is created inline
+  onNewDivisionCreate: (name: string) => void; 
+  // Mantemos para compatibilidade, mas não usamos na UI nova
+  divisionMode?: 'existing' | 'new';
+  newDivisionName?: string;
+  onDivisionModeChange?: (mode: 'existing' | 'new') => void;
+  onNewDivisionNameChange?: (name: string) => void;
 }
 
 export const DivisionSelector: React.FC<DivisionSelectorProps> = ({
   eventDivisions,
-  divisionMode,
   selectedDivisionId,
-  newDivisionName,
-  onDivisionModeChange,
   onSelectedDivisionChange,
-  onNewDivisionNameChange
+  onNewDivisionCreate,
+  divisionMode,
+  newDivisionName
 }) => {
+  
+  const options = eventDivisions.map(d => ({
+    value: d.id,
+    label: d.name
+  }));
+
+  const handleChange = (value: string) => {
+    if (options.some(opt => opt.value === value)) {
+      onSelectedDivisionChange(value);
+    } else {
+      onNewDivisionCreate(value);
+    }
+  };
+
   return (
     <div className="space-y-3">
       <Label>Divisão <span className="text-red-500">*</span></Label>
       
-      {eventDivisions.length > 0 && (
-        <div className="flex gap-2 mb-3">
-          <Button
-            type="button"
-            variant={divisionMode === 'existing' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => onDivisionModeChange('existing')}
-          >
-            Divisão Existente
-          </Button>
-          <Button
-            type="button"
-            variant={divisionMode === 'new' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => onDivisionModeChange('new')}
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Nova Divisão
-          </Button>
-        </div>
-      )}
+      <CreatableCombobox
+        options={options}
+        value={divisionMode === 'new' ? newDivisionName : selectedDivisionId}
+        onChange={handleChange}
+        onCreate={onNewDivisionCreate}
+        placeholder="Selecione ou crie uma divisão..."
+        emptyText="Nenhuma divisão encontrada."
+        createText="Criar nova divisão"
+      />
       
-      {divisionMode === 'existing' ? (
-        <Select value={selectedDivisionId} onValueChange={onSelectedDivisionChange}>
-          <SelectTrigger>
-            <SelectValue placeholder="Selecione uma divisão" />
-          </SelectTrigger>
-          <SelectContent>
-            {eventDivisions.map((division) => (
-              <SelectItem key={division.id} value={division.id}>
-                {division.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : (
-        <Input
-          value={newDivisionName}
-          onChange={(e) => onNewDivisionNameChange(e.target.value)}
-          placeholder="Nome da nova divisão (ex: Palco, Segurança)"
-        />
-      )}
+      <p className="text-[0.8rem] text-muted-foreground">
+        Digite para buscar. Se não existir, clique em "Criar" para adicionar.
+      </p>
     </div>
   );
 };

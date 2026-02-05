@@ -19,6 +19,11 @@ export interface PayrollReportData {
   overtimePayment: number;
   totalPayment: number;
   paid: boolean;
+  cpf?: string;
+  rg?: string;
+  birthDate?: string;
+  mothersName?: string;
+  pixKey?: string;
 }
 
 interface PayrollReportProps {
@@ -79,6 +84,7 @@ export const PayrollReport: React.FC<PayrollReportProps> = ({ data }) => {
             <thead>
               <tr className="bg-gray-50">
                 <th className="border border-gray-300 px-3 py-2 text-left">Profissional</th>
+                <th className="border border-gray-300 px-3 py-2 text-left hidden print:table-cell">Doc. Pessoais</th>
                 <th className="border border-gray-300 px-3 py-2 text-center">Dias</th>
                 <th className="border border-gray-300 px-3 py-2 text-center">H. Extras</th>
                 <th className="border border-gray-300 px-3 py-2 text-right">Cachê</th>
@@ -90,8 +96,21 @@ export const PayrollReport: React.FC<PayrollReportProps> = ({ data }) => {
             <tbody>
               {data.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50">
-                  <td className="border border-gray-300 px-3 py-2 font-medium">
-                    {item.personName}
+                  <td className="border border-gray-300 px-3 py-2">
+                    <div className="font-medium">{item.personName}</div>
+                    {/* Exibe PIX na tela normal, esconde na impressão se quiser limpar */}
+                    {item.pixKey && (
+                      <div className="text-xs text-muted-foreground print:hidden">
+                        PIX: {item.pixKey}
+                      </div>
+                    )}
+                  </td>
+                  {/* Coluna de Documentos (Visível na impressão) */}
+                  <td className="border border-gray-300 px-3 py-2 text-xs hidden print:table-cell">
+                    <div>CPF: {item.cpf || '-'}</div>
+                    {item.rg && <div>RG: {item.rg}</div>}
+                    {item.mothersName && <div>Mãe: {item.mothersName}</div>}
+                    {item.birthDate && <div>Nasc: {formatDateBR(item.birthDate)}</div>}
                   </td>
                   <td className="border border-gray-300 px-3 py-2 text-center">
                     {item.workDays}

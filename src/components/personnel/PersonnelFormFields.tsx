@@ -44,6 +44,9 @@ interface PersonnelFormData {
   address_city: string;
   address_state: string;
   functionCaches: Record<string, number>;
+  rg?: string;
+  mothers_name?: string;
+  birth_date?: string;
 }
 
 interface PersonnelFormFieldsProps {
@@ -156,71 +159,100 @@ export const PersonnelFormFields: React.FC<PersonnelFormFieldsProps> = ({
         />
       </div>
 
-      {/* ========================================
-          SEÇÃO 2: DADOS OBRIGATÓRIOS
-          (sempre visível, sem Accordion)
-      ======================================== */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-base font-semibold">Dados Obrigatórios</span>
-          <span className="text-xs text-muted-foreground">(campos essenciais)</span>
-        </div>
+        {/* ========================================
+            SEÇÃO 2: DADOS OBRIGATÓRIOS
+            (sempre visível, sem Accordion)
+        ======================================== */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-base font-semibold">Dados Pessoais & Documentos</span>
+            <span className="text-xs text-muted-foreground">(campos essenciais)</span>
+          </div>
 
-        {/* Nome * */}
-        <div>
-          <Label htmlFor="name">Nome <span className="text-red-500">*</span></Label>
-          <Input
-            id="name"
-            value={formData.name}
-            onChange={(e) => onFieldChange('name', e.target.value)}
-            placeholder="Nome completo"
-            required
-          />
-        </div>
-
-        {/* CPF * */}
-        <div>
-          <Label htmlFor="cpf">CPF <span className="text-red-500">*</span></Label>
-          <div className="relative">
+          {/* Nome * */}
+          <div>
+            <Label htmlFor="name">Nome Completo <span className="text-red-500">*</span></Label>
             <Input
-              id="cpf"
-              value={formData.cpf}
-              onChange={(e) => {
-                const formatted = formatCPF(e.target.value);
-                onFieldChange('cpf', formatted);
-              }}
-              placeholder="000.000.000-00"
-              maxLength={14}
+              id="name"
+              value={formData.name}
+              onChange={(e) => onFieldChange('name', e.target.value)}
+              placeholder="Nome completo do profissional"
               required
-              className={
-                formData.cpf && !cpfValidation.isChecking
-                  ? cpfValidation.isValid
-                    ? 'border-green-500'
-                    : 'border-red-500'
-                  : ''
-              }
             />
-            {formData.cpf && (
-              <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                {cpfValidation.isChecking ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                ) : cpfValidation.isValid ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                ) : (
-                  <XCircle className="h-4 w-4 text-red-500" />
+          </div>
+
+          {/* CPF * */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="cpf">CPF <span className="text-red-500">*</span></Label>
+              <div className="relative">
+                <Input
+                  id="cpf"
+                  value={formData.cpf}
+                  onChange={(e) => {
+                    const formatted = formatCPF(e.target.value);
+                    onFieldChange('cpf', formatted);
+                  }}
+                  placeholder="000.000.000-00"
+                  maxLength={14}
+                  required
+                  className={
+                    formData.cpf && !cpfValidation.isChecking
+                      ? cpfValidation.isValid
+                        ? 'border-green-500'
+                        : 'border-red-500'
+                      : ''
+                  }
+                />
+                {formData.cpf && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                    {cpfValidation.isChecking ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    ) : cpfValidation.isValid ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-500" />
+                    )}
+                  </div>
                 )}
               </div>
-            )}
+              {formData.cpf && !cpfValidation.isValid && !cpfValidation.isChecking && (
+                <p className="text-xs text-red-500 mt-1">{cpfValidation.message}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="rg">RG</Label>
+              <Input
+                id="rg"
+                value={formData.rg || ''}
+                onChange={(e) => onFieldChange('rg', e.target.value)}
+                placeholder="00.000.000-0"
+              />
+            </div>
           </div>
-          {formData.cpf && !cpfValidation.isValid && !cpfValidation.isChecking && (
-            <p className="text-xs text-red-500 mt-1">{cpfValidation.message}</p>
-          )}
-          {(!formData.cpf || cpfValidation.isValid) && (
-            <p className="text-xs text-muted-foreground mt-1">
-              📄 CPF é obrigatório e deve ser único
-            </p>
-          )}
-        </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="birth_date">Data de Nascimento</Label>
+              <Input
+                id="birth_date"
+                type="date"
+                value={formData.birth_date || ''}
+                onChange={(e) => onFieldChange('birth_date', e.target.value)}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="mothers_name">Nome da Mãe</Label>
+              <Input
+                id="mothers_name"
+                value={formData.mothers_name || ''}
+                onChange={(e) => onFieldChange('mothers_name', e.target.value)}
+                placeholder="Nome completo da mãe"
+              />
+            </div>
+          </div>
 
         {/* Tipo * */}
         <div>

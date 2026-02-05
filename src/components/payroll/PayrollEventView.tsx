@@ -6,7 +6,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DollarSign, FileText, ArrowLeft, Calendar } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { DollarSign, FileText, ArrowLeft, Calendar, Search } from 'lucide-react';
 import { NoTeamSelected } from '@/components/shared/NoTeamSelected';
 import { PayrollList } from './PayrollList';
 import { usePayrollData } from './usePayrollData';
@@ -18,45 +19,91 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export const PayrollEventView: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
-  const { events } = useEnhancedData();
+  const { events, eventSupplierCosts } = useEnhancedData();
   const { activeTeam, userRole } = useTeam();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   
+  // Tab de Categoria (Pessoal vs Fornecedores)
+  const [categoryTab, setCategoryTab] = useState<'staff' | 'suppliers'>('staff');
+  
   const [paymentFilter, setPaymentFilter] = useState<'todos' | 'pendentes' | 'pagos'>('todos');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Hooks personalizados
   const { payrollDetails, pixKeys, loading, setEventData } = usePayrollData(eventId || '');
   const { handleRegisterPayment, handleRegisterPartialPayment, handleCancelPayment } = usePayrollActions(eventId || '');
 
-  // Filtrar dados de acordo com o filtro selecionado
+  // Filter suppliers costs from Context
+  const supplierCosts = useMemo(() => {
+    if (!eventSupplierCosts || !eventId) return [];
+    let result = eventSupplierCosts.filter(cost => cost.event_id === eventId);
+    
+    // Filter by search
+    if (searchTerm.trim() && categoryTab === 'suppliers') {
+      const lowerTerm = searchTerm.toLowerCase();
+      result = result.filter(item => 
+        item.description.toLowerCase().includes(lowerTerm) ||
+        (item.supplier?.name || '').toLowerCase().includes(lowerTerm)
+      );
+    }
+    
+    return result;
+  }, [eventSupplierCosts, eventId, searchTerm, categoryTab]);
+
+  // Filtrar dados de acordo com o filtro selecionado e busca
   const filteredPayrollDetails = useMemo(() => {
-    if (paymentFilter === 'todos') return payrollDetails;
-    if (paymentFilter === 'pendentes') return payrollDetails.filter(item => !item.paid);
-    if (paymentFilter === 'pagos') return payrollDetails.filter(item => item.paid);
-    return payrollDetails;
-  }, [payrollDetails, paymentFilter]);
+    let result = payrollDetails;
 
-  // Estatísticas gerais
-  const totalToPay = useMemo(() => {
-    return payrollDetails.reduce((sum, item) => sum + (item.totalPay || 0), 0);
-  }, [payrollDetails]);
+    // 1. Filtro de Status
+    if (paymentFilter === 'pendentes') {
+      result = result.filter(item => !item.paid);
+    } else if (paymentFilter === 'pagos') {
+      result = result.filter(item => item.paid);
+    }
 
-  const totalPaid = useMemo(() => {
-    return payrollDetails.reduce((sum, item) => sum + (item.paidAmount || 0), 0);
-  }, [payrollDetails]);
+    // 2. Filtro de Busca (Nome)
+    if (searchTerm.trim() && categoryTab === 'staff') {
+      const lowerTerm = searchTerm.toLowerCase();
+      result = result.filter(item => 
+        item.personName.toLowerCase().includes(lowerTerm)
+      );
+    }
+
+    return result;
+  }, [payrollDetails, paymentFilter, searchTerm, categoryTab]);
+
+  // Estatísticas gerais (Combinadas)
+  const totalStaffToPay = useMemo(() => payrollDetails.reduce((sum, item) => sum + (item.totalPay || 0), 0), [payrollDetails]);
+  const totalStaffPaid = useMemo(() => payrollDetails.reduce((sum, item) => sum + (item.paidAmount || 0), 0), [payrollDetails]);
+  
+  const totalSuppliersToPay = useMemo(() => (supplierCosts || []).reduce((sum, item) => sum + Number(item.amount || 0), 0), [supplierCosts]);
+  const totalSuppliersPaid = useMemo(() => (supplierCosts || []).reduce((sum, item) => sum + Number(item.paid_amount || 0), 0), [supplierCosts]);
+
+  // Totais exibidos dependem da aba ativa
+  const currentTotalToPay = categoryTab === 'staff' ? totalStaffToPay : totalSuppliersToPay;
+  const currentTotalPaid = categoryTab === 'staff' ? totalStaffPaid : totalSuppliersPaid;
 
   const percentCompleted = useMemo(() => {
-    if (totalToPay <= 0) return 0;
-    return Math.round((totalPaid / totalToPay) * 100);
-  }, [totalToPay, totalPaid]);
+    if (currentTotalToPay <= 0) return 0;
+    return Math.round((currentTotalPaid / currentTotalToPay) * 100);
+  }, [currentTotalToPay, currentTotalPaid]);
 
   const pendingAmount = useMemo(() => {
-    return Math.max(totalToPay - totalPaid, 0);
-  }, [totalToPay, totalPaid]);
+    return Math.max(currentTotalToPay - currentTotalPaid, 0);
+  }, [currentTotalToPay, currentTotalPaid]);
 
-  const paidCount = useMemo(() => payrollDetails.filter(p => p.paid).length, [payrollDetails]);
-  const pendingCount = useMemo(() => payrollDetails.filter(p => !p.paid).length, [payrollDetails]);
+  const paidCount = useMemo(() => 
+    categoryTab === 'staff' 
+      ? payrollDetails.filter(p => p.paid).length
+      : (supplierCosts || []).filter(c => c.status === 'paid').length
+  , [payrollDetails, supplierCosts, categoryTab]);
+  
+  const pendingCount = useMemo(() => 
+    categoryTab === 'staff'
+      ? payrollDetails.filter(p => !p.paid).length
+      : (supplierCosts || []).filter(c => c.status !== 'paid').length
+  , [payrollDetails, supplierCosts, categoryTab]);
 
   const canManagePayroll = userRole === 'admin';
   const selectedEvent = events.find(e => e.id === eventId);
@@ -143,7 +190,7 @@ export const PayrollEventView: React.FC = () => {
         
         <div className="space-y-1">
           <h1 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold leading-tight`}>
-            Folha de Pagamento - Freelancers
+            Gestão Financeira do Evento
           </h1>
           <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} text-muted-foreground`}>
             {selectedEvent.name}
@@ -206,11 +253,11 @@ export const PayrollEventView: React.FC = () => {
           ) : (
             <div className={`${isMobile ? 'grid grid-cols-2 gap-1' : 'grid grid-cols-4 gap-3'} mb-3`}>
               <div className="rounded-sm bg-blue-50 p-1 sm:p-2 text-center">
-                <div className={`${isMobile ? 'text-lg' : 'text-xl'} font-bold text-blue-600`}>{formatCurrency(totalToPay)}</div>
+                <div className={`${isMobile ? 'text-lg' : 'text-xl'} font-bold text-blue-600`}>{formatCurrency(currentTotalToPay)}</div>
                 <div className="text-sm text-blue-700">Total a Pagar</div>
               </div>
               <div className="rounded-sm bg-green-50 p-1 sm:p-2 text-center">
-                <div className={`${isMobile ? 'text-lg' : 'text-xl'} font-bold text-green-600`}>{formatCurrency(totalPaid)}</div>
+                <div className={`${isMobile ? 'text-lg' : 'text-xl'} font-bold text-green-600`}>{formatCurrency(currentTotalPaid)}</div>
                 <div className="text-sm text-green-700">Total Pago</div>
               </div>
               <div className="rounded-sm bg-amber-50 p-1 sm:p-2 text-center">
@@ -235,21 +282,86 @@ export const PayrollEventView: React.FC = () => {
             </div>
           )}
 
-          <Tabs value={paymentFilter} onValueChange={(value) => setPaymentFilter(value as 'todos' | 'pendentes' | 'pagos')} className="w-full mb-4">
-            <TabsList className={isMobile ? 'grid w-full grid-cols-3 gap-2' : 'grid w-full grid-cols-3'}>
-              <TabsTrigger value="todos" className={isMobile ? 'text-sm w-full' : undefined}>Todos</TabsTrigger>
-              <TabsTrigger value="pendentes" className={isMobile ? 'text-sm w-full' : undefined}>Pendentes <Badge className="ml-2 hidden sm:inline-flex" variant="outline">{pendingCount}</Badge></TabsTrigger>
-              <TabsTrigger value="pagos" className={isMobile ? 'text-sm w-full' : undefined}>Pagos <Badge className="ml-2 hidden sm:inline-flex" variant="outline">{paidCount}</Badge></TabsTrigger>
+          <Tabs value={categoryTab} onValueChange={(v) => setCategoryTab(v as 'staff' | 'suppliers')} className="w-full mb-4">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="staff">Pessoal / Staff</TabsTrigger>
+              <TabsTrigger value="suppliers">Fornecedores</TabsTrigger>
             </TabsList>
-            <TabsContent value={paymentFilter} className="mt-3">
-              <PayrollList
-                payrollDetails={filteredPayrollDetails}
-                loading={loading}
-                pixKeys={pixKeys}
-                onRegisterPayment={handleRegisterPayment}
-                onRegisterPartialPayment={handleRegisterPartialPayment}
-                onCancelPayment={handleCancelPayment}
-              />
+
+            <TabsContent value="staff">
+              {/* Barra de Busca (Apenas para Staff) */}
+              <div className="relative mb-4">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar profissional por nome..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+
+              <Tabs value={paymentFilter} onValueChange={(value) => setPaymentFilter(value as 'todos' | 'pendentes' | 'pagos')} className="w-full mb-4">
+                <TabsList className={isMobile ? 'grid w-full grid-cols-3 gap-2' : 'grid w-full grid-cols-3'}>
+                  <TabsTrigger value="todos" className={isMobile ? 'text-sm w-full' : undefined}>Todos</TabsTrigger>
+                  <TabsTrigger value="pendentes" className={isMobile ? 'text-sm w-full' : undefined}>Pendentes <Badge className="ml-2 hidden sm:inline-flex" variant="outline">{pendingCount}</Badge></TabsTrigger>
+                  <TabsTrigger value="pagos" className={isMobile ? 'text-sm w-full' : undefined}>Pagos <Badge className="ml-2 hidden sm:inline-flex" variant="outline">{paidCount}</Badge></TabsTrigger>
+                </TabsList>
+                <TabsContent value={paymentFilter} className="mt-3">
+                  <PayrollList
+                    payrollDetails={filteredPayrollDetails}
+                    loading={loading}
+                    pixKeys={pixKeys}
+                    onRegisterPayment={handleRegisterPayment}
+                    onRegisterPartialPayment={handleRegisterPartialPayment}
+                    onCancelPayment={handleCancelPayment}
+                  />
+                </TabsContent>
+              </Tabs>
+            </TabsContent>
+
+            <TabsContent value="suppliers">
+              {/* Barra de Busca (Fornecedores) */}
+              <div className="relative mb-4">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar fornecedor ou item..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+
+              {/* Placeholder para Loading (usando dados do contexto não temos loading state explícito separado) */}
+               {false ? (
+                  <div className="space-y-4">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+               ) : supplierCosts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhum custo de fornecedor registrado para este evento.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {supplierCosts.map((cost) => (
+                    <Card key={cost.id}>
+                      <CardContent className="p-4 flex justify-between items-center">
+                        <div>
+                          <div className="font-medium">{cost.description}</div>
+                          <div className="text-sm text-muted-foreground">{cost.supplier?.name}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold">{formatCurrency(Number(cost.amount))}</div>
+                          <Badge variant={cost.status === 'paid' ? 'default' : 'destructive'}>
+                            {cost.status === 'paid' ? 'Pago' : 'Pendente'}
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>

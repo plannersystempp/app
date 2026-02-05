@@ -288,7 +288,7 @@ export const updateEventSupplierCost = async (
       updated_at,
       paid_amount,
       payment_status,
-      payment_date,
+      // payment_date, // Permitir edição da data de vencimento/pagamento
       ...rest
     } = data as any;
     const updateData = { ...rest } as any;

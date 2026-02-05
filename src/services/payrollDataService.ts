@@ -128,7 +128,7 @@ export const payrollDataService = {
     } else if (personnelIds.length > 0) {
       const { data: personnelData } = await supabase
         .from('personnel')
-        .select('id, name, type, event_cache, monthly_salary, overtime_rate')
+        .select('id, name, type, event_cache, monthly_salary, overtime_rate, cpf, rg, mothers_name, birth_date, pix_key_encrypted')
         .in('id', personnelIds);
         
       personnelData?.forEach(p => personnelMap.set(p.id, p));
@@ -458,7 +458,12 @@ export const payrollDataService = {
         eventSpecificCacheRate: dailyCache,
         overtimeConversionApplied: overtimeResult.conversionApplied,
         overtimeCachesUsed: overtimeResult.dailyCachesUsed,
-        overtimeRemainingHours: overtimeResult.remainingHours
+        overtimeRemainingHours: overtimeResult.remainingHours,
+        rg: person.rg,
+        cpf: person.cpf,
+        birthDate: person.birth_date,
+        mothersName: person.mothers_name,
+        pixKey: person.pix_key_encrypted // Using the same field name convention as types
       };
     }).filter(Boolean) as PayrollDetails[];
   },

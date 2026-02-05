@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { PersonnelSelector } from './allocation/PersonnelSelector';
 import { MultiPersonnelSelector } from './allocation/MultiPersonnelSelector';
 import { generateDateArray } from '@/utils/dateUtils';
@@ -108,6 +111,51 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   const [formLoading, setFormLoading] = useState(false);
   const [totalEventValue, setTotalEventValue] = useState(0);
 
+  const selectedPerson = personnel.find(p => p.id === selectedPersonnel);
+  const selectedDivisionName = eventDivisions.find(d => d.id === selectedDivisionId)?.name;
+  const divisionDisplayName = (divisionMode === 'new' ? (newDivisionName || '').trim() : (selectedDivisionName || '')).trim();
+
+  const formatDayShort = (day: string) => {
+    try {
+      return new Date(day + 'T12:00:00').toLocaleDateString('pt-BR', {
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit'
+      });
+    } catch {
+      return day;
+    }
+  };
+
+  const selectedDaysSorted = [...selectedDays].sort();
+  const daysSummary = selectedDaysSorted.length === 0
+    ? ''
+    : selectedDaysSorted.length === 1
+      ? formatDayShort(selectedDaysSorted[0])
+      : `${formatDayShort(selectedDaysSorted[0])} – ${formatDayShort(selectedDaysSorted[selectedDaysSorted.length - 1])}`;
+
+  const getOverlappingDaysForPerson = (personnelId: string, days: string[]) => {
+    const overlaps = new Set<string>();
+    for (const a of assignments) {
+      if (a.event_id !== eventId) continue;
+      if (a.personnel_id !== personnelId) continue;
+      const existingDays = Array.isArray(a.work_days) ? a.work_days : [];
+      for (const d of existingDays) {
+        if (days.includes(d)) overlaps.add(d);
+      }
+    }
+    return Array.from(overlaps).sort();
+  };
+
+  const divisionReady = divisionMode === 'existing'
+    ? !!selectedDivisionId
+    : !!(newDivisionName || '').trim();
+
+  const daysReady = selectedDays.length > 0;
+  const individualReady = !!selectedPersonnel && !!selectedFunction && divisionReady && daysReady;
+  const multipleReady = multipleSelection.length > 0 && divisionReady && daysReady && multipleSelection.every(sp => !!sp.selectedFunction);
+  const isReadyToSubmit = selectionMode === 'multiple' ? multipleReady : individualReady;
+
   // Add persistence for form state
   const { clearPersistedState } = useAllocationFormPersistence(
     eventId,
@@ -152,17 +200,11 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
           return;
         }
 
-        // Check if person is already allocated to this event with the same function
-        const existingAllocation = assignments.find(a => 
-          a.event_id === eventId && 
-          a.personnel_id === selectedPersonnel &&
-          a.function_name === selectedFunction
-        );
-        
-        if (existingAllocation) {
+        const overlappingDays = getOverlappingDaysForPerson(selectedPersonnel, selectedDays);
+        if (overlappingDays.length > 0) {
           toast({
-            title: "Função já alocada",
-            description: "Esta pessoa já está alocada com esta função neste evento. Escolha uma função diferente.",
+            title: "Conflito de dias",
+            description: `Esta pessoa já está alocada neste evento nos seguintes dias: ${overlappingDays.map(formatDayShort).join(', ')}.`,
             variant: "destructive"
           });
           return;
@@ -198,16 +240,24 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
           return;
         }
 
-        // Check for people already allocated to this event with the same function
-        const alreadyAllocated = multipleSelection.filter(sp => 
-          assignments.some(a => a.event_id === eventId && a.personnel_id === sp.personnel.id && a.function_name === sp.selectedFunction)
-        );
-        
-        if (alreadyAllocated.length > 0) {
-          const names = alreadyAllocated.map(sp => `${sp.personnel.name} (${sp.selectedFunction})`).join(', ');
+        const conflicts = multipleSelection
+          .map(sp => {
+            const overlappingDays = getOverlappingDaysForPerson(sp.personnel.id, selectedDays);
+            return overlappingDays.length > 0
+              ? { name: sp.personnel.name, days: overlappingDays }
+              : null;
+          })
+          .filter((v): v is { name: string; days: string[] } => !!v);
+
+        if (conflicts.length > 0) {
+          const preview = conflicts
+            .slice(0, 4)
+            .map(c => `${c.name}: ${c.days.map(formatDayShort).join(', ')}`)
+            .join(' | ');
+          const suffix = conflicts.length > 4 ? ` (+${conflicts.length - 4})` : '';
           toast({
-            title: "Funções já alocadas",
-            description: `As seguintes pessoas já estão alocadas com essas funções neste evento: ${names}`,
+            title: "Conflito de dias",
+            description: `Já existem alocações nos dias selecionados para: ${preview}${suffix}.`,
             variant: "destructive"
           });
           return;
@@ -341,103 +391,174 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
         onOpenChange(isOpen);
       }}
     >
-      <DialogContent className={`${isMobile ? 'top-0 left-0 translate-x-0 translate-y-0 w-screen h-[92vh] max-w-none rounded-none px-2 sm:px-3 border-0' : 'max-w-5xl md:max-w-6xl'} max-h-[92vh] overflow-y-auto overflow-x-hidden`} aria-modal="true" data-modal="true">
-        <DialogHeader className="pb-6">
-          <DialogTitle>Nova Alocação</DialogTitle>
+      <DialogContent className={`${isMobile ? 'top-0 left-0 translate-x-0 translate-y-0 w-screen h-[92vh] max-w-none rounded-none px-2 sm:px-3 border-0' : 'max-w-5xl md:max-w-6xl'} max-h-[92vh] overflow-y-auto overflow-x-hidden bg-background/95 supports-[backdrop-filter]:bg-background/80 backdrop-blur border border-border/60 shadow-2xl`} aria-modal="true" data-modal="true">
+        <DialogHeader className="pb-4">
+          <div className="flex flex-col gap-1">
+            <DialogTitle className="tracking-tight">Nova Alocação</DialogTitle>
+            {event && (
+              <div className="text-xs sm:text-sm text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="font-medium text-foreground truncate max-w-[min(520px,70vw)]">{event.name}</span>
+                <span className="text-muted-foreground/60">·</span>
+                <span className="whitespace-nowrap">
+                  {new Date(event.start_date + 'T12:00:00').toLocaleDateString('pt-BR')} – {new Date(event.end_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                </span>
+              </div>
+            )}
+          </div>
         </DialogHeader>
         
-        <div className="space-y-6">
-          {/* Selection Mode Tabs */}
-          <Tabs value={selectionMode} onValueChange={(value) => setSelectionMode(value as 'individual' | 'multiple')}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="individual" className="text-sm">Individual</TabsTrigger>
-              <TabsTrigger value="multiple" className="text-sm">Múltipla Seleção</TabsTrigger>
-            </TabsList>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+            <Card className="border-border/60 bg-card/80 supports-[backdrop-filter]:bg-card/70 backdrop-blur shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm sm:text-base tracking-tight">Pessoal</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Tabs value={selectionMode} onValueChange={(value) => setSelectionMode(value as 'individual' | 'multiple')}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="individual" className="text-sm">Individual</TabsTrigger>
+                    <TabsTrigger value="multiple" className="text-sm">Múltipla Seleção</TabsTrigger>
+                  </TabsList>
 
-            <TabsContent value="individual" className="space-y-6 mt-6">
-              <PersonnelSelector
-                personnel={personnel}
-                functions={functions}
-                selectedPersonnel={selectedPersonnel}
-                selectedFunction={selectedFunction}
-                onPersonnelChange={setSelectedPersonnel}
-                onFunctionChange={setSelectedFunction}
-              />
-            </TabsContent>
+                  <TabsContent value="individual" className="space-y-6 mt-6">
+                    <PersonnelSelector
+                      personnel={personnel}
+                      functions={functions}
+                      selectedPersonnel={selectedPersonnel}
+                      selectedFunction={selectedFunction}
+                      onPersonnelChange={setSelectedPersonnel}
+                      onFunctionChange={setSelectedFunction}
+                    />
+                  </TabsContent>
 
-            <TabsContent value="multiple" className="space-y-6 mt-6">
-              <MultiPersonnelSelector
-                personnel={personnel}
-                functions={functions}
-                value={multipleSelection}
-                onChange={setMultipleSelection}
-              />
-            </TabsContent>
-          </Tabs>
+                  <TabsContent value="multiple" className="space-y-6 mt-6">
+                    <MultiPersonnelSelector
+                      personnel={personnel}
+                      functions={functions}
+                      value={multipleSelection}
+                      onChange={setMultipleSelection}
+                    />
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
 
-          <DivisionSelector
-            eventDivisions={eventDivisions}
-            divisionMode={divisionMode}
-            selectedDivisionId={selectedDivisionId}
-            newDivisionName={newDivisionName}
-            onDivisionModeChange={setDivisionMode}
-            onSelectedDivisionChange={setSelectedDivisionId}
-            onNewDivisionNameChange={setNewDivisionName}
-          />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <Card className="border-border/60 bg-card/80 supports-[backdrop-filter]:bg-card/70 backdrop-blur shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm sm:text-base tracking-tight">Divisão</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <DivisionSelector
+                    eventDivisions={eventDivisions}
+                    selectedDivisionId={selectedDivisionId}
+                    onSelectedDivisionChange={(id) => {
+                      setSelectedDivisionId(id);
+                      setDivisionMode('existing');
+                      setNewDivisionName('');
+                    }}
+                    onNewDivisionCreate={(name) => {
+                      setNewDivisionName(name);
+                      setDivisionMode('new');
+                      setSelectedDivisionId('');
+                      toast({
+                        title: 'Nova divisão',
+                        description: `"${name}" será criada ao salvar a alocação.`
+                      });
+                    }}
+                    divisionMode={divisionMode}
+                    newDivisionName={newDivisionName}
+                  />
 
-          <WorkDaysSelector
-            availableDays={availableDays}
-            selectedDays={selectedDays}
-            onDayToggle={(day, checked) => {
-              if (checked) {
-                setSelectedDays([...selectedDays, day]);
-              } else {
-                setSelectedDays(selectedDays.filter(d => d !== day));
-              }
-            }}
-            onSelectAllDays={() => {
-              if (selectedDays.length === availableDays.length) {
-                setSelectedDays([]);
-              } else {
-                setSelectedDays([...availableDays]);
-              }
-            }}
-          />
+                  {divisionMode === 'new' && (newDivisionName || '').trim() && (
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs sm:text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span>
+                          Nova divisão: <span className="font-medium">{(newDivisionName || '').trim()}</span>
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2"
+                          onClick={() => {
+                            setNewDivisionName('');
+                            setDivisionMode('existing');
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                      <div className="text-muted-foreground mt-1">Será criada ao salvar a alocação.</div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="startTime">Horário de Entrada</Label>
-              <div className="relative">
-                <input
-                  type="time"
-                  id="startTime"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">Opcional - sobrescreve o padrão</p>
+              <Card className="border-border/60 bg-card/80 supports-[backdrop-filter]:bg-card/70 backdrop-blur shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm sm:text-base tracking-tight">Dias e Horários</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <WorkDaysSelector
+                    availableDays={availableDays}
+                    selectedDays={selectedDays}
+                    onDayToggle={(day, checked) => {
+                      if (checked) {
+                        setSelectedDays([...selectedDays, day]);
+                      } else {
+                        setSelectedDays(selectedDays.filter(d => d !== day));
+                      }
+                    }}
+                    onSelectAllDays={() => {
+                      if (selectedDays.length === availableDays.length) {
+                        setSelectedDays([]);
+                      } else {
+                        setSelectedDays([...availableDays]);
+                      }
+                    }}
+                  />
+
+                  <Separator className="bg-border/60" />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="startTime">Horário de Entrada</Label>
+                      <div className="relative">
+                        <input
+                          type="time"
+                          id="startTime"
+                          value={startTime}
+                          onChange={(e) => setStartTime(e.target.value)}
+                          className="flex h-10 w-full rounded-md border border-input bg-background/70 px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Opcional</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="endTime">Horário de Saída</Label>
+                      <div className="relative">
+                        <input
+                          type="time"
+                          id="endTime"
+                          value={endTime}
+                          onChange={(e) => setEndTime(e.target.value)}
+                          className="flex h-10 w-full rounded-md border border-input bg-background/70 px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Opcional</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="endTime">Horário de Saída</Label>
-              <div className="relative">
-                <input
-                  type="time"
-                  id="endTime"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">Opcional - sobrescreve o padrão</p>
-            </div>
-          </div>
 
-          {isAdmin && (
-            <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
-              <div className="flex items-center gap-2">
-                <Label className="font-semibold">💰 Cache Específico para este Evento</Label>
-              </div>
+            {isAdmin && (
+              <Card className="border-border/60 bg-card/80 supports-[backdrop-filter]:bg-card/70 backdrop-blur shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm sm:text-base tracking-tight">Cache</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
               
               {/* Show default rate for comparison */}
               {selectionMode === 'individual' && selectedPersonnel && (
@@ -539,30 +660,99 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
                   </div>
                 )}
               </div>
-            </div>
-          )}
+                </CardContent>
+              </Card>
+            )}
 
-          {/* Mobile-optimized buttons */}
-          <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-2 pt-4 border-t">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleCancel}
-              className="w-full sm:w-auto min-h-[44px]"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleFormSubmit}
-              disabled={formLoading}
-              className="w-full sm:w-auto min-h-[44px]"
-            >
-              {formLoading ? 'Salvando...' : 
-                selectionMode === 'multiple' && multipleSelection.length > 0 
-                  ? `Alocar ${multipleSelection.length} pessoa(s)` 
-                  : 'Alocar'
-              }
-            </Button>
+            <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-2 pt-4 border-t border-border/60">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancel}
+                className="w-full sm:w-auto min-h-[44px]"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleFormSubmit}
+                disabled={formLoading || !isReadyToSubmit}
+                className="w-full sm:w-auto min-h-[44px] shadow-sm"
+              >
+                {formLoading ? 'Salvando...' :
+                  selectionMode === 'multiple' && multipleSelection.length > 0
+                    ? `Alocar ${multipleSelection.length} pessoa(s)`
+                    : 'Alocar'
+                }
+              </Button>
+            </div>
+          </div>
+
+          <div className="lg:col-span-1">
+            <Card className="lg:sticky lg:top-4 border-border/60 bg-card/80 supports-[backdrop-filter]:bg-card/70 backdrop-blur shadow-sm overflow-hidden">
+              <div className="h-1 w-full bg-gradient-to-r from-primary/50 via-primary/20 to-transparent" />
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm sm:text-base tracking-tight">Resumo</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Modo</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {selectionMode === 'multiple' ? 'Múltipla' : 'Individual'}
+                  </Badge>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Pessoal</span>
+                    <span className="text-sm font-medium">
+                      {selectionMode === 'multiple'
+                        ? `${multipleSelection.length} selecionado(s)`
+                        : (selectedPerson?.name || '—')}
+                    </span>
+                  </div>
+                  {selectionMode === 'individual' && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Função</span>
+                      <span className="text-sm font-medium">{selectedFunction || '—'}</span>
+                    </div>
+                  )}
+                </div>
+
+                <Separator className="bg-border/60" />
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Divisão</span>
+                  <span className="text-sm font-medium truncate max-w-[60%]">{divisionDisplayName || '—'}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Dias</span>
+                  <span className="text-sm font-medium">
+                    {selectedDays.length ? `${selectedDays.length} (${daysSummary})` : '—'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Horários</span>
+                  <span className="text-sm font-medium">
+                    {startTime || endTime ? `${startTime || '—'} – ${endTime || '—'}` : '—'}
+                  </span>
+                </div>
+
+                {isAdmin && eventSpecificCache > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Cache/dia</span>
+                    <span className="text-sm font-medium">{formatCurrency(eventSpecificCache)}</span>
+                  </div>
+                )}
+
+                {divisionMode === 'new' && (newDivisionName || '').trim() && (
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                    A divisão será criada ao salvar.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </div>
       </DialogContent>

@@ -31,7 +31,8 @@ export const sanitizePersonnelData = (data: any): any => {
     'cpf', 'cnpj', 'email', 'phone', 'phone_secondary', 
     'photo_url', 'shirt_size', 'address_zip_code', 
     'address_street', 'address_number', 'address_complement',
-    'address_neighborhood', 'address_city', 'address_state'
+    'address_neighborhood', 'address_city', 'address_state',
+    'rg', 'mothers_name', 'birth_date'
   ];
   
   stringFields.forEach(field => {

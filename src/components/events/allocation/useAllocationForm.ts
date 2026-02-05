@@ -66,11 +66,12 @@ export const useAllocationForm = ({
   const isFormValid = () => {
     const hasPersonnel = selectedPersonnel !== '';
     const hasFunction = selectedFunction !== '';
+    const hasDays = selectedDays.length > 0;
     const hasDivision = divisionMode === 'existing' 
       ? selectedDivisionId !== ''
       : newDivisionName.trim() !== '';
     
-    return hasPersonnel && hasFunction && hasDivision;
+    return hasPersonnel && hasFunction && hasDays && hasDivision;
   };
 
   const handleSubmit = async () => {

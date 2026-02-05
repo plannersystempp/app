@@ -9,7 +9,7 @@ import { useEnhancedData, type EventSupplierCost } from '@/contexts/EnhancedData
 import { useTeam } from '@/contexts/TeamContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import { notificationService } from '@/services/notificationService';
 
 /**
@@ -165,7 +165,8 @@ export const AddSupplierCostDialog: React.FC<AddSupplierCostDialogProps> = ({
         category: sanitizedCategory,
         unit_price: unitPrice,
         quantity,
-        notes: formData.notes || undefined
+        notes: formData.notes || undefined,
+        payment_date: formData.payment_date || null
       };
 
       if (cost) {
@@ -351,50 +352,63 @@ export const AddSupplierCostDialog: React.FC<AddSupplierCostDialogProps> = ({
           </div>
 
           {!cost && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="payment_status">Status do Pagamento</Label>
-                  <Select
-                    value={formData.payment_status}
-                    onValueChange={(value: any) => setFormData({ ...formData, payment_status: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pendente</SelectItem>
-                      <SelectItem value="partially_paid">Pago Parcialmente</SelectItem>
-                      <SelectItem value="paid">Pago</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="paid_amount">Valor Pago</Label>
-                  <Input
-                    id="paid_amount"
-                    type="number"
-                    step="0.01"
-                    value={formData.paid_amount}
-                    onChange={(e) => setFormData({ ...formData, paid_amount: e.target.value })}
-                    placeholder="0.00"
-                  />
-                </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="payment_status">Status do Pagamento</Label>
+                <Select
+                  value={formData.payment_status}
+                  onValueChange={(value: any) => setFormData({ ...formData, payment_status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pendente</SelectItem>
+                    <SelectItem value="partially_paid">Pago Parcialmente</SelectItem>
+                    <SelectItem value="paid">Pago</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="payment_date">Data do Pagamento</Label>
+                <Label htmlFor="paid_amount">Valor Pago</Label>
                 <Input
-                  id="payment_date"
-                  type="date"
-                  value={formData.payment_date}
-                  onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
-                  className="dark:text-white dark:[color-scheme:dark]"
+                  id="paid_amount"
+                  type="number"
+                  step="0.01"
+                  value={formData.paid_amount}
+                  onChange={(e) => setFormData({ ...formData, paid_amount: e.target.value })}
+                  placeholder="0.00"
                 />
               </div>
-            </>
+            </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="payment_date">
+              {formData.payment_status === 'pending' ? 'Data de Vencimento' : 'Data do Pagamento'}
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="payment_date"
+                type="date"
+                value={formData.payment_date}
+                onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
+                className="dark:text-white dark:[color-scheme:dark]"
+              />
+              {formData.payment_date && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setFormData({ ...formData, payment_date: '' })}
+                  title="Limpar data"
+                >
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                </Button>
+              )}
+            </div>
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="notes">Observações</Label>

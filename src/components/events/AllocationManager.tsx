@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Users, Calendar, Crown } from 'lucide-react';
+import { Plus, Users, Calendar, Crown, FolderPlus } from 'lucide-react';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { AllocationForm } from './AllocationForm';
 import { AllocationEditForm } from './AllocationEditForm';
@@ -21,8 +21,8 @@ import {
   DndContext,
   closestCorners,
   KeyboardSensor,
-  PointerSensor,
-  TouchSensor, // Added TouchSensor
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragOverlay,
@@ -79,6 +79,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   const [showWorkLogManager, setShowWorkLogManager] = useState(false);
   const [preselectedDivisionId, setPreselectedDivisionId] = useState<string | undefined>(undefined);
   const [divisionToEdit, setDivisionToEdit] = useState<any>(null);
+  const [showCreateDivision, setShowCreateDivision] = useState(false);
   const [personnelToEdit, setPersonnelToEdit] = useState<Personnel | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -275,15 +276,15 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
 
   // DnD Sensors - Optimized for Mobile
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
-        distance: 8, // Increased distance slightly to prevent accidental drags
+        distance: 8,
       },
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 250, // Increased delay for "press and hold" feel
-        tolerance: 5, // Reduced tolerance to ensure intention
+        delay: 250,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -496,14 +497,38 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h3 className="text-lg font-semibold">Alocações de Pessoal</h3>
-          <div className="w-full sm:w-auto flex justify-end">
+          <div className="w-full sm:w-auto flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowCreateDivision(true)} 
+              className="hidden sm:flex"
+            >
+              <FolderPlus className="w-4 h-4 mr-2" />
+              Criar Divisão
+            </Button>
             <Button onClick={() => handleAddAllocation()} className="hidden sm:flex">
               <Plus className="w-4 h-4 mr-2" />
               Adicionar Alocação
             </Button>
-            <Button onClick={() => handleAddAllocation()} size="icon" className="sm:hidden w-12 h-12 rounded-full shadow-lg fixed bottom-32 right-4 z-50 bg-primary text-primary-foreground hover:bg-primary/90">
-              <Plus className="w-6 h-6" />
-            </Button>
+            
+            {/* Mobile Buttons */}
+            <div className="flex flex-col gap-3 sm:hidden fixed bottom-32 right-4 z-50 items-end">
+              <Button 
+                onClick={() => setShowCreateDivision(true)} 
+                size="icon" 
+                variant="outline"
+                className="w-12 h-12 rounded-full shadow-lg bg-background text-foreground border-2"
+              >
+                <FolderPlus className="w-6 h-6" />
+              </Button>
+              <Button 
+                onClick={() => handleAddAllocation()} 
+                size="icon" 
+                className="w-12 h-12 rounded-full shadow-lg bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="w-6 h-6" />
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -672,6 +697,13 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
           } : null}
           open={showWorkLogManager}
           onOpenChange={setShowWorkLogManager}
+        />
+
+        <DivisionForm
+          division={null}
+          eventId={eventId}
+          open={showCreateDivision}
+          onOpenChange={setShowCreateDivision}
         />
 
         <DivisionForm

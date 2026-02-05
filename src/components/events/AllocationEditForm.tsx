@@ -4,11 +4,11 @@ import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CurrencyInput } from '@/components/ui/currency-input';
+import { DivisionSelector } from '@/components/events/allocation/DivisionSelector';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/utils/formatters';
 import { type Assignment } from '@/contexts/EnhancedDataContext';
@@ -26,7 +26,7 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
   open,
   onOpenChange
 }) => {
-  const { personnel, functions, assignments, divisions, updateAssignment } = useEnhancedData();
+  const { personnel, functions, assignments, divisions, updateAssignment, addDivision } = useEnhancedData();
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -34,11 +34,27 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
   const [selectedFunction, setSelectedFunction] = useState('');
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [selectedDivisionId, setSelectedDivisionId] = useState('');
+  const [divisionMode, setDivisionMode] = useState<'existing' | 'new'>('existing');
+  const [newDivisionName, setNewDivisionName] = useState('');
   const [eventSpecificCache, setEventSpecificCache] = useState<number>(0);
   const [totalEventValue, setTotalEventValue] = useState<number>(0);
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const eventDivisions = divisions.filter(d => d.event_id === assignment?.event_id);
+
+  const handleSelectedDivisionChange = (divisionId: string) => {
+    setDivisionMode('existing');
+    setSelectedDivisionId(divisionId);
+    setNewDivisionName('');
+  };
+
+  const handleNewDivisionCreate = (name: string) => {
+    setDivisionMode('new');
+    setNewDivisionName(name);
+    setSelectedDivisionId('');
+  };
 
   // Load assignment data when form opens
   useEffect(() => {
@@ -47,6 +63,8 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
       setSelectedFunction(assignment.function_name);
       setSelectedDays(assignment.work_days || []);
       setSelectedDivisionId(assignment.division_id);
+      setDivisionMode('existing');
+      setNewDivisionName('');
       // Ensure time values are initialized correctly
       setStartTime(assignment.start_time || '');
       setEndTime(assignment.end_time || '');
@@ -57,7 +75,10 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
   }, [assignment, open]);
 
   const handleSubmit = async () => {
-    if (!assignment || !selectedPersonnel || !selectedFunction || selectedDays.length === 0 || !selectedDivisionId) {
+    const newDivisionNameTrimmed = newDivisionName.trim();
+    const divisionValid = divisionMode === 'new' ? !!newDivisionNameTrimmed : !!selectedDivisionId;
+
+    if (!assignment || !selectedPersonnel || !selectedFunction || selectedDays.length === 0 || !divisionValid) {
       toast({
         title: "Campos obrigatórios",
         description: "Preencha todos os campos obrigatórios",
@@ -89,12 +110,34 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
                                    functions.find(f => f.id === selectedFunction);
       const functionName = selectedFunctionObj ? selectedFunctionObj.name : selectedFunction;
 
+      let divisionIdToSave = selectedDivisionId;
+      if (divisionMode === 'new') {
+        const createdDivisionId = await addDivision({
+          event_id: assignment.event_id,
+          name: newDivisionNameTrimmed,
+        });
+
+        if (!createdDivisionId) {
+          toast({
+            title: 'Não foi possível criar a divisão',
+            description: 'Tente novamente ou escolha uma divisão existente.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        divisionIdToSave = createdDivisionId;
+        setSelectedDivisionId(createdDivisionId);
+        setDivisionMode('existing');
+        setNewDivisionName('');
+      }
+
       await updateAssignment({
         ...assignment,
         personnel_id: selectedPersonnel,
         function_name: functionName,
         work_days: selectedDays,
-        division_id: selectedDivisionId,
+        division_id: divisionIdToSave,
         event_specific_cache: eventSpecificCache > 0 ? eventSpecificCache : undefined,
         start_time: startTime || undefined,
         end_time: endTime || undefined
@@ -192,23 +235,14 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="division">Divisão</Label>
-            <Select value={selectedDivisionId} onValueChange={setSelectedDivisionId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione uma divisão" />
-              </SelectTrigger>
-              <SelectContent>
-                {divisions
-                  .filter(d => d.event_id === assignment?.event_id)
-                  .map((division) => (
-                    <SelectItem key={division.id} value={division.id}>
-                      {division.name}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <DivisionSelector
+            eventDivisions={eventDivisions}
+            selectedDivisionId={selectedDivisionId}
+            onSelectedDivisionChange={handleSelectedDivisionChange}
+            onNewDivisionCreate={handleNewDivisionCreate}
+            divisionMode={divisionMode}
+            newDivisionName={newDivisionName}
+          />
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -352,7 +386,13 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
           <div className="flex flex-col gap-2 pt-4 border-t">
             <Button 
               onClick={handleSubmit} 
-              disabled={loading || !selectedPersonnel || !selectedFunction || selectedDays.length === 0 || !selectedDivisionId}
+              disabled={
+                loading ||
+                !selectedPersonnel ||
+                !selectedFunction ||
+                selectedDays.length === 0 ||
+                (divisionMode === 'new' ? !newDivisionName.trim() : !selectedDivisionId)
+              }
               className="min-h-[44px]"
             >
               {loading ? "Salvando..." : "Salvar Alterações"}

@@ -530,7 +530,10 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                               aria-label="Hora de saída"
                             />
                           </div>
-                          <div className="mt-1 text-[10px] text-muted-foreground text-center">{person.formattedTime}</div>
+                          <div className="mt-1 text-xs text-muted-foreground font-medium text-center flex items-center justify-center gap-1">
+                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 hidden lg:inline">Previsto:</span>
+                            {person.formattedTime}
+                          </div>
                           {computed && computed.overtimeHours > 0 && (
                             <div className="mt-1 text-[10px] text-destructive text-center">HE: {computed.overtimeHours.toFixed(2)}h</div>
                           )}
