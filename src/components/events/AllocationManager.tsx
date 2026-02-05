@@ -13,7 +13,7 @@ import { DivisionCard } from './DivisionCard';
 import { DivisionForm } from './DivisionForm';
 import { AllocationSearchFilter } from './allocation/AllocationSearchFilter';
 import { PersonnelForm } from '@/components/personnel/PersonnelForm';
-import { Personnel } from '@/contexts/EnhancedDataContext';
+import { Assignment, Division, Personnel } from '@/contexts/EnhancedDataContext';
 import { useUrlState } from '@/hooks/useUrlState';
 import { useToast } from '@/hooks/use-toast';
 
@@ -21,8 +21,7 @@ import {
   DndContext,
   closestCorners,
   KeyboardSensor,
-  MouseSensor,
-  TouchSensor,
+  PointerSensor,
   useSensor,
   useSensors,
   DragOverlay,
@@ -75,10 +74,10 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   
   const [showAllocationForm, setShowAllocationForm] = useState(getPersistedFormState);
   const [selectedAssignment, setSelectedAssignment] = useState<string | null>(null);
-  const [assignmentToEdit, setAssignmentToEdit] = useState<any>(null);
+  const [assignmentToEdit, setAssignmentToEdit] = useState<Assignment | null>(null);
   const [showWorkLogManager, setShowWorkLogManager] = useState(false);
   const [preselectedDivisionId, setPreselectedDivisionId] = useState<string | undefined>(undefined);
-  const [divisionToEdit, setDivisionToEdit] = useState<any>(null);
+  const [divisionToEdit, setDivisionToEdit] = useState<Division | null>(null);
   const [showCreateDivision, setShowCreateDivision] = useState(false);
   const [personnelToEdit, setPersonnelToEdit] = useState<Personnel | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -86,7 +85,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   // DnD State
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [activeDragType, setActiveDragType] = useState<'division' | 'assignment' | null>(null);
-  const [activeDragItem, setActiveDragItem] = useState<any>(null);
+  const [activeDragItem, setActiveDragItem] = useState<Division | Assignment | null>(null);
 
   // Expanded Divisions State (URL Persisted)
   const [expandedDivisionsParam, setExpandedDivisionsParam] = useUrlState('expanded', '');
@@ -247,11 +246,11 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
     }
   };
 
-  const handleEditAssignment = (assignment: any) => {
+  const handleEditAssignment = (assignment: Assignment) => {
     setAssignmentToEdit(assignment);
   };
 
-  const handleEditDivision = (division: any) => {
+  const handleEditDivision = (division: Division) => {
     setDivisionToEdit(division);
   };
 
@@ -274,18 +273,17 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
     });
   };
 
-  // DnD Sensors - Optimized for Mobile
+  const isCoarsePointer = useMemo(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    return window.matchMedia('(pointer: coarse)').matches;
+  }, []);
+
+  // DnD Sensors - Touch-first (Long Press) + Pointer fallback
   const sensors = useSensors(
-    useSensor(MouseSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 250,
-        tolerance: 5,
-      },
+    useSensor(PointerSensor, {
+      activationConstraint: isCoarsePointer
+        ? { delay: 200, tolerance: 8 }
+        : { distance: 8 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -350,7 +348,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
               
               // Se os índices forem todos 0 ou iguais, precisamos criar uma sequência
               // Pegar o menor índice possível ou começar do 0
-              let baseIndex = currentIndices[0] || 0;
+              const baseIndex = currentIndices[0] || 0;
               
               const updates = newOrder.map((division, idx) => ({
                   id: division.id,
@@ -361,9 +359,9 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
               try {
                 // Atualizar um por um para garantir
                 await Promise.all(updates.map(update => updateDivision({
-                    id: update.id,
-                    order_index: update.order_index
-                } as any)));
+                  id: update.id,
+                  order_index: update.order_index,
+                })));
                 
                 toast({
                     title: "Ordem atualizada",
@@ -640,7 +638,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
           </div>
         )}
 
-        <DragOverlay dropAnimation={dropAnimation}>
+        <DragOverlay dropAnimation={dropAnimation} style={{ zIndex: 9999 }}>
           {activeDragType === 'division' && activeDragItem ? (
              <div className="opacity-90 rotate-2 cursor-grabbing">
                 <DivisionCard

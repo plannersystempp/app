@@ -113,6 +113,7 @@ export const DraggableAllocationCard: React.FC<DraggableAllocationCardProps> = (
             <div 
               {...attributes} 
               {...listeners}
+              style={{ touchAction: 'none' }}
               className="cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-foreground p-3 -ml-3 active:bg-primary/10 active:text-primary active:ring-2 active:ring-primary/20 rounded-md touch-none flex items-center justify-center min-w-[44px] min-h-[44px] select-none"
             >
               <GripVertical className="w-5 h-5" />

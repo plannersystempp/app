@@ -126,6 +126,7 @@ export const DivisionCard: React.FC<DivisionCardProps> = ({
                 <div 
                   {...attributes} 
                   {...listeners} 
+                  style={{ touchAction: 'none' }}
                   className="cursor-grab active:cursor-grabbing p-3 -ml-2 hover:bg-muted active:bg-primary/10 active:text-primary active:ring-2 active:ring-primary/20 rounded text-muted-foreground flex items-center justify-center min-w-[44px] min-h-[44px] touch-none select-none"
                 >
                   <GripVertical className="h-5 w-5" />

@@ -1,3 +1,17 @@
+## [2026-02-05] - fix: Drag & Drop mobile (PWA) na Alocação de Pessoal
+ - Mudanças:
+   - Ajustado o DnD para priorizar dispositivos touch via `PointerSensor` com long press (200ms) e tolerância de movimento, evitando conflito com scroll.
+   - Reforçado `touch-action: none` no handle de arraste para impedir interceptação do gesto pelo navegador no mobile.
+   - Aumentado `z-index` do `DragOverlay` para garantir que o “fantasma” fique sempre acima da UI.
+   - Corrigida tipagem de `updateDivision` no contexto para refletir updates parciais (remove casts e melhora segurança de tipos).
+ - Arquivos:
+   - `src/components/events/AllocationManager.tsx`
+   - `src/components/events/DivisionCard.tsx`
+   - `src/components/events/DraggableAllocationCard.tsx`
+   - `src/contexts/EnhancedDataContext.tsx`
+ - Impacto:
+   - Reordenação/realocação por arrastar e soltar passa a funcionar de forma confiável em mobile (PWA), reduzindo fricção e erros operacionais em campo.
+
 ## [2026-02-05] - fix: Correção da exibição de fornecedores na folha de pagamento
  - Mudanças:
    - Corrigido campo de valor de `amount` para `total_amount` na aba de fornecedores.

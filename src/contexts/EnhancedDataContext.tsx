@@ -193,7 +193,7 @@ interface EnhancedDataContextType {
   updateFunction: (func: Func) => Promise<void>;
   deleteFunction: (id: string) => Promise<void>;
   addDivision: (division: Omit<Division, 'id' | 'created_at' | 'team_id'>) => Promise<string | null>;
-  updateDivision: (division: Division) => Promise<void>;
+  updateDivision: (division: Partial<Division> & { id: string }) => Promise<void>;
   deleteDivision: (id: string) => Promise<void>;
   addAssignment: (assignment: Omit<Assignment, 'id' | 'created_at' | 'team_id'>) => Promise<void>;
   deleteAssignment: (id: string) => Promise<void>;
