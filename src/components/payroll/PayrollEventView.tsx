@@ -16,6 +16,9 @@ import { formatDateBR } from '@/utils/dateUtils';
 import { formatCurrency } from '@/utils/formatters';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SupplierPaymentDialog } from '../events/costs/SupplierPaymentDialog';
+import { type EventSupplierCost } from '@/contexts/data/types';
+import { Clock } from 'lucide-react';
 
 export const PayrollEventView: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -29,6 +32,8 @@ export const PayrollEventView: React.FC = () => {
   
   const [paymentFilter, setPaymentFilter] = useState<'todos' | 'pendentes' | 'pagos'>('todos');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCostForPayment, setSelectedCostForPayment] = useState<EventSupplierCost | null>(null);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
 
   // Hooks personalizados
   const { payrollDetails, pixKeys, loading, setEventData } = usePayrollData(eventId || '');
@@ -44,7 +49,7 @@ export const PayrollEventView: React.FC = () => {
       const lowerTerm = searchTerm.toLowerCase();
       result = result.filter(item => 
         item.description.toLowerCase().includes(lowerTerm) ||
-        (item.supplier?.name || '').toLowerCase().includes(lowerTerm)
+        (item.supplier_name || '').toLowerCase().includes(lowerTerm)
       );
     }
     
@@ -77,7 +82,7 @@ export const PayrollEventView: React.FC = () => {
   const totalStaffToPay = useMemo(() => payrollDetails.reduce((sum, item) => sum + (item.totalPay || 0), 0), [payrollDetails]);
   const totalStaffPaid = useMemo(() => payrollDetails.reduce((sum, item) => sum + (item.paidAmount || 0), 0), [payrollDetails]);
   
-  const totalSuppliersToPay = useMemo(() => (supplierCosts || []).reduce((sum, item) => sum + Number(item.amount || 0), 0), [supplierCosts]);
+  const totalSuppliersToPay = useMemo(() => (supplierCosts || []).reduce((sum, item) => sum + Number(item.total_amount || 0), 0), [supplierCosts]);
   const totalSuppliersPaid = useMemo(() => (supplierCosts || []).reduce((sum, item) => sum + Number(item.paid_amount || 0), 0), [supplierCosts]);
 
   // Totais exibidos dependem da aba ativa
@@ -96,14 +101,19 @@ export const PayrollEventView: React.FC = () => {
   const paidCount = useMemo(() => 
     categoryTab === 'staff' 
       ? payrollDetails.filter(p => p.paid).length
-      : (supplierCosts || []).filter(c => c.status === 'paid').length
+      : (supplierCosts || []).filter(c => c.payment_status === 'paid').length
   , [payrollDetails, supplierCosts, categoryTab]);
   
   const pendingCount = useMemo(() => 
     categoryTab === 'staff'
       ? payrollDetails.filter(p => !p.paid).length
-      : (supplierCosts || []).filter(c => c.status !== 'paid').length
+      : (supplierCosts || []).filter(c => c.payment_status !== 'paid').length
   , [payrollDetails, supplierCosts, categoryTab]);
+
+  const handleOpenPaymentDialog = (cost: EventSupplierCost) => {
+    setSelectedCostForPayment(cost);
+    setShowPaymentDialog(true);
+  };
 
   const canManagePayroll = userRole === 'admin';
   const selectedEvent = events.find(e => e.id === eventId);
@@ -345,17 +355,61 @@ export const PayrollEventView: React.FC = () => {
               ) : (
                 <div className="space-y-3">
                   {supplierCosts.map((cost) => (
-                    <Card key={cost.id}>
-                      <CardContent className="p-4 flex justify-between items-center">
-                        <div>
-                          <div className="font-medium">{cost.description}</div>
-                          <div className="text-sm text-muted-foreground">{cost.supplier?.name}</div>
+                    <Card key={cost.id} className="border-l-2 border-l-primary shadow-sm">
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <div className="font-semibold text-base">{cost.description}</div>
+                            <div className="text-sm text-muted-foreground">{cost.supplier_name}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-lg">{formatCurrency(Number(cost.total_amount))}</div>
+                            <Badge 
+                              variant={cost.payment_status === 'paid' ? 'default' : 'destructive'}
+                              className={cost.payment_status === 'paid' ? 'bg-green-100 text-green-800 border-green-200' : ''}
+                            >
+                              {cost.payment_status === 'paid' ? 'Pago' : cost.payment_status === 'partially_paid' ? 'Parcial' : 'Pendente'}
+                            </Badge>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <div className="font-bold">{formatCurrency(Number(cost.amount))}</div>
-                          <Badge variant={cost.status === 'paid' ? 'default' : 'destructive'}>
-                            {cost.status === 'paid' ? 'Pago' : 'Pendente'}
-                          </Badge>
+
+                        <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 border-t">
+                          <div className="text-sm text-muted-foreground w-full sm:w-auto">
+                            {cost.paid_amount > 0 && (
+                              <span className="text-green-600 font-medium">
+                                Pago: {formatCurrency(cost.paid_amount)}
+                              </span>
+                            )}
+                            {cost.total_amount - cost.paid_amount > 0 && (
+                              <span className={cost.paid_amount > 0 ? "ml-2 text-orange-600" : "text-orange-600"}>
+                                Pendente: {formatCurrency(cost.total_amount - cost.paid_amount)}
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div className="flex gap-2 w-full sm:w-auto">
+                            {cost.payment_status !== 'paid' && (
+                              <>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={() => handleOpenPaymentDialog(cost)}
+                                  className="flex-1 sm:flex-none h-8 text-xs"
+                                >
+                                  <Clock className="w-3.5 h-3.5 mr-1.5" />
+                                  Parcial
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => handleOpenPaymentDialog(cost)}
+                                  className="flex-1 sm:flex-none h-8 text-xs"
+                                >
+                                  <DollarSign className="w-3.5 h-3.5 mr-1.5" />
+                                  Integral
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -366,6 +420,18 @@ export const PayrollEventView: React.FC = () => {
           </Tabs>
         </CardContent>
       </Card>
+
+      {selectedCostForPayment && (
+        <SupplierPaymentDialog
+          open={showPaymentDialog}
+          onOpenChange={setShowPaymentDialog}
+          cost={selectedCostForPayment}
+          onSuccess={() => {
+            setShowPaymentDialog(false);
+            // O contexto EnhancedData atualizará automaticamente através do listener do Supabase ou refresh manual
+          }}
+        />
+      )}
     </div>
   );
 };

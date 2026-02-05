@@ -1,3 +1,15 @@
+## [2026-02-05] - fix: Correção da exibição de fornecedores na folha de pagamento
+ - Mudanças:
+   - Corrigido campo de valor de `amount` para `total_amount` na aba de fornecedores.
+   - Corrigido campo de status de `status` para `payment_status` para refletir corretamente o estado do pagamento.
+   - Adicionados botões de ação para "Pagamento Parcial" e "Pagamento Integral" nos cards de fornecedores.
+   - Integrado o componente `SupplierPaymentDialog` para permitir o registro de pagamentos diretamente da folha.
+   - Corrigidos os cálculos de totais e contadores de fornecedores.
+ - Arquivos:
+   - `src/components/payroll/PayrollEventView.tsx`
+ - Impacto:
+   - Usuários agora podem visualizar corretamente os valores devidos aos fornecedores e registrar seus pagamentos sem sair da tela de gestão financeira do evento.
+
 ## [2026-02-05] - refactor: Remoção do campo descrição nas divisões
  - Mudanças:
    - `src/components/events/DivisionForm.tsx`: Removido o campo de descrição do formulário de criação/edição de divisões para simplificar a interface.
