@@ -1,6 +1,7 @@
 export type PayrollReportColumnId =
   | 'name'
   | 'role'
+  | 'division'
   | 'cpf'
   | 'rg'
   | 'birthDate'
@@ -21,7 +22,8 @@ export type PayrollReportColumnDefinition = {
 
 export const PAYROLL_REPORT_COLUMNS: PayrollReportColumnDefinition[] = [
   { id: 'name', label: 'Nome', defaultVisible: true, locked: true },
-  { id: 'role', label: 'Função', defaultVisible: true },
+  { id: 'role', label: 'Função no evento', defaultVisible: true },
+  { id: 'division', label: 'Divisão', defaultVisible: false },
   { id: 'cpf', label: 'CPF', defaultVisible: false },
   { id: 'rg', label: 'RG', defaultVisible: false },
   { id: 'birthDate', label: 'Data de Nascimento', defaultVisible: false },
@@ -57,4 +59,3 @@ export const getPayrollReportColumnLabel = (id: PayrollReportColumnId): string =
 
 export const isLockedPayrollReportColumn = (id: PayrollReportColumnId): boolean =>
   !!PAYROLL_REPORT_COLUMNS.find(c => c.id === id)?.locked;
-

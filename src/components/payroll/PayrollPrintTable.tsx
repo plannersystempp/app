@@ -21,6 +21,8 @@ type PayrollDetail = {
   rg?: string;
   birthDate?: string;
   mothersName?: string;
+  eventRole?: string;
+  divisions?: string;
   workDays: string[] | number;
   workDaysList?: string[];
   totalOvertimeHours: number | string;
@@ -100,7 +102,9 @@ export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, 
       case 'name':
         return <div className="payroll-person-name">{item.personName}</div>;
       case 'role':
-        return <div className="payroll-person-type">{item.personType}</div>;
+        return <div className="payroll-person-type">{item.eventRole || item.personType || '—'}</div>;
+      case 'division':
+        return item.divisions || '—';
       case 'cpf':
         return item.cpf || '—';
       case 'rg':

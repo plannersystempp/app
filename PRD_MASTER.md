@@ -44,6 +44,28 @@
  - Impacto:
    - O menu de opções agora é visualmente mais rico e fácil de escanear, oferecendo melhor affordance e clareza sobre as ações secundárias disponíveis, sem comprometer a independência do botão principal "Avaliar".
 
+## [2026-02-06] - feat: Função e Divisão no Relatório do Evento
+ - Mudanças:
+   - Coluna "Função no evento" passa a exibir a função cadastrada na alocação do evento (em vez do tipo do colaborador), com suporte a múltiplas funções.
+   - Adicionada coluna opcional "Divisão" baseada na alocação do evento (suporta múltiplas divisões) e disponível também na exportação.
+ - Arquivos:
+   - `src/services/payrollDataService.ts`
+   - `src/hooks/queries/usePayrollQuery.ts`
+   - `src/components/payroll/types.ts`
+   - `src/components/payroll/PayrollPrintTable.tsx`
+   - `src/components/payroll/payrollReportColumns.ts`
+   - `src/pages/PayrollReportPage.tsx`
+ - Impacto:
+   - Relatório fica alinhado ao contexto do evento (função/divisão) e melhora o uso para credenciamento e gestão operacional.
+
+## [2026-02-06] - perf: Seletor de colunas com edição em lote (menu não fecha ao clicar)
+ - Mudanças:
+   - Dropdown de colunas agora permanece aberto durante marca/desmarca, permitindo escolher tudo e fechar apenas ao final (botão "Fechar").
+ - Arquivos:
+   - `src/components/payroll/PayrollColumnSelector.tsx`
+ - Impacto:
+   - Reduz fricção na configuração do relatório, evitando reabrir o menu a cada mudança.
+
 ## [2026-02-06] - feat: Atalho “Gerar Relatório” no menu do Evento
  - Mudanças:
    - Adicionada ação "Gerar Relatório" no menu (⋮) da página do evento, levando ao relatório do evento (`/app/folha/relatorio/:eventId`).

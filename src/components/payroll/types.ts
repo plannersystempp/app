@@ -25,6 +25,8 @@ export interface PayrollDetails {
   rg?: string;
   birthDate?: string;
   mothersName?: string;
+  eventRole?: string;
+  divisions?: string;
   workDays: number;
   workDaysList?: string[];
   regularHours: number;

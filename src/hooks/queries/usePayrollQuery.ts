@@ -16,7 +16,7 @@ export const payrollKeys = {
  * Centraliza a lógica de cálculo via payrollDataService para garantir SSOT.
  */
 export const usePayrollQuery = (eventId: string) => {
-  const { personnel } = useEnhancedData();
+  const { personnel, divisions } = useEnhancedData();
   const { activeTeam, userRole } = useTeam();
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
 
@@ -48,7 +48,7 @@ export const usePayrollQuery = (eventId: string) => {
         default_overtime_threshold_hours: teamConfig.default_overtime_threshold_hours
       } : undefined;
       
-      return payrollDataService.getEventPayroll(eventId, config, personnel);
+      return payrollDataService.getEventPayroll(eventId, config, personnel, divisions);
     },
     enabled: !!eventId && !!personnel.length,
     staleTime: 60000,

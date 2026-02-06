@@ -88,6 +88,17 @@ export interface TeamOvertimeConfig {
   default_overtime_threshold_hours: number;
 }
 
+type DivisionLookup = {
+  id: string;
+  name: string;
+  event_id: string;
+};
+
+type DivisionsResult = {
+  data: DivisionLookup[] | null;
+  error: unknown | null;
+};
+
 /**
  * Service to centralize payroll data fetching and calculation.
  * Implements the Single Source of Truth for payment status.
@@ -96,10 +107,22 @@ export const payrollDataService = {
   /**
    * Fetches and calculates payroll for a specific event
    */
-  async getEventPayroll(eventId: string, teamConfig?: TeamOvertimeConfig, existingPersonnel?: any[]) {
+  async getEventPayroll(
+    eventId: string,
+    teamConfig?: TeamOvertimeConfig,
+    existingPersonnel?: any[],
+    existingDivisions?: DivisionLookup[]
+  ) {
     console.log('[PayrollService] Fetching data for event:', eventId);
 
-    const [allocationsData, workLogsData, closingsData, paymentsData] = await Promise.all([
+    const divisionsPromise: Promise<DivisionsResult> = existingDivisions && existingDivisions.length > 0
+      ? Promise.resolve({ data: existingDivisions.filter(d => d.event_id === eventId), error: null })
+      : (supabase
+          .from('event_divisions')
+          .select('id, name, event_id')
+          .eq('event_id', eventId) as unknown as Promise<DivisionsResult>);
+
+    const [allocationsData, workLogsData, closingsData, paymentsData, divisionsData] = await Promise.all([
       supabase
         .from('personnel_allocations')
         .select('id, event_id, personnel_id, division_id, team_id, work_days, event_specific_cache, function_name, created_at')
@@ -116,7 +139,8 @@ export const payrollDataService = {
         .from('personnel_payments')
         .select('id, amount, paid_at, notes, created_at, personnel_id, related_events')
         .eq('payment_status', 'paid')
-        .contains('related_events', [eventId])
+        .contains('related_events', [eventId]),
+      divisionsPromise
     ]);
     
     const personnelIds = [...new Set((allocationsData.data || []).map(a => a.personnel_id))];
@@ -157,8 +181,10 @@ export const payrollDataService = {
       payments: (paymentsData.data || []) as RawPersonnelPayment[]
     };
 
+    const divisionLookup = (divisionsData.data || []) as DivisionLookup[];
+
     return {
-      details: this.calculatePayrollDetails(rawData, personnelMap, teamConfig, eventId),
+      details: this.calculatePayrollDetails(rawData, personnelMap, teamConfig, eventId, divisionLookup),
       rawData // Return raw data as well because usePayrollQuery returns it
     };
   },
@@ -324,7 +350,8 @@ export const payrollDataService = {
     },
     personnelMap: Map<string, any>,
     teamConfig: TeamOvertimeConfig | undefined,
-    eventId: string
+    eventId: string,
+    divisions?: DivisionLookup[]
   ): PayrollDetails[] {
     const teamOvertimeConfig = {
       default_convert_overtime_to_daily: teamConfig?.default_convert_overtime_to_daily ?? false,
@@ -340,6 +367,11 @@ export const payrollDataService = {
       acc[personnelId].push(allocation);
       return acc;
     }, {} as Record<string, RawAllocation[]>);
+
+    const divisionNameById = new Map<string, string>();
+    (divisions || []).forEach(d => {
+      if (d?.id && d?.name) divisionNameById.set(d.id, d.name);
+    });
 
     return Object.entries(groupedAllocations).map(([personnelId, allocations]) => {
       const person = personnelMap.get(personnelId);
@@ -434,6 +466,24 @@ export const payrollDataService = {
       const paymentHistory = PayrollCalc.processPaymentHistory(paymentRecords);
       const hasEventCache = PayrollCalc.hasEventSpecificCache(allocationsData);
 
+      const roleNames = Array.from(
+        new Set(
+          allocations
+            .map(a => (a.function_name || '').trim())
+            .filter(v => !!v)
+        )
+      );
+
+      const divisionNames = Array.from(
+        new Set(
+          allocations
+            .map(a => a.division_id)
+            .filter((v): v is string => !!v)
+            .map(divisionId => divisionNameById.get(divisionId) || '')
+            .filter(v => !!v)
+        )
+      );
+
       return {
         id: allocations[0].id,
         personnelId: person.id,
@@ -463,6 +513,8 @@ export const payrollDataService = {
         cpf: person.cpf,
         birthDate: person.birth_date,
         mothersName: person.mothers_name,
+        eventRole: roleNames.length ? roleNames.join(', ') : undefined,
+        divisions: divisionNames.length ? divisionNames.join(', ') : undefined,
         pixKey: person.pix_key_encrypted // Using the same field name convention as types
       };
     }).filter(Boolean) as PayrollDetails[];

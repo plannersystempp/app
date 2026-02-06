@@ -113,7 +113,10 @@ export const PayrollReportPage: React.FC = () => {
             row[key] = item.personName;
             break;
           case 'role':
-            row[key] = item.personType;
+            row[key] = item.eventRole || item.personType || '';
+            break;
+          case 'division':
+            row[key] = item.divisions || '';
             break;
           case 'cpf':
             row[key] = item.cpf || '';
