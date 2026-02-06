@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { formatCurrency } from '@/utils/formatters';
 import { formatPeriodDays, generateDateArray, formatDateBR } from '@/utils/dateUtils';
+import { getDefaultVisiblePayrollReportColumns, type PayrollReportColumnId, getPayrollReportColumnLabel } from './payrollReportColumns';
 
 type EventInfo = {
   name?: string;
@@ -16,6 +17,10 @@ type EventInfo = {
 type PayrollDetail = {
   personName: string;
   personType: string;
+  cpf?: string;
+  rg?: string;
+  birthDate?: string;
+  mothersName?: string;
   workDays: string[] | number;
   workDaysList?: string[];
   totalOvertimeHours: number | string;
@@ -34,9 +39,10 @@ interface PayrollPrintTableProps {
   event?: EventInfo | null;
   details: PayrollDetail[];
   showPartialPaid?: boolean;
+  visibleColumns?: PayrollReportColumnId[];
 }
 
-export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, event, details, showPartialPaid }) => {
+export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, event, details, showPartialPaid, visibleColumns }) => {
   const totalGeral = details.reduce((sum, d) => sum + (d.totalPay || 0), 0);
   const hasPartialPayments = showPartialPaid && details.some(d => (d.paidAmount || 0) > 0 && (d.pendingAmount || 0) > 0);
   const totalPagoParcial = details
@@ -52,6 +58,75 @@ export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, 
       (a.personName || '').localeCompare((b.personName || ''), 'pt-BR', { sensitivity: 'base' })
     );
   }, [details]);
+
+  const columns = visibleColumns && visibleColumns.length ? visibleColumns : getDefaultVisiblePayrollReportColumns();
+
+  const headerClassName = (colId: PayrollReportColumnId) => {
+    if (colId === 'dailyCache' || colId === 'overtimePay' || colId === 'totalPay') return 'payroll-th text-right';
+    if (colId === 'workDays' || colId === 'workDaysCount' || colId === 'overtimeHours') return 'payroll-th text-center';
+    return 'payroll-th';
+  };
+
+  const cellClassName = (colId: PayrollReportColumnId) => {
+    if (colId === 'dailyCache' || colId === 'overtimePay' || colId === 'totalPay') return 'payroll-td text-right';
+    if (colId === 'workDays' || colId === 'workDaysCount' || colId === 'overtimeHours') return 'payroll-td text-center';
+    return 'payroll-td';
+  };
+
+  const renderWorkDays = (item: PayrollDetail) => {
+    const list = item.workDaysList || (Array.isArray(item.workDays) ? (item.workDays as string[]) : undefined);
+    if (list?.length) return formatPeriodDays(list);
+    if (event?.start_date && event?.end_date) {
+      const range = generateDateArray(event.start_date, event.end_date);
+      const count = typeof item.workDays === 'number' ? item.workDays : range.length;
+      return formatPeriodDays(range.slice(0, count));
+    }
+    return '—';
+  };
+
+  const renderWorkDaysCount = (item: PayrollDetail) => {
+    if (typeof item.workDays === 'number') return item.workDays;
+    const list = item.workDaysList || (Array.isArray(item.workDays) ? (item.workDays as string[]) : undefined);
+    if (list?.length) return list.length;
+    if (event?.start_date && event?.end_date) {
+      const range = generateDateArray(event.start_date, event.end_date);
+      return range.length;
+    }
+    return 0;
+  };
+
+  const renderCell = (colId: PayrollReportColumnId, item: PayrollDetail) => {
+    switch (colId) {
+      case 'name':
+        return <div className="payroll-person-name">{item.personName}</div>;
+      case 'role':
+        return <div className="payroll-person-type">{item.personType}</div>;
+      case 'cpf':
+        return item.cpf || '—';
+      case 'rg':
+        return item.rg || '—';
+      case 'birthDate':
+        return item.birthDate ? formatDateBR(item.birthDate) : '—';
+      case 'mothersName':
+        return item.mothersName || '—';
+      case 'dailyCache':
+        return formatCurrency((item.eventSpecificCacheRate ?? item.cacheRate ?? 0) as number);
+      case 'workDays':
+        return renderWorkDays(item);
+      case 'workDaysCount':
+        return renderWorkDaysCount(item);
+      case 'overtimeHours':
+        return item.totalOvertimeHours ?? 0;
+      case 'overtimePay':
+        return formatCurrency(item.overtimePay);
+      case 'totalPay':
+        return formatCurrency(item.totalPay);
+      default:
+        return '—';
+    }
+  };
+
+  const shouldShowFooter = columns.includes('totalPay');
 
   return (
     <div className="payroll-report-page print-section p-8 max-w-[210mm] mx-auto">
@@ -79,64 +154,28 @@ export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, 
         <table className="payroll-table">
           <thead>
             <tr>
-              <th className="payroll-th">Nome</th>
-              <th className="payroll-th text-right">Cachê dia (R$)</th>
-              <th className="payroll-th text-center">Dias de trabalho</th>
-              <th className="payroll-th text-center">Qtd Dias</th>
-              <th className="payroll-th text-center">H. Extras (h)</th>
-              <th className="payroll-th text-right">H. Extras (R$)</th>
-              <th className="payroll-th text-right">Total (R$)</th>
+              {columns.map(colId => (
+                <th key={colId} className={headerClassName(colId)}>{getPayrollReportColumnLabel(colId)}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {detalhesOrdenados.map((item, index) => (
               <tr key={index} className={index % 2 === 0 ? 'payroll-row-even' : 'payroll-row-odd'}>
-                <td className="payroll-td">
-                  <div className="payroll-person-name">{item.personName}</div>
-                  <div className="payroll-person-type">{item.personType}</div>
-                </td>
-                <td className="payroll-td text-right">{formatCurrency((item.eventSpecificCacheRate ?? item.cacheRate ?? 0))}</td>
-                <td className="payroll-td text-center">{
-                  (() => {
-                    const list = item.workDaysList || (Array.isArray(item.workDays) ? item.workDays as string[] : undefined);
-                    if (list?.length) return formatPeriodDays(list);
-                    if (event?.start_date && event?.end_date) {
-                      const range = generateDateArray(event.start_date, event.end_date);
-                      const count = typeof item.workDays === 'number' ? item.workDays : range.length;
-                      return formatPeriodDays(range.slice(0, count));
-                    }
-                    return '—';
-                  })()
-                }</td>
-                <td className="payroll-td text-center">{
-                  (() => {
-                    if (typeof item.workDays === 'number') return item.workDays;
-                    const list = item.workDaysList || (Array.isArray(item.workDays) ? (item.workDays as string[]) : undefined);
-                    if (list?.length) return list.length;
-                    if (event?.start_date && event?.end_date) {
-                      const range = generateDateArray(event.start_date, event.end_date);
-                      return range.length;
-                    }
-                    return 0;
-                  })()
-                }</td>
-                <td className="payroll-td text-center">{item.totalOvertimeHours ?? 0}</td>
-                <td className="payroll-td text-right">{formatCurrency(item.overtimePay)}</td>
-                <td className="payroll-td text-right">{formatCurrency(item.totalPay)}</td>
+                {columns.map(colId => (
+                  <td key={colId} className={cellClassName(colId)}>{renderCell(colId, item)}</td>
+                ))}
               </tr>
             ))}
           </tbody>
-          <tfoot>
-            <tr className="payroll-total-row">
-              <td className="payroll-td font-bold">TOTAL GERAL:</td>
-              <td className="payroll-td"></td>
-              <td className="payroll-td"></td>
-              <td className="payroll-td text-right"></td>
-              <td className="payroll-td text-right"></td>
-              <td className="payroll-td text-right"></td>
-              <td className="payroll-td text-right font-bold">{formatCurrency(totalGeral)}</td>
-            </tr>
-          </tfoot>
+          {shouldShowFooter && (
+            <tfoot>
+              <tr className="payroll-total-row">
+                <td className="payroll-td font-bold" colSpan={Math.max(1, columns.length - 1)}>TOTAL GERAL:</td>
+                <td className="payroll-td text-right font-bold">{formatCurrency(totalGeral)}</td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 

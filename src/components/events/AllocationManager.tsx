@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTeam } from '@/contexts/TeamContext';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -45,6 +46,7 @@ interface AllocationManagerProps {
 
 export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId }) => {
   const { user } = useAuth();
+  const { userRole } = useTeam();
   const { toast } = useToast();
   // Usar workLogs direto do React Query para ter atualizações em tempo real
   const { data: workLogs = [] } = useWorkLogsQuery(); 
@@ -255,8 +257,19 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   };
 
   const handleEditPerson = (person: Personnel) => {
+    const isAdmin = user?.role === 'admin' || user?.role === 'superadmin' || userRole === 'admin' || userRole === 'superadmin';
+    if (!isAdmin) {
+      toast({
+        title: 'Acesso negado',
+        description: 'Somente Administrador pode editar cadastros de pessoal.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setPersonnelToEdit(person);
   };
+
+  const canEditPersonnel = user?.role === 'admin' || user?.role === 'superadmin' || userRole === 'admin' || userRole === 'superadmin';
 
   const toggleDivision = (divisionId: string) => {
     setExpandedDivisions(prev => {
@@ -478,7 +491,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
             onAddAllocation={handleAddAllocation}
             onEditAssignment={handleEditAssignment}
             onEditDivision={handleEditDivision}
-            onEditPerson={handleEditPerson}
+            onEditPerson={canEditPersonnel ? handleEditPerson : undefined}
           />
         );
       })}
@@ -597,7 +610,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
               onLaunchHours={handleLaunchHours}
               onEditAssignment={handleEditAssignment}
               onDeleteAssignment={(assignmentId) => deleteAssignment(assignmentId)}
-              onEditPerson={handleEditPerson}
+              onEditPerson={canEditPersonnel ? handleEditPerson : undefined}
             />
           </div>
         ) : (

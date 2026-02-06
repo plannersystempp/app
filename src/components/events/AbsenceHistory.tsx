@@ -16,6 +16,7 @@ interface AbsenceHistoryDetail {
   work_date: string;
   notes?: string;
   created_at: string;
+  date_logged?: string;
   logged_by_id?: string;
   logged_by_name?: string;
   personnel_name: string;
@@ -37,6 +38,7 @@ const fetchEventAbsenceHistory = async (eventId: string, teamId: string): Promis
       work_date,
       notes,
       created_at,
+      date_logged,
       logged_by_id,
       employee_id,
       personnel:employee_id(
@@ -84,6 +86,7 @@ const fetchEventAbsenceHistory = async (eventId: string, teamId: string): Promis
       work_date: log.work_date || '',
       notes: log.notes || '',
       created_at: log.created_at || '',
+      date_logged: log.date_logged || '',
       logged_by_id: log.logged_by_id || '',
       logged_by_name: (log.user_profiles as any)?.name || 'Sistema',
       personnel_name: (log.personnel as any)?.name || 'Desconhecido',
@@ -263,9 +266,9 @@ export const AbsenceHistory: React.FC<AbsenceHistoryProps> = ({ eventId }) => {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <User className="w-3 h-3" />
-                      <span>Por: {absence.logged_by_name}</span>
+                      <span>Falta registrada por {absence.logged_by_name}</span>
                       <span className="text-xs">
-                        • {formatDateTime(absence.created_at)}
+                        • {formatDateTime(absence.date_logged || absence.created_at)}
                       </span>
                     </div>
 

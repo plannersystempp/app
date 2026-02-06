@@ -150,6 +150,7 @@ export interface WorkRecord {
   total_pay: number;
   created_at: string;
   logged_by_id?: string;
+  logged_by_name?: string | null;
   date_logged?: string;
 }
 

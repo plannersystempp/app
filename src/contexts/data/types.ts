@@ -23,6 +23,9 @@ export interface Personnel {
   phone?: string;
   phone_secondary?: string;
   cpf?: string;
+  rg?: string;
+  birth_date?: string;
+  mothers_name?: string;
   cnpj?: string;
   type: 'fixo' | 'freelancer';
   monthly_salary: number;

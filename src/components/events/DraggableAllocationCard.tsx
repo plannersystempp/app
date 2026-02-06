@@ -145,15 +145,21 @@ export const DraggableAllocationCard: React.FC<DraggableAllocationCardProps> = (
               <User className="w-4 h-4 sm:w-3 sm:h-3 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <button
-                type="button"
-                className="font-medium text-xs sm:text-sm break-words hover:underline text-left cursor-pointer leading-tight"
-                onClick={(e) => handleAction(e, () => {
-                  if (person && onEditPerson) onEditPerson(person);
-                })}
-              >
-                {person ? getSimplifiedName(person.name) : 'Pessoa não encontrada'}
-              </button>
+              {onEditPerson ? (
+                <button
+                  type="button"
+                  className="font-medium text-xs sm:text-sm break-words hover:underline text-left cursor-pointer leading-tight"
+                  onClick={(e) => handleAction(e, () => {
+                    if (person) onEditPerson(person);
+                  })}
+                >
+                  {person ? getSimplifiedName(person.name) : 'Pessoa não encontrada'}
+                </button>
+              ) : (
+                <div className="font-medium text-xs sm:text-sm break-words text-left leading-tight">
+                  {person ? getSimplifiedName(person.name) : 'Pessoa não encontrada'}
+                </div>
+              )}
               <div className="text-[10px] sm:text-xs text-muted-foreground break-words leading-tight mt-0.5">
                 {assignment.function_name}
               </div>

@@ -11,7 +11,7 @@ import { exportToCSV, exportToPDF } from '@/utils/exportUtils';
 import { useToast } from '@/hooks/use-toast';
 
 interface ExportDropdownProps {
-  data: any[];
+  data: Array<Record<string, unknown>>;
   headers?: string[];
   filename: string;
   title: string;
@@ -29,7 +29,8 @@ export const ExportDropdown: React.FC<ExportDropdownProps> = ({
 
   const handleExportCSV = () => {
     try {
-      exportToCSV(data, filename);
+      const csvHeaders = headers || (data.length > 0 ? Object.keys(data[0]) : []);
+      exportToCSV(data, filename, csvHeaders);
       toast({
         title: "Sucesso",
         description: "Dados exportados para CSV com sucesso",

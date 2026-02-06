@@ -7,6 +7,7 @@ import { useUrlState } from '@/hooks/useUrlState';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatDateBR } from '@/utils/dateUtils';
 import { formatTimeRange, getExpectedWorkHours } from '@/utils/allocationUtils';
+import { formatDateTime } from '@/utils/formatters';
 import { cn } from '@/lib/utils';
 import { PaginationControl } from '@/components/shared/PaginationControl';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -32,7 +33,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Calendar, CheckCircle2, Filter, Search, Users, X, XCircle } from 'lucide-react';
+import { Calendar, CheckCircle2, Filter, Info, Search, Users, X, XCircle } from 'lucide-react';
 
 interface DailyAttendanceListProps {
   eventId: string;
@@ -453,10 +454,10 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
             <table className="w-full text-sm table-fixed">
               <thead className="bg-muted/50 text-left">
                 <tr>
-                  <th className="p-2 sm:p-4 font-medium w-[60%] sm:w-[45%]">Profissional</th>
-                  <th className="p-2 sm:p-4 font-medium hidden sm:table-cell w-[20%]">Divisão</th>
-                  <th className="p-2 sm:p-4 font-medium hidden sm:table-cell text-center w-[25%]">Entrada/Saída</th>
-                  <th className="p-2 sm:p-4 font-medium text-right w-[40%] sm:w-[10%] lg:w-[12%]">Ações</th>
+                  <th className="p-2 sm:p-4 font-medium w-[60%] sm:w-[40%] lg:w-[25%]">Profissional</th>
+                  <th className="p-2 sm:p-4 font-medium hidden sm:table-cell w-[15%]">Divisão</th>
+                  <th className="p-2 sm:p-4 font-medium hidden sm:table-cell text-center w-[30%]">Entrada/Saída</th>
+                  <th className="p-2 sm:p-4 font-medium text-right w-[40%] sm:w-[15%] lg:w-[30%]">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -471,6 +472,23 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                     const times = getDisplayedTimes(person);
                     const computed = computeHoursFromTimes(times.checkIn, times.checkOut);
                     const timeLabel = (times.checkIn || times.checkOut) ? `${times.checkIn || '--:--'} - ${times.checkOut || '--:--'}` : person.formattedTime;
+
+                    const auditBy = person.workLog?.logged_by_name || 'Sistema';
+                    const auditAtRaw = person.workLog?.date_logged || person.workLog?.created_at || '';
+                    const auditAt = formatDateTime(auditAtRaw);
+                    const hasPersistedOvertime = Number(person.workLog?.overtime_hours || 0) > 0;
+                    const auditLines: string[] = [];
+                    if (auditAt) {
+                      if (person.status === 'present') {
+                        auditLines.push(`Presença confirmada por ${auditBy} em ${auditAt}`);
+                      }
+                      if (person.status === 'absent') {
+                        auditLines.push(`Falta registrada por ${auditBy} em ${auditAt}`);
+                      }
+                      if (hasPersistedOvertime) {
+                        auditLines.push(`Hora extra registrada por ${auditBy} em ${auditAt}`);
+                      }
+                    }
                     return (
                       <tr key={person.id} className="border-t hover:bg-muted/30 transition-colors">
                         <td className="p-2 sm:p-4">
@@ -539,7 +557,7 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                           )}
                         </td>
                         <td className="p-2 sm:p-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5 lg:gap-2">
+                          <div className="flex items-center justify-end gap-2 lg:gap-3">
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -587,6 +605,30 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
+
+                            {auditLines.length > 0 && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 p-0"
+                                      type="button"
+                                    >
+                                      <Info className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-[320px]">
+                                    <div className="space-y-1">
+                                      {auditLines.map((line, idx) => (
+                                        <p key={idx} className="text-xs">{line}</p>
+                                      ))}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
                           </div>
                         </td>
                       </tr>

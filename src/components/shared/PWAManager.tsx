@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePWA } from '@/hooks/usePWA';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +15,18 @@ import {
 export const PWAManager = () => {
   const { isInstallable, swUpdateAvailable, promptInstall, reloadApp } = usePWA();
   const { toast } = useToast();
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (isInstallable) {
+      setShowInstallPrompt(true);
+      const timer = setTimeout(() => {
+        setShowInstallPrompt(false);
+      }, 15000); // 15 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [isInstallable]);
 
   const handleInstall = async () => {
     try {
@@ -43,8 +55,8 @@ export const PWAManager = () => {
   return (
     <>
       {/* Install Prompt */}
-      {isInstallable && (
-        <Dialog>
+      {isInstallable && (showInstallPrompt || isDialogOpen) && (
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button
               variant="outline"

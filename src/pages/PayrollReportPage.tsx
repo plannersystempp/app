@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useTeam } from '@/contexts/TeamContext';
@@ -7,6 +7,12 @@ import { ArrowLeft, Printer, Calendar } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatters';
 import { usePayrollData } from '@/components/payroll/usePayrollData';
 import { PayrollPrintTable } from '@/components/payroll/PayrollPrintTable';
+import { ExportDropdown } from '@/components/shared/ExportDropdown';
+import { PayrollColumnSelector } from '@/components/payroll/PayrollColumnSelector';
+import { safeLocalStorage } from '@/utils/safeStorage';
+import { getPayrollReportColumnLabel, getDefaultVisiblePayrollReportColumns, sanitizePayrollReportColumns, type PayrollReportColumnId } from '@/components/payroll/payrollReportColumns';
+import { formatPeriodDays, generateDateArray, formatDateBR } from '@/utils/dateUtils';
+import type { PayrollDetails } from '@/components/payroll/types';
 
 export const PayrollReportPage: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -35,14 +41,6 @@ export const PayrollReportPage: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
   const totalGeral = payrollDetails.reduce((sum, item) => sum + item.totalPay, 0);
   // Exibir "Pago (parcial)" APENAS quando há valor pago e ainda há pendência
   const hasPartialPayments = payrollDetails.some(
@@ -52,6 +50,114 @@ export const PayrollReportPage: React.FC = () => {
     .filter((item) => (item.paidAmount || 0) > 0 && (item.pendingAmount || 0) > 0)
     .reduce((sum, item) => sum + (item.paidAmount || 0), 0);
   const totalPendente = payrollDetails.reduce((sum, item) => sum + (item.pendingAmount || 0), 0);
+
+  const columnsStorageKey = activeTeam?.id ? `payroll-report-columns:${activeTeam.id}` : 'payroll-report-columns';
+  const [visibleColumns, setVisibleColumns] = useState<PayrollReportColumnId[]>(() => {
+    const raw = safeLocalStorage.getItem(columnsStorageKey);
+    if (!raw) return getDefaultVisiblePayrollReportColumns();
+    try {
+      return sanitizePayrollReportColumns(JSON.parse(raw));
+    } catch {
+      return getDefaultVisiblePayrollReportColumns();
+    }
+  });
+
+  useEffect(() => {
+    const raw = safeLocalStorage.getItem(columnsStorageKey);
+    if (!raw) {
+      setVisibleColumns(getDefaultVisiblePayrollReportColumns());
+      return;
+    }
+    try {
+      setVisibleColumns(sanitizePayrollReportColumns(JSON.parse(raw)));
+    } catch {
+      setVisibleColumns(getDefaultVisiblePayrollReportColumns());
+    }
+  }, [columnsStorageKey]);
+
+  useEffect(() => {
+    safeLocalStorage.setItem(columnsStorageKey, JSON.stringify(visibleColumns));
+  }, [columnsStorageKey, visibleColumns]);
+
+  const exportHeaders = useMemo(() => visibleColumns.map(getPayrollReportColumnLabel), [visibleColumns]);
+
+  const exportData = useMemo(() => {
+    const renderWorkDays = (item: PayrollDetails) => {
+      const list = item.workDaysList || undefined;
+      if (list?.length) return formatPeriodDays(list);
+      if (selectedEvent?.start_date && selectedEvent?.end_date) {
+        const range = generateDateArray(selectedEvent.start_date, selectedEvent.end_date);
+        const count = typeof item.workDays === 'number' ? item.workDays : range.length;
+        return formatPeriodDays(range.slice(0, count));
+      }
+      return '—';
+    };
+
+    const renderWorkDaysCount = (item: PayrollDetails) => {
+      if (typeof item.workDays === 'number') return item.workDays;
+      const list = item.workDaysList || undefined;
+      if (list?.length) return list.length;
+      if (selectedEvent?.start_date && selectedEvent?.end_date) {
+        const range = generateDateArray(selectedEvent.start_date, selectedEvent.end_date);
+        return range.length;
+      }
+      return 0;
+    };
+
+    return payrollDetails.map((item) => {
+      const row: Record<string, string | number> = {};
+      for (const colId of visibleColumns) {
+        const key = getPayrollReportColumnLabel(colId);
+        switch (colId) {
+          case 'name':
+            row[key] = item.personName;
+            break;
+          case 'role':
+            row[key] = item.personType;
+            break;
+          case 'cpf':
+            row[key] = item.cpf || '';
+            break;
+          case 'rg':
+            row[key] = item.rg || '';
+            break;
+          case 'birthDate':
+            row[key] = item.birthDate ? formatDateBR(item.birthDate) : '';
+            break;
+          case 'mothersName':
+            row[key] = item.mothersName || '';
+            break;
+          case 'dailyCache':
+            row[key] = formatCurrency((item.eventSpecificCacheRate ?? item.cacheRate ?? 0) as number);
+            break;
+          case 'workDays':
+            row[key] = renderWorkDays(item);
+            break;
+          case 'workDaysCount':
+            row[key] = renderWorkDaysCount(item);
+            break;
+          case 'overtimeHours':
+            row[key] = item.totalOvertimeHours ?? 0;
+            break;
+          case 'overtimePay':
+            row[key] = formatCurrency(item.overtimePay);
+            break;
+          case 'totalPay':
+            row[key] = formatCurrency(item.totalPay);
+            break;
+        }
+      }
+      return row;
+    });
+  }, [payrollDetails, visibleColumns, selectedEvent]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -278,12 +384,22 @@ export const PayrollReportPage: React.FC = () => {
       `}</style>
 
       {/* Botões de ação - ocultos na impressão */}
-      <div className="no-print sticky top-0 z-10 bg-background border-b p-4 flex justify-between">
+      <div className="no-print sticky top-0 z-10 bg-background border-b p-4 flex flex-col sm:flex-row gap-3 sm:gap-2 sm:items-center sm:justify-between">
         <Button onClick={handleBack} variant="outline">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Voltar
         </Button>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <div className="flex gap-2">
+            <PayrollColumnSelector visibleColumns={visibleColumns} onChange={setVisibleColumns} disabled={loading || payrollDetails.length === 0} />
+            <ExportDropdown
+              data={exportData}
+              headers={exportHeaders}
+              filename={`relatorio_evento_${eventId || 'evento'}`}
+              title={`Relatório do Evento${selectedEvent?.name ? ` - ${selectedEvent.name}` : ''}`}
+              disabled={loading || payrollDetails.length === 0}
+            />
+          </div>
           {selectedEvent && (
             <Button onClick={handleGoToEvent} variant="secondary">
               <Calendar className="w-4 h-4 mr-2" />
@@ -301,9 +417,10 @@ export const PayrollReportPage: React.FC = () => {
       {/* Conteúdo do relatório */}
       <PayrollPrintTable
         teamName={activeTeam?.name}
-        event={selectedEvent as any}
-        details={payrollDetails as any}
+        event={selectedEvent ?? null}
+        details={payrollDetails}
         showPartialPaid={true}
+        visibleColumns={visibleColumns}
       />
     </div>
   );

@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, RefObject } from 'react';
 
 interface ScrollNavigationState {
   showScrollToTop: boolean;
-  showScrollToBottom: boolean;
 }
 
 /**
@@ -12,14 +11,13 @@ interface ScrollNavigationState {
 export const useScrollNavigation = (scrollContainerRef: RefObject<HTMLElement>) => {
   const [state, setState] = useState<ScrollNavigationState>({
     showScrollToTop: false,
-    showScrollToBottom: false,
   });
 
   const checkScrollPosition = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) {
       // Se o container não existe, esconde os botões
-      setState({ showScrollToTop: false, showScrollToBottom: false });
+      setState({ showScrollToTop: false });
       return;
     }
 
@@ -27,16 +25,14 @@ export const useScrollNavigation = (scrollContainerRef: RefObject<HTMLElement>) 
     const isScrollable = scrollHeight > clientHeight + 5; // Margem de 5px
 
     if (!isScrollable) {
-      setState({ showScrollToTop: false, showScrollToBottom: false });
+      setState({ showScrollToTop: false });
       return;
     }
 
     const isNearTop = scrollTop <= 50;
-    const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
-
+    
     setState({
       showScrollToTop: !isNearTop,
-      showScrollToBottom: !isNearBottom,
     });
   }, [scrollContainerRef]);
 
@@ -66,9 +62,5 @@ export const useScrollNavigation = (scrollContainerRef: RefObject<HTMLElement>) 
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [scrollContainerRef]);
 
-  const scrollToBottom = useCallback(() => {
-    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' });
-  }, [scrollContainerRef]);
-
-  return { ...state, scrollToTop, scrollToBottom };
+  return { ...state, scrollToTop };
 };

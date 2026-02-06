@@ -46,7 +46,7 @@ export const ManagePersonnel: React.FC = () => {
   // Hook de sincronização em tempo real
   usePersonnelRealtime();
   const { user } = useAuth();
-  const { activeTeam } = useTeam();
+  const { activeTeam, userRole } = useTeam();
   const isMobile = useIsMobile();
   const [showForm, setShowForm] = useState(false);
   const [editingPersonnel, setEditingPersonnel] = useState<Personnel | null>(null);
@@ -165,6 +165,8 @@ export const ManagePersonnel: React.FC = () => {
 
   // Handle actions
   const handleEdit = (person: Personnel) => {
+    const isAdmin = user?.role === 'admin' || user?.role === 'superadmin' || userRole === 'admin' || userRole === 'superadmin';
+    if (!isAdmin) return;
     setEditingPersonnel(person);
     setShowForm(true);
   };
@@ -183,14 +185,9 @@ export const ManagePersonnel: React.FC = () => {
     }
   };
 
-  const isAdminOrCoordinator = user?.role === 'admin' || user?.role === 'coordinator';
-  
-  // Debug: Log user role
-  useEffect(() => {
-    console.log('[ManagePersonnel] User:', user);
-    console.log('[ManagePersonnel] User role:', user?.role);
-    console.log('[ManagePersonnel] isAdminOrCoordinator:', isAdminOrCoordinator);
-  }, [user, isAdminOrCoordinator]);
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin' || userRole === 'admin' || userRole === 'superadmin';
+  const isCoordinator = user?.role === 'coordinator' || userRole === 'coordinator';
+  const canCreatePersonnel = isAdmin || isCoordinator;
 
   const handleAddPersonnel = async () => {
     if (!activeTeam) return;
@@ -245,7 +242,7 @@ export const ManagePersonnel: React.FC = () => {
             disabled={personnel.length === 0}
           />
         </div>
-        {isAdminOrCoordinator && (
+        {canCreatePersonnel && (
           <Button onClick={handleAddPersonnel} className="order-1 sm:order-2 w-full sm:w-auto" size="default">
             <Plus className="w-4 h-4 mr-2" />
             Cadastrar Pessoa
@@ -284,7 +281,7 @@ export const ManagePersonnel: React.FC = () => {
         </div>
       </div>
 
-      {personnel.length === 0 && !isLoading ? <EmptyState icon={<Users className="w-12 h-12" />} title="Nenhuma pessoa encontrada" description={searchTerm || filterType !== 'all' || filterFunction !== 'all' ? "Tente ajustar os filtros de busca" : "Cadastre a primeira pessoa para começar"} action={isAdminOrCoordinator ? {
+      {personnel.length === 0 && !isLoading ? <EmptyState icon={<Users className="w-12 h-12" />} title="Nenhuma pessoa encontrada" description={searchTerm || filterType !== 'all' || filterFunction !== 'all' ? "Tente ajustar os filtros de busca" : "Cadastre a primeira pessoa para começar"} action={canCreatePersonnel ? {
       label: "Cadastrar Primeira Pessoa",
       onClick: () => setShowForm(true)
     } : undefined} /> : <div className="w-full space-y-4">
@@ -295,8 +292,8 @@ export const ManagePersonnel: React.FC = () => {
             isLoading={isLoading}
             onEdit={handleEdit} 
             onDelete={handleDelete} 
-            canEdit={() => isAdminOrCoordinator}
-            onRate={isAdminOrCoordinator ? handleRating : undefined}
+            canEdit={() => isAdmin}
+            onRate={canCreatePersonnel ? handleRating : undefined}
           />
 
           {totalPages > 1 && (

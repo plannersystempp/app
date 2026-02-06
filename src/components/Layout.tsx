@@ -18,7 +18,7 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const mainRef = useRef<HTMLElement>(null);
-  const { showScrollToTop, showScrollToBottom, scrollToTop, scrollToBottom } = 
+  const { showScrollToTop, scrollToTop } = 
     useScrollNavigation(mainRef);
   const { activeTeam } = useTeam();
 
@@ -125,9 +125,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </main>
           <ScrollNavigationButtons 
             showScrollToTop={showScrollToTop}
-            showScrollToBottom={showScrollToBottom}
             scrollToTop={scrollToTop}
-            scrollToBottom={scrollToBottom}
           />
           {/* Menu inferior móvel com rotas principais */}
           <AppMobileBottomNav />

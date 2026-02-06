@@ -1,3 +1,122 @@
+## [2026-02-06] - fix: Polimento Visual do Menu de Ações (Dark Mode e Detalhes)
+ - Mudanças:
+   - `src/components/events/EventDetail.tsx`:
+     - Refinado o design do `DropdownMenu` para corresponder exatamente ao mockup solicitado (tema escuro/popover):
+       - Ícones agora usam contornos brancos (`text-white`) sobre fundo translúcido escuro (`bg-white/5`), com borda sutil.
+       - Títulos dos itens em branco semibold, subtítulos em cinza claro (`text-muted-foreground`).
+       - Botão "Avaliar" com fundo branco e texto preto (alto contraste) para destaque máximo.
+       - Adicionado efeito de hover/focus consistente em todo o menu.
+       - Ajustado espaçamento e alinhamento para uma experiência mais "premium".
+ - Arquivos:
+   - `src/components/events/EventDetail.tsx`
+ - Impacto:
+   - Interface mais sofisticada e com melhor hierarquia visual, facilitando a identificação rápida das ações e melhorando a percepção de qualidade do produto.
+
+## [2026-02-06] - fix: Melhoria UX no botão de Instalar App (PWA)
+ - Mudanças:
+   - `src/components/shared/PWAManager.tsx`:
+     - Adicionado temporizador de 15 segundos para ocultar automaticamente o botão "Instalar App" após aparecer.
+     - Botão permanece visível se o usuário abrir o diálogo de instalação, desaparecendo apenas se o diálogo for fechado após o tempo limite.
+ - Arquivos:
+   - `src/components/shared/PWAManager.tsx`
+ - Impacto:
+   - Reduz a intrusão visual do prompt de instalação, atendendo ao feedback de que "não deve ficar o tempo todo na tela", mantendo a disponibilidade inicial.
+
+## [2026-02-06] - fix: Melhoria visual do Menu de Ações (Split Button)
+ - Mudanças:
+   - `src/components/events/EventDetail.tsx`:
+     - Implementado padrão "Split Button" na barra de ações desktop: botão "Avaliar" e menu "..." agora formam um bloco visual único quando ambos estão visíveis.
+     - Botões agora compartilham bordas internas (`rounded-r-none` / `rounded-l-none`) e variante de cor, com uma linha separadora sutil.
+     - Ajuste condicional para manter o botão de menu arredondado quando a ação "Avaliar" não está disponível.
+ - Arquivos:
+   - `src/components/events/EventDetail.tsx`
+ - Impacto:
+   - Interface mais coesa e moderna ("ligando os pontos"), dando o devido destaque à ação principal e suas opções secundárias sem desconexão visual.
+
+## [2026-02-06] - fix: Reverter Split Button e Melhorar Itens do Menu (UX)
+ - Mudanças:
+   - `src/components/events/EventDetail.tsx`:
+     - Revertida a junção dos botões "Avaliar" e Menu (Split Button) pois a usabilidade não agradou. Voltaram a ser botões independentes com espaçamento.
+     - Melhorado o conteúdo do `DropdownMenu`: agora os itens (Folha, Imprimir, Editar) possuem ícones com destaque (fundo colorido suave), títulos e descrições curtas para melhor contexto e clicabilidade.
+     - Aumentada a largura do menu para acomodar o novo layout rico.
+ - Arquivos:
+   - `src/components/events/EventDetail.tsx`
+ - Impacto:
+   - O menu de opções agora é visualmente mais rico e fácil de escanear, oferecendo melhor affordance e clareza sobre as ações secundárias disponíveis, sem comprometer a independência do botão principal "Avaliar".
+
+## [2026-02-06] - feat: Atalho “Gerar Relatório” no menu do Evento
+ - Mudanças:
+   - Adicionada ação "Gerar Relatório" no menu (⋮) da página do evento, levando ao relatório do evento (`/app/folha/relatorio/:eventId`).
+ - Arquivos:
+   - `src/components/events/EventDetail.tsx`
+ - Impacto:
+   - Acesso rápido ao relatório de pessoal/folha direto da página do evento, sem precisar navegar pela Folha primeiro.
+
+## [2026-02-06] - feat: Relatório de Pessoal Personalizável (Colunas Dinâmicas)
+ - Mudanças:
+   - Banco: aplicada migration para adicionar `cpf`, `rg`, `mothers_name` e `birth_date` em `personnel` (compatível com zero-downtime).
+   - UI: adicionado seletor de colunas no relatório por evento e a tabela passou a renderizar colunas dinamicamente (inclui CPF/RG/Nascimento/Nome da Mãe).
+   - Exportação: CSV/PDF passam a respeitar a seleção de colunas; PDF ajusta orientação quando há muitas colunas.
+ - Arquivos:
+   - `supabase/migrations/20260205_add_personnel_sensitive_fields.sql`
+   - `src/pages/PayrollReportPage.tsx`
+   - `src/components/payroll/PayrollPrintTable.tsx`
+   - `src/components/payroll/PayrollColumnSelector.tsx`
+   - `src/components/payroll/payrollReportColumns.ts`
+   - `src/utils/exportUtils.ts`
+   - `src/components/shared/ExportDropdown.tsx`
+   - `src/components/payroll/types.ts`
+   - `src/contexts/data/types.ts`
+ - Impacto:
+   - Gestores podem configurar quais campos visualizar e exportar no relatório do evento, com atualização imediata e export consistente com a seleção.
+
+## [2026-02-06] - fix: Ajuste no Modal de Detalhes do Evento (Remoção de Ações e Cronograma Fixo)
+ - Mudanças:
+   - `src/components/events/EventDetail.tsx`:
+     - Removida a seção "Ações" que estava dentro do Accordion (duplicada de menus de contexto e ações desktop).
+     - Alterada a seção "Cronograma" de Accordion colapsável para um bloco estático sempre visível (fixado expandido).
+     - Removida importação não utilizada de componentes Accordion.
+ - Arquivos:
+   - `src/components/events/EventDetail.tsx`
+ - Impacto:
+   - Simplificação da interface do modal de detalhes, focando na visualização direta das informações de cronograma sem necessidade de clique extra, e removendo redundância de ações.
+
+## [2026-02-06] - feat: Rastreabilidade visível (Autor) em Avaliações, Presença, Faltas e Hora Extra
+ - Mudanças:
+   - Banco: `work_records` passa a atualizar `logged_by_id/date_logged` também em updates relevantes (presença/falta/horários/HE/notas) e `freelancer_ratings` ganha defaults de autoria; criada view `freelancer_ratings_enriched` já retornando `rated_by_name`.
+   - UI: lista de presença exibe autoria em tooltip discreto (presença/falta/HE); histórico de faltas exibe “Falta registrada por {Nome} em {Data/Hora}”; avaliação de freelancer mostra popover com histórico de avaliadores (nome + data/hora + nota).
+ - Arquivos:
+   - `supabase/migrations/add_action_audit_visibility.sql`
+   - `src/hooks/queries/useWorkLogsQuery.ts`
+   - `src/contexts/EnhancedDataContext.tsx`
+   - `src/components/events/EventDailyAttendance.tsx`
+   - `src/components/events/AbsenceHistory.tsx`
+   - `src/components/personnel/FreelancerRating.tsx`
+ - Impacto:
+   - A equipe passa a enxergar claramente “quem fez” e “quando” nas ações operacionais críticas, com baixo ruído visual e sem depender de lookup manual por ID.
+
+## [2026-02-06] - fix: Bloquear edição de cadastro via lista de Alocação
+ - Mudanças:
+   - Removido o clique no nome do profissional (lista/cads de alocação) como atalho para abrir edição quando o usuário não é Admin.
+   - Adicionada defesa no `PersonnelForm` para fechar imediatamente se alguém tentar abrir edição sem permissão.
+ - Arquivos:
+   - `src/components/events/AllocationManager.tsx`
+   - `src/components/events/AllocationListView.tsx`
+   - `src/components/events/DraggableAllocationCard.tsx`
+   - `src/components/personnel/PersonnelForm.tsx`
+ - Impacto:
+   - Coordenador não consegue mais abrir a edição de cadastro de pessoal a partir de telas de alocação.
+
+## [2026-02-06] - fix: Restringir edição de Pessoal apenas para Administrador
+ - Mudanças:
+   - Removido o acesso de Coordenador ao acionamento de edição de pessoal (ícone de lápis) e adicionada guarda para impedir abertura do modal via handler.
+   - Endurecida a segurança no banco: apenas Admin/Superadmin podem alterar vínculos em `personnel_functions` (INSERT/UPDATE/DELETE), mantendo leitura para membros.
+ - Arquivos:
+   - `src/components/personnel/ManagePersonnel.tsx`
+   - `supabase/migrations/restrict_personnel_functions_admin_only.sql`
+ - Impacto:
+   - Coordenadores não conseguem mais abrir o modal “Editar Profissional” nem editar/excluir cadastros; mudanças ficam restritas ao Administrador.
+
 ## [2026-02-06] - fix: Ajuste de navegação e texto do botão voltar na Folha de Pagamento
  - Mudanças:
    - Alterado o comportamento do botão "Voltar" na tela `PayrollEventView` para usar navegação baseada em histórico (`navigate(-1)`) em vez de rota fixa.
@@ -17,6 +136,18 @@
    - `src/components/events/EventDetail.tsx`
  - Impacto:
    - Ações do evento ficam mais limpas e priorizadas, reduzindo ruído visual no cabeçalho sem perder atalhos importantes.
+
+## [2026-02-06] - fix: Remover botão de Scroll para o Fundo (UI Cleaner)
+ - Mudanças:
+   - `src/components/shared/ScrollNavigationButtons.tsx`: Removido o botão circular com seta para baixo (ArrowDown) que servia para rolar até o final da página.
+   - `src/hooks/useScrollNavigation.ts`: Removida lógica de detecção de scroll para o fundo e função `scrollToBottom`.
+   - `src/components/Layout.tsx`: Removida passagem de props obsoletas.
+ - Arquivos:
+   - `src/components/shared/ScrollNavigationButtons.tsx`
+   - `src/hooks/useScrollNavigation.ts`
+   - `src/components/Layout.tsx`
+ - Impacto:
+   - Remove elemento visual flutuante desnecessário (botão de seta para baixo) da interface, atendendo à solicitação de limpeza visual.
 
 ## [2026-02-05] - fix: Drag & Drop mobile (PWA) na Alocação de Pessoal
  - Mudanças:

@@ -19,11 +19,23 @@ export const workLogsKeys = {
 const fetchWorkLogs = async (teamId: string): Promise<WorkRecord[]> => {
   const { data, error } = await supabase
     .from('work_records')
-    .select('*')
+    .select(`
+      *,
+      user_profiles:logged_by_id(
+        name
+      )
+    `)
     .eq('team_id', teamId);
 
   if (error) throw error;
-  return (data || []) as WorkRecord[];
+
+  return (data || []).map((row: any) => {
+    const { user_profiles, ...workRecord } = row || {};
+    return {
+      ...(workRecord as WorkRecord),
+      logged_by_name: user_profiles?.name ?? null,
+    };
+  }) as WorkRecord[];
 };
 
 // Hook to get work logs for the active team

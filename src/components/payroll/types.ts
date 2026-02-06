@@ -21,6 +21,10 @@ export interface PayrollDetails {
   personnelId: string;
   personName: string;
   personType: string;
+  cpf?: string;
+  rg?: string;
+  birthDate?: string;
+  mothersName?: string;
   workDays: number;
   workDaysList?: string[];
   regularHours: number;

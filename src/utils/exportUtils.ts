@@ -1,17 +1,18 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-export const exportToCSV = (data: any[], filename: string) => {
+export const exportToCSV = (data: Array<Record<string, unknown>>, filename: string, headers?: string[]) => {
   if (!data || data.length === 0) {
     throw new Error('Nenhum dado para exportar');
   }
 
-  // Extrair cabeçalhos
-  const headers = Object.keys(data[0]).join(',');
+  const csvHeaders = headers && headers.length > 0 ? headers : Object.keys(data[0]);
+  const headerLine = csvHeaders.join(',');
   
   // Converter dados para CSV
   const csvContent = data.map(row => 
-    Object.values(row).map(value => {
+    csvHeaders.map(header => {
+      const value = row?.[header];
       // Tratar valores nulos ou indefinidos
       if (value === null || value === undefined) return '';
       
@@ -24,7 +25,7 @@ export const exportToCSV = (data: any[], filename: string) => {
     }).join(',')
   ).join('\n');
 
-  const csv = `${headers}\n${csvContent}`;
+  const csv = `${headerLine}\n${csvContent}`;
   
   // Criar e baixar arquivo
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -39,12 +40,13 @@ export const exportToCSV = (data: any[], filename: string) => {
   URL.revokeObjectURL(url);
 };
 
-export const exportToPDF = (data: any[], headers: string[], title: string, filename: string) => {
+export const exportToPDF = (data: Array<Record<string, unknown>>, headers: string[], title: string, filename: string) => {
   if (!data || data.length === 0) {
     throw new Error('Nenhum dado para exportar');
   }
 
-  const pdf = new jsPDF();
+  const orientation = headers.length > 7 ? 'landscape' : 'portrait';
+  const pdf = new jsPDF({ orientation });
   
   // Adicionar título
   pdf.setFontSize(16);
@@ -70,6 +72,7 @@ export const exportToPDF = (data: any[], headers: string[], title: string, filen
     styles: {
       fontSize: 8,
       cellPadding: 2,
+      overflow: 'linebreak',
     },
     headStyles: {
       fillColor: [41, 128, 185],

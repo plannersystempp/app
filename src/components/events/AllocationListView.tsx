@@ -104,15 +104,21 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
                             <User className="w-4 h-4 md:w-5 md:h-5 text-primary" />
                           </div>
                           <div>
-                            <button
-                              type="button"
-                              className="font-medium text-xs md:text-sm hover:underline text-left cursor-pointer"
-                              onClick={() => {
-                                if (person && onEditPerson) onEditPerson(person);
-                              }}
-                            >
-                              {person ? getSimplifiedName(person.name) : 'Pessoa não encontrada'}
-                            </button>
+                            {onEditPerson ? (
+                              <button
+                                type="button"
+                                className="font-medium text-xs md:text-sm hover:underline text-left cursor-pointer"
+                                onClick={() => {
+                                  if (person) onEditPerson(person);
+                                }}
+                              >
+                                {person ? getSimplifiedName(person.name) : 'Pessoa não encontrada'}
+                              </button>
+                            ) : (
+                              <div className="font-medium text-xs md:text-sm text-left">
+                                {person ? getSimplifiedName(person.name) : 'Pessoa não encontrada'}
+                              </div>
+                            )}
                             <div className="text-xs text-muted-foreground capitalize">
                               {person?.type}
                             </div>
@@ -216,15 +222,21 @@ export const AllocationListView: React.FC<AllocationListViewProps> = ({
                       <User className="w-4 h-4 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <button
-                        type="button"
-                        className="font-medium text-xs sm:text-sm break-words hover:underline text-left cursor-pointer leading-tight"
-                        onClick={() => {
-                          if (person && onEditPerson) onEditPerson(person);
-                        }}
-                      >
-                        {person ? getSimplifiedName(person.name) : 'Pessoa não encontrada'}
-                      </button>
+                      {onEditPerson ? (
+                        <button
+                          type="button"
+                          className="font-medium text-xs sm:text-sm break-words hover:underline text-left cursor-pointer leading-tight"
+                          onClick={() => {
+                            if (person) onEditPerson(person);
+                          }}
+                        >
+                          {person ? getSimplifiedName(person.name) : 'Pessoa não encontrada'}
+                        </button>
+                      ) : (
+                        <div className="font-medium text-xs sm:text-sm break-words text-left leading-tight">
+                          {person ? getSimplifiedName(person.name) : 'Pessoa não encontrada'}
+                        </div>
+                      )}
                       <div className="flex flex-wrap items-center gap-1 mt-1">
                         <Badge variant={person?.type === 'fixo' ? 'default' : 'secondary'} className="text-[10px] px-1 py-0 h-auto min-h-[18px]">
                           {person?.type === 'fixo' ? 'Fixo' : 'Freelancer'}

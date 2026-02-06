@@ -89,6 +89,19 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
   // Snapshot do estado inicial para detectar alterações (isDirty)
   const initialDataRef = useRef<PersonnelFormData>(formData);
 
+  const canEditExistingPersonnel = userRole === 'admin' || userRole === 'superadmin';
+
+  useEffect(() => {
+    if (personnel && userRole && !canEditExistingPersonnel) {
+      toast({
+        title: 'Acesso negado',
+        description: 'Somente Administrador pode editar cadastros de pessoal.',
+        variant: 'destructive',
+      });
+      onClose();
+    }
+  }, [personnel, userRole, canEditExistingPersonnel, onClose, toast]);
+
   useEffect(() => {
     if (personnel) {
       const initialData = {

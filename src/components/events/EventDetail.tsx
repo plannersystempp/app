@@ -7,7 +7,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { 
@@ -21,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 import {
   Collapsible,
   CollapsibleContent,
@@ -270,85 +270,27 @@ export const EventDetail: React.FC = () => {
 
                   <Separator />
 
-                  <Accordion type="multiple" className="w-full">
-                    <AccordionItem value="schedule" className="border-b-0">
-                      <AccordionTrigger className="text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:no-underline py-3">
-                        Cronograma
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between items-center p-2 border rounded bg-background">
-                            <span className="text-muted-foreground">Início</span>
-                            <span className="font-medium">{formatDateBR(event.start_date)}</span>
-                          </div>
-                          <div className="flex justify-between items-center p-2 border rounded bg-background">
-                            <span className="text-muted-foreground">Fim</span>
-                            <span className="font-medium">{formatDateBR(event.end_date)}</span>
-                          </div>
-                          {(event.setup_start_date || event.setup_end_date) && (
-                            <div className="flex justify-between items-center p-2 border rounded bg-muted/20">
-                              <span className="text-muted-foreground">Montagem</span>
-                              <span className="font-medium text-xs">
-                                {event.setup_start_date ? formatDateBR(event.setup_start_date) : '...'} - {event.setup_end_date ? formatDateBR(event.setup_end_date) : '...'}
-                              </span>
-                            </div>
-                          )}
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cronograma</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between items-center p-2 border rounded bg-background">
+                        <span className="text-muted-foreground">Início</span>
+                        <span className="font-medium">{formatDateBR(event.start_date)}</span>
+                      </div>
+                      <div className="flex justify-between items-center p-2 border rounded bg-background">
+                        <span className="text-muted-foreground">Fim</span>
+                        <span className="font-medium">{formatDateBR(event.end_date)}</span>
+                      </div>
+                      {(event.setup_start_date || event.setup_end_date) && (
+                        <div className="flex justify-between items-center p-2 border rounded bg-muted/20">
+                          <span className="text-muted-foreground">Montagem</span>
+                          <span className="font-medium text-xs">
+                            {event.setup_start_date ? formatDateBR(event.setup_start_date) : '...'} - {event.setup_end_date ? formatDateBR(event.setup_end_date) : '...'}
+                          </span>
                         </div>
-                      </AccordionContent>
-                    </AccordionItem>
-
-                    <AccordionItem value="actions" className="border-b-0">
-                      <AccordionTrigger className="text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:no-underline py-3">
-                        Ações
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="flex flex-col gap-3">
-                          {(isAdmin || isCoordinator) && (
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => navigate(`/app/eventos/${event.id}/avaliar-freelancers`)}
-                              className="w-full justify-center h-10 font-semibold"
-                            >
-                              <Star className="w-4 h-4 mr-2" />
-                              Avaliar Evento
-                            </Button>
-                          )}
-
-                          <div className="flex items-center justify-between p-2 border rounded-lg bg-muted/10">
-                            <span className="text-sm font-medium text-muted-foreground px-2">Opções adicionais</span>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-muted" aria-label="Mais opções">
-                                  <MoreVertical className="h-5 w-5" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-[calc(100vw-4rem)] sm:w-56">
-                                {(isAdmin || canViewPayroll) && (
-                                  <DropdownMenuItem onClick={() => navigate(`/app/folha/${event.id}`)} className="py-3 cursor-pointer">
-                                    <DollarSign className="w-4 h-4 mr-2" />
-                                    <span>Folha</span>
-                                  </DropdownMenuItem>
-                                )}
-
-                                <DropdownMenuItem onClick={() => window.print()} className="py-3 cursor-pointer">
-                                  <Printer className="w-4 h-4 mr-2" />
-                                  <span>Imprimir</span>
-                                </DropdownMenuItem>
-
-                                {(isAdmin || (isCoordinator && canEdit)) && (
-                                  <DropdownMenuItem onClick={() => setShowEditForm(true)} className="py-3 cursor-pointer">
-                                    <Settings2 className="w-4 h-4 mr-2" />
-                                    <span>Editar</span>
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
+                      )}
+                    </div>
+                  </div>
 
                   {userRole === 'admin' && (
                     <>
@@ -399,43 +341,78 @@ export const EventDetail: React.FC = () => {
             <div className="hidden sm:flex items-center gap-2">
               {(isAdmin || isCoordinator) && (
                 <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => navigate(`/app/eventos/${event.id}/avaliar-freelancers`)}
-                  className="h-8 font-semibold"
-                >
-                  <Star className="w-4 h-4 mr-2" />
-                  Avaliar
-                </Button>
-              )}
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-muted" aria-label="Mais opções">
-                    <MoreVertical className="h-5 w-5" />
+                    variant="default"
+                    size="sm"
+                    onClick={() => navigate(`/app/eventos/${event.id}/avaliar-freelancers`)}
+                    className="h-9 px-4 font-semibold bg-white text-black hover:bg-white/90 shadow-sm"
+                  >
+                    <Star className="w-4 h-4 mr-2" />
+                    Avaliar
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  {(isAdmin || canViewPayroll) && (
-                    <DropdownMenuItem onClick={() => navigate(`/app/folha/${event.id}`)} className="cursor-pointer">
-                      <DollarSign className="w-4 h-4 mr-2" />
-                      <span>Folha</span>
-                    </DropdownMenuItem>
-                  )}
+                )}
 
-                  <DropdownMenuItem onClick={() => window.print()} className="cursor-pointer">
-                    <Printer className="w-4 h-4 mr-2" />
-                    <span>Imprimir</span>
-                  </DropdownMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-white/10 text-white" aria-label="Mais opções">
+                      <MoreVertical className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64 p-2 bg-popover/95 backdrop-blur-sm border-white/10">
+                    {(isAdmin || canViewPayroll) && (
+                      <DropdownMenuItem onClick={() => navigate(`/app/folha/${event.id}`)} className="cursor-pointer py-3 px-3 mb-1 rounded-lg hover:bg-white/5 focus:bg-white/5 group transition-colors">
+                        <div className="flex items-center gap-4 w-full">
+                          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 text-white group-hover:bg-white/10 transition-colors border border-white/5">
+                            <DollarSign className="w-5 h-5" />
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-semibold text-sm text-white">Folha de Pagamento</span>
+                            <span className="text-[11px] text-muted-foreground">Gerenciar pagamentos</span>
+                          </div>
+                        </div>
+                      </DropdownMenuItem>
+                    )}
 
-                  {(isAdmin || (isCoordinator && canEdit)) && (
-                    <DropdownMenuItem onClick={() => setShowEditForm(true)} className="cursor-pointer">
-                      <Settings2 className="w-4 h-4 mr-2" />
-                      <span>Editar</span>
+                    {(isAdmin || canViewPayroll) && (
+                      <DropdownMenuItem onClick={() => navigate(`/app/folha/relatorio/${event.id}`)} className="cursor-pointer py-3 px-3 mb-1 rounded-lg hover:bg-white/5 focus:bg-white/5 group transition-colors">
+                        <div className="flex items-center gap-4 w-full">
+                          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 text-white group-hover:bg-white/10 transition-colors border border-white/5">
+                            <FileText className="w-5 h-5" />
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-semibold text-sm text-white">Gerar Relatório</span>
+                            <span className="text-[11px] text-muted-foreground">Pessoal do evento (colunas)</span>
+                          </div>
+                        </div>
+                      </DropdownMenuItem>
+                    )}
+
+                    <DropdownMenuItem onClick={() => window.print()} className="cursor-pointer py-3 px-3 mb-1 rounded-lg hover:bg-white/5 focus:bg-white/5 group transition-colors">
+                      <div className="flex items-center gap-4 w-full">
+                        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 text-white group-hover:bg-white/10 transition-colors border border-white/5">
+                          <Printer className="w-5 h-5" />
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-semibold text-sm text-white">Imprimir</span>
+                          <span className="text-[11px] text-muted-foreground">Relatório do evento</span>
+                        </div>
+                      </div>
                     </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+
+                    {(isAdmin || (isCoordinator && canEdit)) && (
+                      <DropdownMenuItem onClick={() => setShowEditForm(true)} className="cursor-pointer py-3 px-3 rounded-lg hover:bg-white/5 focus:bg-white/5 group transition-colors">
+                        <div className="flex items-center gap-4 w-full">
+                          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 text-white group-hover:bg-white/10 transition-colors border border-white/5">
+                            <Settings2 className="w-5 h-5" />
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-semibold text-sm text-white">Editar Evento</span>
+                            <span className="text-[11px] text-muted-foreground">Configurações gerais</span>
+                          </div>
+                        </div>
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
             </div>
           </div>
         </div>
