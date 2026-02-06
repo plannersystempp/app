@@ -1,14 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Users, Star } from 'lucide-react';
+import { ArrowLeft, Star, X } from 'lucide-react';
 import { FreelancerRating } from '@/components/personnel/FreelancerRating';
 import { FreelancerAverageRating } from '@/components/personnel/FreelancerAverageRating';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 export const EventFreelancersRatingPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +18,7 @@ export const EventFreelancersRatingPage: React.FC = () => {
   const { userRole } = useTeam();
   const { events, assignments, personnel, loading } = useEnhancedData();
   const isMobile = useIsMobile();
+  const [photoModalPerson, setPhotoModalPerson] = useState<any | null>(null);
 
   const event = events.find(e => e.id === id);
 
@@ -29,6 +32,10 @@ export const EventFreelancersRatingPage: React.FC = () => {
       .filter(p => p.type === 'freelancer' && allocatedSet.has(p.id))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [event, assignments, personnel]);
+
+  const closePhotoModal = () => {
+    setPhotoModalPerson(null);
+  };
 
   if (loading && !event) {
     return (
@@ -95,7 +102,16 @@ export const EventFreelancersRatingPage: React.FC = () => {
               {freelancers.map(f => (
                 <div key={f.id} className={`${isMobile ? 'px-2 py-2' : 'p-2'} rounded border flex items-center justify-between gap-2`}>
                   <div className={`${isMobile ? 'flex-1 min-w-0' : ''} flex items-start sm:items-center gap-2`}>
-                    <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <button
+                      type="button"
+                      className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-shrink-0"
+                      onClick={() => setPhotoModalPerson(f)}
+                    >
+                      <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border">
+                        <AvatarImage src={f.photo_url} />
+                        <AvatarFallback>{f.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                    </button>
                     <div className="min-w-0">
                       <div className={`${isMobile ? 'text-sm' : 'text-base'} font-medium leading-tight line-clamp-2 break-words`}>{f.name}</div>
                       <div className="mt-0.5">
@@ -115,6 +131,34 @@ export const EventFreelancersRatingPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!photoModalPerson} onOpenChange={open => { if (!open) closePhotoModal(); }}>
+        <DialogContent className="w-screen h-screen max-w-none p-0 rounded-none border-0">
+          {photoModalPerson && (
+            <div className="relative w-full h-full bg-black">
+              <button
+                type="button"
+                onClick={closePhotoModal}
+                className="absolute top-3 right-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                aria-label="Fechar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              {photoModalPerson.photo_url ? (
+                <img src={photoModalPerson.photo_url} alt={photoModalPerson.name} className="w-full h-full object-contain" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-white">
+                  <div className="text-center">
+                    <div className="text-7xl font-semibold">{photoModalPerson.name.substring(0, 2).toUpperCase()}</div>
+                    <div className="mt-3 text-lg break-words px-6">{photoModalPerson.name}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

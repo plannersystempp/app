@@ -432,3 +432,14 @@
    - Melhora a consistência dos dados após ações de pagamento, pois força atualização via servidor em vez de update otimista local propenso a erros.
 
 ## [2026-02-03] - fix: Horário padrão persiste e reflete em Presença/Alocações
+
+## [2026-02-06] - feat: Expandir Foto de Freelancer na Avaliação
+ - Mudanças:
+   - `src/pages/EventFreelancersRatingPage.tsx`:
+     - Substituído ícone genérico de usuário pelo avatar (foto) do freelancer na lista de avaliação.
+     - Implementado modal (`Dialog`) de expansão de foto ao clicar no avatar, similar à lista de presença.
+     - Adicionado estado local `photoModalPerson` para controlar a exibição da foto expandida.
+ - Arquivos:
+   - `src/pages/EventFreelancersRatingPage.tsx`
+ - Impacto:
+   - Permite aos avaliadores identificarem visualmente os freelancers antes de avaliar, reduzindo erros de avaliação por confusão de nomes.
