@@ -1,3 +1,14 @@
+## [2026-02-06] - feat: Refatoração do Menu de Ações do Evento (Accordion/Dropdown)
+ - Mudanças:
+   - Implementado novo layout de ações em `EventDetail.tsx`, separando a ação primária "Avaliar" das demais opções.
+   - Transformado os botões "Folha", "Imprimir" e "Editar" em um `DropdownMenu` acionado por um ícone de três pontinhos (⋮).
+   - O botão "Avaliar" foi movido para fora do menu e ganhou destaque visual por ser ação primária.
+   - Mantida acessibilidade do menu via teclado e leitores de tela (Radix UI).
+ - Arquivos:
+   - `src/components/events/EventDetail.tsx`
+ - Impacto:
+   - Ações do evento ficam mais limpas e priorizadas, reduzindo ruído visual no cabeçalho sem perder atalhos importantes.
+
 ## [2026-02-05] - fix: Drag & Drop mobile (PWA) na Alocação de Pessoal
  - Mudanças:
    - Ajustado o DnD para priorizar dispositivos touch via `PointerSensor` com long press (200ms) e tolerância de movimento, evitando conflito com scroll.

@@ -13,8 +13,14 @@ import { Separator } from '@/components/ui/separator';
 import { 
   ArrowLeft, Calendar, Users, Clock, Settings2, Printer, Trash2, 
   MapPin, Phone, DollarSign, ShieldAlert, Star, Info, ChevronRight, LayoutDashboard,
-  CalendarDays, Wallet, FileText, ChevronDown, ChevronUp
+  CalendarDays, Wallet, FileText, ChevronDown, ChevronUp, MoreVertical
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Collapsible,
   CollapsibleContent,
@@ -64,6 +70,9 @@ export const EventDetail: React.FC = () => {
   const { data: canEdit } = useHasEventPermission(id || '', 'edit');
   const { data: canManageCosts } = useHasEventPermission(id || '', 'costs');
   const { data: canViewPayroll } = useHasEventPermission(id || '', 'payroll');
+
+  const isAdmin = userRole === 'admin' || userRole === 'superadmin';
+  const isCoordinator = userRole === 'coordinator';
 
   const event = eventsList?.find(e => e.id === id);
 
@@ -293,29 +302,49 @@ export const EventDetail: React.FC = () => {
                         Ações
                       </AccordionTrigger>
                       <AccordionContent>
-                        <div className="grid grid-cols-2 gap-2">
-                          {(userRole === 'admin' || canViewPayroll) && (
-                            <Button variant="outline" size="sm" onClick={() => navigate(`/app/folha/${event.id}`)} className="justify-start">
-                              <DollarSign className="w-4 h-4 mr-2" />
-                              Folha
-                            </Button>
-                          )}
-                          {(userRole === 'admin' || userRole === 'coordinator') && (
-                            <Button variant="outline" size="sm" onClick={() => navigate(`/app/eventos/${event.id}/avaliar-freelancers`)} className="justify-start">
+                        <div className="flex flex-col gap-3">
+                          {(isAdmin || isCoordinator) && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => navigate(`/app/eventos/${event.id}/avaliar-freelancers`)}
+                              className="w-full justify-center h-10 font-semibold"
+                            >
                               <Star className="w-4 h-4 mr-2" />
-                              Avaliar
+                              Avaliar Evento
                             </Button>
                           )}
-                          <Button variant="outline" size="sm" onClick={() => window.print()} className="justify-start">
-                            <Printer className="w-4 h-4 mr-2" />
-                            Imprimir
-                          </Button>
-                          {(userRole === 'admin' || (userRole === 'coordinator' && canEdit)) && (
-                            <Button variant="outline" size="sm" onClick={() => setShowEditForm(true)} className="justify-start">
-                              <Settings2 className="w-4 h-4 mr-2" />
-                              Editar
-                            </Button>
-                          )}
+
+                          <div className="flex items-center justify-between p-2 border rounded-lg bg-muted/10">
+                            <span className="text-sm font-medium text-muted-foreground px-2">Opções adicionais</span>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-muted" aria-label="Mais opções">
+                                  <MoreVertical className="h-5 w-5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-[calc(100vw-4rem)] sm:w-56">
+                                {(isAdmin || canViewPayroll) && (
+                                  <DropdownMenuItem onClick={() => navigate(`/app/folha/${event.id}`)} className="py-3 cursor-pointer">
+                                    <DollarSign className="w-4 h-4 mr-2" />
+                                    <span>Folha</span>
+                                  </DropdownMenuItem>
+                                )}
+
+                                <DropdownMenuItem onClick={() => window.print()} className="py-3 cursor-pointer">
+                                  <Printer className="w-4 h-4 mr-2" />
+                                  <span>Imprimir</span>
+                                </DropdownMenuItem>
+
+                                {(isAdmin || (isCoordinator && canEdit)) && (
+                                  <DropdownMenuItem onClick={() => setShowEditForm(true)} className="py-3 cursor-pointer">
+                                    <Settings2 className="w-4 h-4 mr-2" />
+                                    <span>Editar</span>
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
                       </AccordionContent>
                     </AccordionItem>
@@ -368,23 +397,45 @@ export const EventDetail: React.FC = () => {
 
             {/* Desktop Actions */}
             <div className="hidden sm:flex items-center gap-2">
-              {(userRole === 'admin' || canViewPayroll) && (
-                <Button variant="ghost" size="sm" onClick={() => navigate(`/app/folha/${event.id}`)}>
-                  <DollarSign className="w-4 h-4 mr-2" />
-                  Folha
+              {(isAdmin || isCoordinator) && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => navigate(`/app/eventos/${event.id}/avaliar-freelancers`)}
+                  className="h-8 font-semibold"
+                >
+                  <Star className="w-4 h-4 mr-2" />
+                  Avaliar
                 </Button>
               )}
-              
-              <Button variant="ghost" size="sm" onClick={() => window.print()}>
-                <Printer className="w-4 h-4 mr-2" />
-                Imprimir
-              </Button>
 
-              {(userRole === 'admin' || (userRole === 'coordinator' && canEdit)) && (
-                <Button variant="default" size="sm" onClick={() => setShowEditForm(true)} className="h-8">
-                  Editar
-                </Button>
-              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-muted" aria-label="Mais opções">
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  {(isAdmin || canViewPayroll) && (
+                    <DropdownMenuItem onClick={() => navigate(`/app/folha/${event.id}`)} className="cursor-pointer">
+                      <DollarSign className="w-4 h-4 mr-2" />
+                      <span>Folha</span>
+                    </DropdownMenuItem>
+                  )}
+
+                  <DropdownMenuItem onClick={() => window.print()} className="cursor-pointer">
+                    <Printer className="w-4 h-4 mr-2" />
+                    <span>Imprimir</span>
+                  </DropdownMenuItem>
+
+                  {(isAdmin || (isCoordinator && canEdit)) && (
+                    <DropdownMenuItem onClick={() => setShowEditForm(true)} className="cursor-pointer">
+                      <Settings2 className="w-4 h-4 mr-2" />
+                      <span>Editar</span>
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
