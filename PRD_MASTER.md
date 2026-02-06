@@ -1,3 +1,12 @@
+## [2026-02-06] - fix: Ajuste de navegação e texto do botão voltar na Folha de Pagamento
+ - Mudanças:
+   - Alterado o comportamento do botão "Voltar" na tela `PayrollEventView` para usar navegação baseada em histórico (`navigate(-1)`) em vez de rota fixa.
+   - Atualizado o texto do botão de "Voltar à Seleção" para "Voltar" para refletir o comportamento genérico.
+ - Arquivos:
+   - `src/components/payroll/PayrollEventView.tsx`
+ - Impacto:
+   - Melhora a experiência do usuário permitindo retornar à página anterior real (seja lista de eventos, dashboard, etc) em vez de forçar a ida para a lista de seleção de folha.
+
 ## [2026-02-06] - feat: Refatoração do Menu de Ações do Evento (Accordion/Dropdown)
  - Mudanças:
    - Implementado novo layout de ações em `EventDetail.tsx`, separando a ação primária "Avaliar" das demais opções.

@@ -125,7 +125,7 @@ export const PayrollEventView: React.FC = () => {
   };
 
   const handleBackToSelection = () => {
-    navigate('/app/folha');
+    navigate(-1);
   };
 
   const handleGoToEvent = () => {
@@ -167,7 +167,7 @@ export const PayrollEventView: React.FC = () => {
             <p className="text-muted-foreground">Evento não encontrado.</p>
             <Button onClick={handleBackToSelection} className="mt-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Voltar à Seleção
+              Voltar
             </Button>
           </CardContent>
         </Card>
@@ -186,7 +186,7 @@ export const PayrollEventView: React.FC = () => {
             className={`${isMobile ? 'self-start' : ''} -ml-2`}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Voltar à Seleção
+            Voltar
           </Button>
           
           <Button 
