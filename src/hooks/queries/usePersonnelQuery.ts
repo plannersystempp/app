@@ -318,6 +318,147 @@ export const fetchPersonnelPaginated = async (
   return { data: personnel, count: count || 0 };
 };
 
+export interface PersonnelExportOptions {
+  search?: string;
+  type?: 'all' | 'fixo' | 'freelancer';
+  functionId?: string;
+  sortBy?: 'name_asc' | 'name_desc' | 'rating_desc' | 'rating_asc';
+}
+
+const exportChunkSize = 1000;
+
+const fetchAllPages = async <T>(
+  fetchPage: (from: number, to: number) => Promise<{ data: T[] | null; count: number | null; error: any }>
+): Promise<{ data: T[]; count: number } > => {
+  let from = 0;
+  let count = 0;
+  const all: T[] = [];
+
+  while (true) {
+    const to = from + exportChunkSize - 1;
+    const { data, error, count: pageCount } = await fetchPage(from, to);
+    if (error) throw error;
+    if (typeof pageCount === 'number') count = pageCount;
+
+    const pageData = data || [];
+    all.push(...pageData);
+    if (pageData.length < exportChunkSize) break;
+    from += exportChunkSize;
+  }
+
+  return { data: all, count };
+};
+
+export const fetchPersonnelForExport = async (
+  teamId: string,
+  options: PersonnelExportOptions
+) => {
+  const { search, type, functionId, sortBy } = options;
+
+  const isRatingSort = sortBy === 'rating_desc' || sortBy === 'rating_asc';
+
+  if (isRatingSort) {
+    try {
+      const idsResult = await fetchAllPages<{ id: string }>((from, to) => {
+        let query = supabase
+          .from('personnel_with_rating')
+          .select('id', { count: 'exact' })
+          .eq('team_id', teamId);
+
+        if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+        if (type && type !== 'all') query = query.eq('type', type);
+
+        query = query.order('average_rating', { ascending: sortBy === 'rating_asc' });
+        return query.range(from, to);
+      });
+
+      const ids = idsResult.data.map(row => row.id);
+      if (ids.length === 0) return { data: [], count: idsResult.count };
+
+      const fullRows: any[] = [];
+      const idsBatchSize = 500;
+      for (let i = 0; i < ids.length; i += idsBatchSize) {
+        const batch = ids.slice(i, i + idsBatchSize);
+        const { data: batchData, error: batchError } = await supabase
+          .from('personnel')
+          .select(`
+            *,
+            personnel_functions!left(
+              function_id,
+              is_primary,
+              custom_cache,
+              custom_overtime,
+              functions(id, name)
+            )
+          `)
+          .in('id', batch);
+
+        if (batchError) throw batchError;
+        fullRows.push(...(batchData || []));
+      }
+
+      const byId = new Map<string, any>(fullRows.map(row => [row.id, row]));
+      let orderedRows = ids.map(id => byId.get(id)).filter(Boolean);
+      if (functionId && functionId !== 'all') {
+        orderedRows = orderedRows.filter((row: any) =>
+          (row.personnel_functions || []).some((pf: any) => pf.function_id === functionId)
+        );
+      }
+      return {
+        data: orderedRows.map(transformPersonnel),
+        count: orderedRows.length,
+      };
+    } catch (err) {
+      logger.query.warn('personnel_export_rating_fallback', err);
+    }
+  }
+
+  const fullResult = await fetchAllPages<any>((from, to) => {
+    let query = supabase
+      .from('personnel')
+      .select(`
+        *,
+        personnel_functions!left(
+          function_id,
+          is_primary,
+          custom_cache,
+          custom_overtime,
+          functions(id, name)
+        )
+      `, { count: 'exact' })
+      .eq('team_id', teamId);
+
+    if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+    if (type && type !== 'all') query = query.eq('type', type);
+    if (functionId && functionId !== 'all') {
+      query = supabase
+        .from('personnel')
+        .select(`
+          *,
+          personnel_functions!inner(
+            function_id,
+            is_primary,
+            custom_cache,
+            custom_overtime,
+            functions(id, name)
+          )
+        `, { count: 'exact' })
+        .eq('team_id', teamId)
+        .eq('personnel_functions.function_id', functionId);
+
+      if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+      if (type && type !== 'all') query = query.eq('type', type);
+    }
+
+    if (sortBy === 'name_desc') query = query.order('name', { ascending: false });
+    else query = query.order('name', { ascending: true });
+
+    return query.range(from, to);
+  });
+
+  return { data: fullResult.data.map(transformPersonnel), count: fullResult.count };
+};
+
 export const usePersonnelPaginatedQuery = (options: UsePersonnelPaginatedOptions) => {
   const { user } = useAuth();
   const { activeTeam } = useTeam();

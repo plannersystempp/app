@@ -1,34 +1,73 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-export const exportToCSV = (data: Array<Record<string, unknown>>, filename: string, headers?: string[]) => {
+const encodeUtf16LEWithBom = (text: string): Uint8Array => {
+  const buffer = new Uint8Array(2 + text.length * 2);
+  buffer[0] = 0xff;
+  buffer[1] = 0xfe;
+  for (let i = 0; i < text.length; i++) {
+    const codeUnit = text.charCodeAt(i);
+    buffer[2 + i * 2] = codeUnit & 0xff;
+    buffer[2 + i * 2 + 1] = (codeUnit >> 8) & 0xff;
+  }
+  return buffer;
+};
+
+type ExportColumn = string | { key: string; label: string };
+
+const normalizeColumns = (cols?: ExportColumn[]) => {
+  const columns = cols && cols.length > 0 ? cols : undefined;
+  if (!columns) return { keys: undefined as string[] | undefined, labels: undefined as string[] | undefined };
+
+  if (typeof columns[0] === 'string') {
+    const keys = columns as string[];
+    return { keys, labels: keys };
+  }
+
+  const typed = columns as Array<{ key: string; label: string }>;
+  return {
+    keys: typed.map(c => c.key),
+    labels: typed.map(c => c.label),
+  };
+};
+
+export const exportToCSV = (data: Array<Record<string, unknown>>, filename: string, headers?: ExportColumn[]) => {
   if (!data || data.length === 0) {
     throw new Error('Nenhum dado para exportar');
   }
 
-  const csvHeaders = headers && headers.length > 0 ? headers : Object.keys(data[0]);
-  const headerLine = csvHeaders.join(',');
+  const normalized = normalizeColumns(headers);
+  const csvKeys = normalized.keys && normalized.keys.length > 0 ? normalized.keys : Object.keys(data[0]);
+  const csvLabels = normalized.labels && normalized.labels.length > 0 ? normalized.labels : csvKeys;
+  const delimiter = ';';
+  const eol = '\r\n';
+  const headerLine = csvLabels.join(delimiter);
   
   // Converter dados para CSV
   const csvContent = data.map(row => 
-    csvHeaders.map(header => {
-      const value = row?.[header];
+    csvKeys.map(key => {
+      const value = row?.[key];
       // Tratar valores nulos ou indefinidos
       if (value === null || value === undefined) return '';
       
       // Escapar aspas duplas e envolver strings em aspas se necessário
       const stringValue = String(value);
-      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
-        return `"${stringValue.replace(/"/g, '""')}"`;
+      const normalized = stringValue.replace(/\r\n|\n|\r/g, ' ');
+      if (
+        normalized.includes(delimiter) ||
+        normalized.includes('"')
+      ) {
+        return `"${normalized.replace(/"/g, '""')}"`;
       }
-      return stringValue;
-    }).join(',')
-  ).join('\n');
+      return normalized;
+    }).join(delimiter)
+  ).join(eol);
 
-  const csv = `${headerLine}\n${csvContent}`;
+  const csv = `sep=${delimiter}${eol}${headerLine}${eol}${csvContent}`;
   
   // Criar e baixar arquivo
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const csvBytes = encodeUtf16LEWithBom(csv);
+  const blob = new Blob([csvBytes], { type: 'text/csv;charset=utf-16le;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
   link.setAttribute('href', url);
@@ -40,12 +79,16 @@ export const exportToCSV = (data: Array<Record<string, unknown>>, filename: stri
   URL.revokeObjectURL(url);
 };
 
-export const exportToPDF = (data: Array<Record<string, unknown>>, headers: string[], title: string, filename: string) => {
+export const exportToPDF = (data: Array<Record<string, unknown>>, headers: ExportColumn[], title: string, filename: string) => {
   if (!data || data.length === 0) {
     throw new Error('Nenhum dado para exportar');
   }
 
-  const orientation = headers.length > 7 ? 'landscape' : 'portrait';
+  const normalized = normalizeColumns(headers);
+  const pdfKeys = normalized.keys && normalized.keys.length > 0 ? normalized.keys : Object.keys(data[0]);
+  const pdfLabels = normalized.labels && normalized.labels.length > 0 ? normalized.labels : pdfKeys;
+
+  const orientation = pdfLabels.length > 7 ? 'landscape' : 'portrait';
   const pdf = new jsPDF({ orientation });
   
   // Adicionar título
@@ -58,15 +101,15 @@ export const exportToPDF = (data: Array<Record<string, unknown>>, headers: strin
   
   // Preparar dados para a tabela
   const tableData = data.map(row => 
-    headers.map(header => {
-      const value = row[header];
+    pdfKeys.map(key => {
+      const value = row[key];
       return value === null || value === undefined ? '' : String(value);
     })
   );
   
   // Gerar tabela
   autoTable(pdf, {
-    head: [headers],
+    head: [pdfLabels],
     body: tableData,
     startY: 40,
     styles: {

@@ -1,3 +1,62 @@
+## [2026-02-10] - feat: Exportação de Pessoal em página dedicada (PDF/CSV com colunas dinâmicas)
+ - Mudanças:
+   - Ao clicar em "Exportar" na Gestão de Pessoal, o usuário vai para uma página dedicada de exportação.
+   - A página permite escolher: escopo (Filtrado/Todos), colunas (seleção em lote) e formato (PDF ou CSV pronto para Excel).
+   - Seleção de colunas é persistida por equipe via localStorage.
+ - Arquivos:
+   - `src/pages/PersonnelExportPage.tsx`
+   - `src/components/personnel/PersonnelExportColumnPicker.tsx`
+   - `src/components/personnel/personnelExportColumns.ts`
+   - `src/components/personnel/ManagePersonnel.tsx`
+   - `src/App.tsx`
+ - Impacto:
+   - Fluxo de exportação fica mais claro e flexível, reduzindo dúvidas e retrabalho na geração de relatórios.
+
+## [2026-02-10] - feat: Relatório de Pessoal em PDF personalizável (colunas dinâmicas)
+ - Mudanças:
+   - Adicionado seletor de colunas do PDF no Cadastro de Pessoal, permitindo escolher quais campos entram no relatório.
+   - Seleção de colunas é persistida por time via localStorage.
+ - Arquivos:
+   - `src/components/personnel/ManagePersonnel.tsx`
+   - `src/components/personnel/PersonnelPdfColumnSelector.tsx`
+   - `src/components/personnel/personnelPdfColumns.ts`
+   - `src/utils/exportUtils.ts`
+ - Impacto:
+   - Usuário controla densidade do PDF (melhor legibilidade) sem perder capacidade de exportar dados.
+
+## [2026-02-10] - fix: Corrigir acentuação no CSV ao abrir direto no Excel
+ - Mudanças:
+   - Exportação CSV passa a gerar arquivo em UTF-16LE com BOM (mais compatível com Excel no Windows), evitando textos corrompidos (ex: "AndrÃ©").
+ - Arquivos:
+   - `src/utils/exportUtils.ts`
+ - Impacto:
+   - Nomes e campos com acentos abrem corretamente no Excel sem precisar de importação manual.
+
+## [2026-02-10] - fix: Exportação de Pessoal mais intuitiva e CSV compatível com Excel
+ - Mudanças:
+   - Menu "Exportar" no Cadastro de Pessoal passa a ter apenas 2 ações: CSV e PDF.
+   - Seleção do escopo do CSV (Filtrado/Todos) foi movida para um seletor ao lado, reduzindo ambiguidade.
+   - CSV passa a sair com separador `;`, linha `sep=;`, UTF-8 com BOM e CRLF para abrir corretamente no Excel (colunas e acentuação).
+   - PDF permanece restrito ao modo filtrado (exige ao menos um filtro aplicado).
+ - Arquivos:
+   - `src/components/personnel/ManagePersonnel.tsx`
+   - `src/utils/exportUtils.ts`
+ - Impacto:
+   - Exportação fica mais simples de entender e o CSV abre como planilha no Excel sem “quebrar” colunas.
+
+## [2026-02-10] - feat: Exportação avançada do Cadastro de Pessoal (CSV/PDF)
+ - Mudanças:
+   - Exportação de Pessoal agora permite:
+     - CSV completo com todos os campos, com opção de exportar "Filtrado" (respeita busca/tipo/função/ordenação) ou "Todos".
+     - PDF apenas no modo "Filtrado", em layout compacto para evitar excesso de colunas por página.
+   - Exportação passa a buscar todos os registros no backend (não mais apenas a página atual) quando necessário.
+ - Arquivos:
+   - `src/components/personnel/ManagePersonnel.tsx`
+   - `src/hooks/queries/usePersonnelQuery.ts`
+   - `src/components/shared/ExportDropdown.tsx`
+ - Impacto:
+   - Atende a necessidade de auditoria/operacional com CSV completo e dá previsibilidade no PDF, mantendo legibilidade.
+
 ## [2026-02-06] - fix: Polimento Visual do Menu de Ações (Dark Mode e Detalhes)
  - Mudanças:
    - `src/components/events/EventDetail.tsx`:

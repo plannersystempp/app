@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useEnhancedData, type Personnel, type Func } from '@/contexts/EnhancedDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -8,7 +9,7 @@ import { useDebounce } from '@/hooks/use-debounce';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Search, Users } from 'lucide-react';
+import { Download, Plus, Search, Users } from 'lucide-react';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { PersonnelForm } from './PersonnelForm';
 import { PersonnelStats } from './PersonnelStats';
@@ -16,7 +17,6 @@ import { PersonnelFilters } from './PersonnelFilters';
 import { supabase } from '@/integrations/supabase/client';
 import { PersonnelList } from './PersonnelList';
 import { PersonnelViewToggle } from './PersonnelViewToggle';
-import { ExportDropdown } from '@/components/shared/ExportDropdown';
 import { FreelancerRatingDialog } from './FreelancerRatingDialog';
 import { useCheckSubscriptionLimits } from '@/hooks/useCheckSubscriptionLimits';
 import { UpgradePrompt } from '@/components/subscriptions/UpgradePrompt';
@@ -39,9 +39,18 @@ import {
 } from "@/components/ui/select";
 
 export const ManagePersonnel: React.FC = () => {
+  const navigate = useNavigate();
   const { functions } = useEnhancedData();
   const deletePersonnelMutation = useDeletePersonnelMutation();
   const queryClient = useQueryClient();
+
+  type LimitCheckResult = {
+    can_proceed?: boolean;
+    reason?: string;
+    current_plan?: unknown;
+    limit?: number;
+    current_count?: number;
+  };
   
   // Hook de sincronização em tempo real
   usePersonnelRealtime();
@@ -59,7 +68,7 @@ export const ManagePersonnel: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [ratingPersonnel, setRatingPersonnel] = useState<Personnel | null>(null);
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
-  const [limitCheckResult, setLimitCheckResult] = useState<any>(null);
+  const [limitCheckResult, setLimitCheckResult] = useState<LimitCheckResult | null>(null);
   const checkLimits = useCheckSubscriptionLimits();
 
   // Pagination state
@@ -129,9 +138,9 @@ export const ManagePersonnel: React.FC = () => {
         .eq('team_id', teamId);
       if (error) return;
       const acc: Record<string, { sum: number; count: number }> = {};
-      for (const row of (data || [])) {
-        const id = (row as any).freelancer_id as string;
-        const rating = (row as any).rating as number;
+      for (const row of (data || []) as Array<{ freelancer_id: string; rating: number }>) {
+        const id = row.freelancer_id;
+        const rating = row.rating;
         if (!acc[id]) acc[id] = { sum: 0, count: 0 };
         acc[id].sum += rating || 0;
         acc[id].count += 1;
@@ -211,19 +220,23 @@ export const ManagePersonnel: React.FC = () => {
     }
   };
 
-  // Preparar dados para exportação (apenas da página atual ou precisamos de um export total?)
-  // Para export, idealmente buscaríamos tudo. Mas por enquanto vamos exportar o que está visível.
-  const exportData = personnel.map(person => ({
-    nome: person.name,
-    email: person.email || '',
-    telefone: person.phone || '',
-    tipo: person.type,
-    funcoes: person.functions?.map(f => f.name).join(', ') || '',
-    salario_mensal: person.monthly_salary || 0,
-    cache_evento: person.event_cache || 0,
-    valor_hora_extra: person.overtime_rate || 0
-  }));
-  const exportHeaders = ['nome', 'email', 'telefone', 'tipo', 'funcoes', 'salario_mensal', 'cache_evento', 'valor_hora_extra'];
+  const exportTeamId = activeTeam?.id;
+  const isFilterActive = !!searchTerm.trim() || filterType !== 'all' || filterFunction !== 'all';
+
+  const handleOpenExport = () => {
+    navigate('/app/pessoal/exportar', {
+      state: {
+        filters: {
+          search: debouncedSearchTerm || undefined,
+          type: filterType,
+          functionId: filterFunction,
+          sortBy,
+        },
+        filteredCount: totalCount,
+        isFilterActive,
+      },
+    });
+  };
   
   return <div className="min-h-screen w-full max-w-full p-3 sm:p-4 md:p-6 space-y-4 md:space-y-6 box-border py-[2px] px-[2px]">
       <div className="space-y-4">
@@ -234,13 +247,13 @@ export const ManagePersonnel: React.FC = () => {
         
       <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full">
         <div className="order-2 sm:order-1 w-full sm:flex-1">
-          <ExportDropdown
-            data={exportData}
-            headers={exportHeaders}
-            filename="pessoal_filtrado"
-            title="Relatório de Pessoal (Página Atual)"
-            disabled={personnel.length === 0}
-          />
+          <Button variant="outline" className="w-full sm:w-auto" onClick={handleOpenExport} disabled={!exportTeamId || totalCount === 0}>
+            <Download className="w-4 h-4 mr-2" />
+            Exportar
+          </Button>
+          <div className="text-xs text-muted-foreground mt-2">
+            Exportação abre uma tela dedicada para escolher colunas, escopo (filtrado/todos) e formato (PDF/CSV).
+          </div>
         </div>
         {canCreatePersonnel && (
           <Button onClick={handleAddPersonnel} className="order-1 sm:order-2 w-full sm:w-auto" size="default">

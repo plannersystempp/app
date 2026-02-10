@@ -21,6 +21,7 @@ import { EstimatedCosts } from './components/costs/EstimatedCosts';
 import { PayrollManager } from './components/payroll/PayrollManager';
 import { PayrollEventView } from './components/payroll/PayrollEventView';
 import { PayrollReportPage } from './pages/PayrollReportPage';
+import PersonnelExportPage from './pages/PersonnelExportPage';
 import PersonnelPaymentsPage from './pages/PersonnelPayments';
 import PersonnelPaymentsReportPage from './pages/PersonnelPaymentsReportPage';
 import PaymentForecastReportPage from './pages/PaymentForecastReportPage';
@@ -67,10 +68,11 @@ import { PermissionGuard } from './components/shared/PermissionGuard';
 const RouteTracker = () => {
   const location = useLocation();
   const { userRole, memberCaps } = useTeam();
+  const state = location.state as { skipRouteSave?: boolean } | null;
   
   useEffect(() => {
     // Salva a rota atual no sessionStorage sempre que ela mudar
-    if ((location.state as any)?.skipRouteSave) return;
+    if (state?.skipRouteSave) return;
     if (location.pathname === '/auth' || location.pathname === '/') return;
 
     const rule = findRouteAccessRule(location.pathname);
@@ -81,7 +83,7 @@ const RouteTracker = () => {
     }
 
     sessionStorage.setItem('lastRoute', location.pathname);
-  }, [location.pathname, location.state, memberCaps, userRole]);
+  }, [location.pathname, state, memberCaps, userRole]);
   
   return null;
 };
@@ -270,7 +272,9 @@ const AppContent = () => {
       let pendingPlan: string | null = null;
       try {
         pendingPlan = localStorage.getItem('pendingSignupPlan');
-      } catch {}
+      } catch (e) {
+        console.warn('[AutoCheckout] Falha ao ler pendingSignupPlan do localStorage', e);
+      }
       if (!pendingPlan) return;
 
       try {
@@ -288,7 +292,11 @@ const AppContent = () => {
         const teamId = ownedTeams[0].id as string;
         const result = await stripeCheckout.mutateAsync({ planId: pendingPlan, teamId });
         if (result?.url) {
-          try { localStorage.removeItem('pendingSignupPlan'); } catch {}
+          try {
+            localStorage.removeItem('pendingSignupPlan');
+          } catch (e) {
+            console.warn('[AutoCheckout] Falha ao remover pendingSignupPlan do localStorage', e);
+          }
           window.location.href = result.url;
         }
       } catch (err) {
@@ -362,6 +370,11 @@ const AppContent = () => {
                 <Route path="/pessoal" element={
                   <RouteErrorBoundary routeName="Pessoal">
                     <ManagePersonnel />
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/pessoal/exportar" element={
+                  <RouteErrorBoundary routeName="Exportar Pessoal">
+                    <PersonnelExportPage />
                   </RouteErrorBoundary>
                 } />
                 <Route path="/funcoes" element={
