@@ -14,37 +14,13 @@ import { useCheckSubscriptionLimits } from '@/hooks/useCheckSubscriptionLimits';
 import { UpgradePrompt } from '@/components/subscriptions/UpgradePrompt';
 import { useCreatePersonnelMutation, useUpdatePersonnelMutation, usePersonnelQuery } from '@/hooks/queries/usePersonnelQuery';
 import { stripUrlQuery } from '@/utils/url';
+import type { PersonnelFormData } from '@/types/personnelForm';
+import { buildPersonnelFormInitialData } from '@/services/personnelFormMapper';
 
 interface PersonnelFormProps {
   personnel?: Personnel;
   onClose: () => void;
   onSuccess: () => void;
-}
-
-interface PersonnelFormData {
-  name: string;
-  email: string;
-  phone: string;
-  phone_secondary: string;
-  type: 'fixo' | 'freelancer';
-  functionIds: string[];
-  primaryFunctionId: string;
-  monthly_salary: number;
-  event_cache: number;
-  overtime_rate: number;
-  cpf: string;
-  cnpj: string;
-  pixKey: string;
-  photo_url: string;
-  shirt_size: string;
-  address_zip_code: string;
-  address_street: string;
-  address_number: string;
-  address_complement: string;
-  address_neighborhood: string;
-  address_city: string;
-  address_state: string;
-  functionCaches: Record<string, number>;
 }
 
 export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose, onSuccess }) => {
@@ -71,6 +47,9 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
     cpf: '',
     cnpj: '',
     pixKey: '',
+    rg: '',
+    birth_date: '',
+    mothers_name: '',
     photo_url: '',
     shirt_size: '',
     address_zip_code: '',
@@ -104,38 +83,10 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
 
   useEffect(() => {
     if (personnel) {
-      const initialData = {
-        name: personnel.name,
-        email: personnel.email || '',
-        phone: personnel.phone || '',
-        phone_secondary: personnel.phone_secondary || '',
-        type: personnel.type as 'fixo' | 'freelancer',
-        functionIds: personnel.functions?.map(f => f.id) || [],
-        primaryFunctionId: personnel.primaryFunctionId || (personnel.functions?.[0]?.id || ''),
-        monthly_salary: personnel.monthly_salary || 0,
-        event_cache: personnel.event_cache || 0,
-        overtime_rate: personnel.overtime_rate || 0,
-        cpf: personnel.cpf || '',
-        cnpj: personnel.cnpj || '',
-        pixKey: '',
-        photo_url: personnel.photo_url ? stripUrlQuery(personnel.photo_url) : '',
-        shirt_size: personnel.shirt_size || '',
-        address_zip_code: personnel.address_zip_code || '',
-        address_street: personnel.address_street || '',
-        address_number: personnel.address_number || '',
-        address_complement: personnel.address_complement || '',
-        address_neighborhood: personnel.address_neighborhood || '',
-        address_city: personnel.address_city || '',
-        address_state: personnel.address_state || '',
-        functionCaches: personnel.functions?.reduce((acc, f) => {
-          if (f.custom_cache !== undefined && f.custom_cache !== null) acc[f.id] = f.custom_cache;
-          return acc;
-        }, {} as Record<string, number>) || {},
-        functionOvertimes: personnel.functions?.reduce((acc, f) => {
-          if (f.custom_overtime !== undefined && f.custom_overtime !== null) acc[f.id] = f.custom_overtime;
-          return acc;
-        }, {} as Record<string, number>) || {}
-      };
+      const initialData = buildPersonnelFormInitialData({
+        ...personnel,
+        photo_url: personnel.photo_url ? stripUrlQuery(personnel.photo_url) : ''
+      });
       setFormData(initialData);
       initialDataRef.current = initialData;
     }

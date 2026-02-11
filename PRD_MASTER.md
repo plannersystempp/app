@@ -1,3 +1,19 @@
+## [2026-02-11] - fix: Exibir RG, Data de Nascimento e Nome da Mãe no Cadastro de Pessoal
+ - Mudanças:
+   - Criada RPC `get_personnel_with_functions_v2` incluindo `rg`, `birth_date` e `mothers_name` (e `custom_overtime` nas funções).
+   - Ajustado o fetch de admins/superadmins para usar a nova RPC e carregar corretamente os campos sensíveis.
+   - Formulário de edição agora reidrata RG, Data de Nascimento e Nome da Mãe a partir do registro salvo.
+ - Arquivos:
+   - `supabase/migrations/fix_rpc_get_personnel_with_functions_sensitive_fields.sql`
+   - `src/hooks/queries/usePersonnelQuery.ts`
+   - `src/components/personnel/PersonnelForm.tsx`
+   - `src/components/personnel/PersonnelFormFields.tsx`
+   - `src/services/personnelFormMapper.ts`
+   - `src/types/personnelForm.ts`
+   - `src/services/__tests__/personnelFormMapper.test.ts`
+ - Impacto:
+   - Dados cadastrados (RG, nascimento e nome da mãe) passam a aparecer para usuários com acesso (admin/superadmin), evitando edição “vazia” e inconsistência de exibição.
+
 ## [2026-02-11] - fix: Totais Gerais nos Cards de Estatísticas (Gestão de Pessoal)
  - Mudanças:
    - Os cards de estatísticas (Total, Fixos, Freelancers, Cachê Médio) agora refletem o total global do banco de dados (filtrado), em vez de apenas os itens da página atual.

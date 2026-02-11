@@ -2183,6 +2183,39 @@ export type Database = {
           type: string
         }[]
       }
+      get_personnel_with_functions_v2: {
+        Args: { p_team_id: string }
+        Returns: {
+          address_city: string
+          address_complement: string
+          address_neighborhood: string
+          address_number: string
+          address_state: string
+          address_street: string
+          address_zip_code: string
+          birth_date: string
+          cnpj: string
+          cpf: string
+          created_at: string
+          email: string
+          event_cache: number
+          functions: Json
+          id: string
+          monthly_salary: number
+          mothers_name: string
+          name: string
+          overtime_rate: number
+          phone: string
+          phone_secondary: string
+          photo_url: string
+          pix_key_encrypted: string
+          primary_function_id: string
+          rg: string
+          shirt_size: string
+          team_id: string
+          type: string
+        }[]
+      }
       get_public_teams: {
         Args: never
         Returns: {

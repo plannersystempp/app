@@ -6,6 +6,7 @@ import { useBroadcastInvalidation } from './useBroadcastInvalidation';
 import { fetchPersonnelByRole } from '@/services/personnelService';
 import { supabase } from '@/integrations/supabase/client';
 import type { Personnel } from '@/contexts/EnhancedDataContext';
+import type { PersonnelFormData } from '@/types/personnelForm';
 import { sanitizePersonnelData } from '@/utils/dataTransform';
 import { logger } from '@/utils/logger';
 
@@ -17,34 +18,6 @@ export const personnelKeys = {
   detail: (id: string) => ['personnel', 'detail', id] as const,
 };
 
-// Personnel form data interface
-interface PersonnelFormData {
-  name: string;
-  email: string;
-  phone: string;
-  type: 'fixo' | 'freelancer';
-  monthly_salary: number;
-  event_cache: number;
-  overtime_rate: number;
-  cpf: string;
-  cnpj: string;
-  functionIds: string[];
-  primaryFunctionId?: string;
-  pixKey?: string;
-  photo_url?: string;
-  shirt_size?: string;
-  address_zip_code?: string;
-  address_street?: string;
-  address_number?: string;
-  address_complement?: string;
-  address_neighborhood?: string;
-  address_city?: string;
-  address_state?: string;
-  phone_secondary?: string;
-  functionCaches?: Record<string, number>;
-  functionOvertimes?: Record<string, number>;
-}
-
 // FASE 2: Fetch personnel usando RPC otimizada (1 query em vez de 2)
 const fetchPersonnelWithFunctions = async (teamId: string, userRole?: string | null): Promise<Personnel[]> => {
   logger.personnel.fetch({ teamId, userRole });
@@ -52,18 +25,18 @@ const fetchPersonnelWithFunctions = async (teamId: string, userRole?: string | n
   try {
     // Para admins e superadmins, usar RPC otimizada que faz JOIN no banco
     if (userRole === 'admin' || userRole === 'superadmin') {
-      logger.query.start('get_personnel_with_functions');
+      logger.query.start('get_personnel_with_functions_v2');
       
-      const { data, error } = await supabase.rpc('get_personnel_with_functions', {
+      const { data, error } = await supabase.rpc('get_personnel_with_functions_v2', {
         p_team_id: teamId
       });
 
       if (error) {
-        logger.query.error('get_personnel_with_functions', error);
+        logger.query.error('get_personnel_with_functions_v2', error);
         throw error;
       }
 
-      logger.query.success('get_personnel_with_functions', data?.length || 0);
+      logger.query.success('get_personnel_with_functions_v2', data?.length || 0);
       
       // Transform RPC result to Personnel format
       const personnelWithFunctions: Personnel[] = (data || []).map(person => {
