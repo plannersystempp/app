@@ -1,3 +1,16 @@
+## [2026-02-11] - fix: Totais Gerais nos Cards de Estatísticas (Gestão de Pessoal)
+ - Mudanças:
+   - Os cards de estatísticas (Total, Fixos, Freelancers, Cachê Médio) agora refletem o total global do banco de dados (filtrado), em vez de apenas os itens da página atual.
+   - Criada RPC `get_personnel_stats` para cálculo eficiente no backend.
+   - Adicionado hook `usePersonnelStatsQuery` para consumir os dados.
+ - Arquivos:
+   - `supabase/migrations/20260211153000_get_personnel_stats.sql`
+   - `src/hooks/queries/usePersonnelQuery.ts`
+   - `src/components/personnel/ManagePersonnel.tsx`
+   - `src/components/personnel/PersonnelStats.tsx`
+ - Impacto:
+   - Cards de estatísticas agora mostram números reais e úteis para a gestão, corrigindo a confusão causada pela paginação.
+
 ## [2026-02-10] - feat: Exportação de Pessoal em página dedicada (PDF/CSV com colunas dinâmicas)
  - Mudanças:
    - Ao clicar em "Exportar" na Gestão de Pessoal, o usuário vai para uma página dedicada de exportação.

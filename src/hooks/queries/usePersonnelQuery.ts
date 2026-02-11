@@ -459,6 +459,64 @@ export const fetchPersonnelForExport = async (
   return { data: fullResult.data.map(transformPersonnel), count: fullResult.count };
 };
 
+export interface PersonnelStats {
+  total_count: number;
+  fixed_count: number;
+  freelancer_count: number;
+  avg_cache: number;
+}
+
+export const fetchPersonnelStats = async (
+  teamId: string,
+  search?: string,
+  type?: string,
+  functionId?: string
+): Promise<PersonnelStats> => {
+  const { data, error } = await supabase.rpc('get_personnel_stats', {
+    p_team_id: teamId,
+    p_search: search || null,
+    p_type: type === 'all' ? null : type,
+    p_function_id: functionId === 'all' ? null : functionId,
+  });
+
+  if (error) {
+    console.error('Error fetching personnel stats:', error);
+    throw error;
+  }
+
+  const stats = data?.[0] || {
+    total_count: 0,
+    fixed_count: 0,
+    freelancer_count: 0,
+    avg_cache: 0,
+  };
+
+  return {
+    total_count: Number(stats.total_count),
+    fixed_count: Number(stats.fixed_count),
+    freelancer_count: Number(stats.freelancer_count),
+    avg_cache: Number(stats.avg_cache),
+  };
+};
+
+export const usePersonnelStatsQuery = (
+  search?: string,
+  type?: string,
+  functionId?: string
+) => {
+  const { activeTeam } = useTeam();
+  
+  return useQuery({
+    queryKey: ['personnel', 'stats', activeTeam?.id, { search, type, functionId }],
+    queryFn: () => {
+      if (!activeTeam?.id) return { total_count: 0, fixed_count: 0, freelancer_count: 0, avg_cache: 0 };
+      return fetchPersonnelStats(activeTeam.id, search, type, functionId);
+    },
+    enabled: !!activeTeam?.id,
+    staleTime: 30000, 
+  });
+};
+
 export const usePersonnelPaginatedQuery = (options: UsePersonnelPaginatedOptions) => {
   const { user } = useAuth();
   const { activeTeam } = useTeam();

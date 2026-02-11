@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEnhancedData, type Personnel, type Func } from '@/contexts/EnhancedDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { usePersonnelPaginatedQuery, useDeletePersonnelMutation, fetchPersonnelPaginated, personnelKeys } from '@/hooks/queries/usePersonnelQuery';
+import { usePersonnelPaginatedQuery, usePersonnelStatsQuery, useDeletePersonnelMutation, fetchPersonnelPaginated, personnelKeys } from '@/hooks/queries/usePersonnelQuery';
 import { usePersonnelRealtime } from '@/hooks/queries/usePersonnelRealtime';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useQueryClient } from '@tanstack/react-query';
@@ -88,6 +88,13 @@ export const ManagePersonnel: React.FC = () => {
     functionId: filterFunction,
     sortBy: sortBy
   });
+
+  // Fetch global stats based on current filters
+  const { data: stats } = usePersonnelStatsQuery(
+    debouncedSearchTerm,
+    filterType,
+    filterFunction
+  );
 
   const personnel = paginatedResult?.data || [];
   const totalCount = paginatedResult?.count || 0;
@@ -264,7 +271,7 @@ export const ManagePersonnel: React.FC = () => {
       </div>
       </div>
 
-      <PersonnelStats personnel={personnel} />
+      <PersonnelStats stats={stats || { total_count: 0, fixed_count: 0, freelancer_count: 0, avg_cache: 0 }} />
 
       <PersonnelFilters searchTerm={searchTerm} onSearchChange={setSearchTerm} filterType={filterType} onTypeChange={setFilterType} filterFunction={filterFunction} onFunctionChange={setFilterFunction} functions={functions} sortBy={sortBy} onSortChange={setSortBy} />
 
