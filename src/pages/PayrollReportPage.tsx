@@ -88,7 +88,7 @@ export const PayrollReportPage: React.FC = () => {
       if (selectedEvent?.start_date && selectedEvent?.end_date) {
         const range = generateDateArray(selectedEvent.start_date, selectedEvent.end_date);
         const count = typeof item.workDays === 'number' ? item.workDays : range.length;
-        return formatPeriodDays(range.slice(0, count));
+        if (count === range.length) return formatPeriodDays(range);
       }
       return '—';
     };

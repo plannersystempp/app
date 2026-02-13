@@ -100,6 +100,39 @@ export function calculateUniqueWorkDays(allocations: AllocationData[]): number {
   return uniqueDays.size;
 }
 
+export function calculateWorkedDaysList(
+  allocations: AllocationData[],
+  workLogs: WorkLogData[] = []
+): string[] {
+  const uniqueDays = new Set<string>();
+
+  for (const allocation of allocations) {
+    if (allocation.attendance_status === 'absent') {
+      continue;
+    }
+
+    const workDays = allocation.work_days || [];
+    for (const day of workDays) {
+      if (typeof day === 'string' && day.trim()) {
+        uniqueDays.add(day);
+      }
+    }
+  }
+
+  const absentDates = new Set<string>();
+  for (const log of workLogs) {
+    if (log.attendance_status === 'absent' && log.work_date) {
+      absentDates.add(log.work_date);
+    }
+  }
+
+  for (const absentDate of absentDates) {
+    uniqueDays.delete(absentDate);
+  }
+
+  return Array.from(uniqueDays).sort((a, b) => a.localeCompare(b));
+}
+
 /**
  * Calcula o total de dias efetivamente trabalhados (descontando faltas)
  * 
@@ -117,19 +150,7 @@ export function calculateWorkedDays(
   allocations: AllocationData[],
   workLogs: WorkLogData[] = []
 ): number {
-  const totalUniqueDays = calculateUniqueWorkDays(allocations);
-  
-  // Coletar datas de falta de work_records com status absent
-  const absentDates = new Set<string>();
-  
-  workLogs.forEach(log => {
-    if (log.attendance_status === 'absent' && log.work_date) {
-      absentDates.add(log.work_date);
-    }
-  });
-  
-  // Garante que nunca retorna negativo
-  return Math.max(0, totalUniqueDays - absentDates.size);
+  return calculateWorkedDaysList(allocations, workLogs).length;
 }
 
 /**

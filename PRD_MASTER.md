@@ -1,3 +1,21 @@
+## [2026-02-13] - fix: Dias de trabalho no relatório da folha agora refletem alocação
+ - Mudanças:
+   - Padronizado o cálculo com `calculateWorkedDaysList`, retornando a lista real de dias (únicos) por pessoa e descontando faltas registradas.
+   - `payrollDataService` passa a preencher `workDaysList` no `PayrollDetails`, permitindo renderização correta do período por pessoa.
+   - Removido fallback incorreto que gerava range artificial (ex.: primeiros N dias do evento) quando só existia contagem.
+   - Adicionados testes cobrindo lista de dias no print e cálculo de dias (incluindo faltas).
+ - Arquivos:
+   - `src/components/payroll/payrollCalculations.ts`
+   - `src/services/payrollDataService.ts`
+   - `src/pages/PayrollReportPage.tsx`
+   - `src/components/payroll/PayrollPrintTable.tsx`
+   - `src/components/payroll/__tests__/PayrollPrintTable.workdays-list.test.tsx`
+   - `src/components/payroll/__tests__/payrollCalculations.workdays.test.ts`
+   - `vitest.setup.ts`
+ - Impacto:
+   - A coluna "Dias de trabalho" passa a exibir exatamente os dias alocados (ex.: 4–7) em vez de um período inferido incorretamente.
+   - Relatórios/exportações ficam consistentes com a alocação por pessoa e evitam divergências visuais.
+
 ## [2026-02-11] - fix: Exibir RG, Data de Nascimento e Nome da Mãe no Cadastro de Pessoal
  - Mudanças:
    - Criada RPC `get_personnel_with_functions_v2` incluindo `rg`, `birth_date` e `mothers_name` (e `custom_overtime` nas funções).

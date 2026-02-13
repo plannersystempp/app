@@ -439,7 +439,8 @@ export const payrollDataService = {
       const absencesData = personAbsences as unknown as PayrollCalc.AbsenceData[];
 
       // --- CALCULATIONS ---
-      const totalWorkDays = PayrollCalc.calculateWorkedDays(allocationsData, workLogsData);
+      const workDaysList = PayrollCalc.calculateWorkedDaysList(allocationsData, workLogsData);
+      const totalWorkDays = workDaysList.length;
       const regularHours = PayrollCalc.calculateTotalRegularHours(workLogsData);
       const baseSalary = PayrollCalc.calculateBaseSalary(person);
       const cachePay = PayrollCalc.calculateCachePay(allocationsData, person, workLogsData);
@@ -490,6 +491,7 @@ export const payrollDataService = {
         personName: person.name,
         personType: person.type,
         workDays: totalWorkDays,
+        workDaysList,
         regularHours,
         totalOvertimeHours: overtimeResult.displayHours,
         baseSalary,
