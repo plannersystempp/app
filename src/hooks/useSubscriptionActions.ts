@@ -86,15 +86,35 @@ export function useSubscriptionActions() {
 
   const reactivateSubscription = useMutation({
     mutationFn: async (subscriptionId: string) => {
-      const newEndDate = new Date();
-      newEndDate.setMonth(newEndDate.getMonth() + 1);
+      const { data: currentSubscription, error: fetchError } = await supabase
+        .from('team_subscriptions')
+        .select('id, subscription_plans(billing_cycle)')
+        .eq('id', subscriptionId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const billingCycle = (currentSubscription as any)?.subscription_plans?.billing_cycle as string | undefined;
+
+      const now = new Date();
+      let newEndDate: Date | null = now;
+
+      if (billingCycle === 'lifetime') {
+        newEndDate = null;
+      } else if (billingCycle === 'yearly') {
+        newEndDate = new Date(now);
+        newEndDate.setFullYear(newEndDate.getFullYear() + 1);
+      } else {
+        newEndDate = new Date(now);
+        newEndDate.setMonth(newEndDate.getMonth() + 1);
+      }
 
       const { error } = await supabase
         .from('team_subscriptions')
         .update({
           status: 'active',
-          current_period_starts_at: new Date().toISOString(),
-          current_period_ends_at: newEndDate.toISOString(),
+          current_period_starts_at: now.toISOString(),
+          current_period_ends_at: newEndDate ? newEndDate.toISOString() : null,
           canceled_at: null,
           updated_at: new Date().toISOString()
         })

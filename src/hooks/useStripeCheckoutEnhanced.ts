@@ -35,6 +35,14 @@ export function useStripeCheckoutEnhanced(): UseStripeCheckoutResult {
           throw new Error('Você precisa estar logado para realizar esta ação');
         }
 
+        const { data: isSuperAdmin, error: isSuperAdminError } = await supabase.rpc('is_super_admin');
+        if (isSuperAdminError) throw isSuperAdminError;
+        if (isSuperAdmin) {
+          throw new Error(
+            'Superadmin não realiza checkout. Use uma conta admin do time para assinar ou gerencie assinaturas no painel.'
+          );
+        }
+
         // Verificar se o plano existe
         const { data: plan, error: planError } = await supabase
           .from('subscription_plans')

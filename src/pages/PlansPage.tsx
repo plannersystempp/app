@@ -12,11 +12,13 @@ import { toast } from '@/hooks/use-toast';
 import { SubscriptionPlan } from '@/types/subscription';
 import { usePlans } from '@/hooks/usePlans';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { supabase } from '@/integrations/supabase/client';
 interface Plan extends SubscriptionPlan {}
 
 export default function PlansPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'superadmin';
 
   // SEO: Update document metadata
   useEffect(() => {
@@ -82,6 +84,15 @@ export default function PlansPage() {
     
     if (!user) {
       navigate('/auth', { state: { redirectTo: '/plans', planId } });
+      return;
+    }
+
+    if (isSuperAdmin) {
+      toast({
+        title: 'Superadmin',
+        description: 'Sua conta tem acesso total. Você não precisa assinar um plano.'
+      });
+      navigate('/app');
       return;
     }
 
@@ -213,6 +224,16 @@ export default function PlansPage() {
             </div>
           </div>
         </div>
+
+        {isSuperAdmin && (
+          <div className="max-w-3xl mx-auto mb-6">
+            <Alert>
+              <AlertDescription>
+                Você está logado como <strong>superadmin</strong>. Seu acesso não depende de plano e o checkout fica desabilitado.
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
 
         {/* Trust Badges - Novo */}
         <div className="max-w-4xl mx-auto mb-8 sm:mb-12">
@@ -363,7 +384,7 @@ export default function PlansPage() {
                   }`}
                   variant={plan.is_popular ? 'default' : 'outline'}
                   onClick={() => handleSelectPlan(plan.id, plan.name)}
-                  disabled={isCreatingCheckout}
+                  disabled={isCreatingCheckout || isSuperAdmin}
                 >
                   {isCreatingCheckout ? (
                     <>

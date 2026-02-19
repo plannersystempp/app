@@ -27,6 +27,17 @@ export default function PaymentSuccess() {
       return;
     }
 
+    supabase
+      .rpc('is_super_admin')
+      .then(({ data, error }) => {
+        if (!error && data) {
+          navigate('/app');
+        }
+      })
+      .catch(() => {
+        return;
+      });
+
     // Aguardar 2 segundos para dar tempo do Stripe processar
     const timer = setTimeout(() => {
       verifyPayment(
@@ -37,7 +48,7 @@ export default function PaymentSuccess() {
               // Buscar detalhes do plano
               const { data: plan } = await supabase
                 .from('subscription_plans')
-                .select('display_name, price, features')
+                .select('display_name, price, features, billing_cycle')
                 .eq('id', planId)
                 .single();
 
@@ -152,7 +163,11 @@ export default function PaymentSuccess() {
               {subscriptionDetails.plan_details && (
                 <>
                   <p className="text-2xl font-bold text-primary">
-                    R$ {subscriptionDetails.plan_details.price.toFixed(2)}/mês
+                    {subscriptionDetails.plan_details.billing_cycle === 'lifetime'
+                      ? `R$ ${subscriptionDetails.plan_details.price.toFixed(2)} (pagamento único)`
+                      : subscriptionDetails.plan_details.billing_cycle === 'yearly'
+                        ? `R$ ${subscriptionDetails.plan_details.price.toFixed(2)}/ano`
+                        : `R$ ${subscriptionDetails.plan_details.price.toFixed(2)}/mês`}
                   </p>
                   
                   {subscriptionDetails.plan_details.features?.length > 0 && (

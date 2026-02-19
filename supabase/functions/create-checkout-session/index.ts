@@ -166,8 +166,19 @@ serve(async (req) => {
 
     const isSuperadmin = requesterProfile?.role === 'superadmin';
 
+    if (isSuperadmin) {
+      return jsonResponse(
+        400,
+        {
+          error: 'Superadmin não realiza checkout. Use uma conta admin do time para assinar ou gerencie assinaturas no painel.',
+          code: 'SUPERADMIN_CHECKOUT_NOT_ALLOWED',
+        },
+        requestId
+      );
+    }
+
     let isTeamAdmin = false;
-    if (!isSuperadmin) {
+    {
       const { data: membership, error: membershipError } = await supabase
         .from('team_members')
         .select('role, status')
@@ -257,10 +268,12 @@ serve(async (req) => {
     // URL base para redirecionamento (apenas usado como fallback)
     const defaultBaseUrl = Deno.env.get('PUBLIC_SITE_URL') ?? 'http://localhost:8080';
 
+    const checkoutMode = plan.billing_cycle === 'lifetime' ? 'payment' : 'subscription';
+
     const createSession = async (resolvedCustomerId: string) => {
-      return stripe.checkout.sessions.create({
+      const baseSessionParams: Stripe.Checkout.SessionCreateParams = {
         customer: resolvedCustomerId,
-        mode: 'subscription',
+        mode: checkoutMode,
         payment_method_types: ['card'],
         line_items: [
           {
@@ -278,17 +291,35 @@ serve(async (req) => {
           user_id: user.id,
           plan_name: plan.name,
         },
-        subscription_data: {
-          metadata: {
-            team_id: teamId,
-            plan_id: planId,
-            plan_name: plan.name,
-          },
-        },
         client_reference_id: teamId,
         billing_address_collection: 'required',
         allow_promotion_codes: true,
-      });
+      };
+
+      const sessionParams: Stripe.Checkout.SessionCreateParams =
+        checkoutMode === 'subscription'
+          ? {
+              ...baseSessionParams,
+              subscription_data: {
+                metadata: {
+                  team_id: teamId,
+                  plan_id: planId,
+                  plan_name: plan.name,
+                },
+              },
+            }
+          : {
+              ...baseSessionParams,
+              payment_intent_data: {
+                metadata: {
+                  team_id: teamId,
+                  plan_id: planId,
+                  plan_name: plan.name,
+                },
+              },
+            };
+
+      return stripe.checkout.sessions.create(sessionParams);
     };
 
     let session;

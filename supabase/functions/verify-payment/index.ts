@@ -49,7 +49,7 @@ serve(async (req) => {
     }
 
     // Parse do corpo da requisição
-    const { sessionId, teamId: requestTeamId, planId: requestPlanId }: VerifyPaymentRequest = await req.json();
+    const { sessionId, teamId: requestTeamId, planId: requestPlanId }: Partial<VerifyPaymentRequest> = await req.json();
 
     if (!sessionId) {
       return new Response(
@@ -63,9 +63,25 @@ serve(async (req) => {
     // Buscar session no Stripe
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-    // Recuperar teamId e planId do metadata da sessão se não vieram na requisição
-    const teamId = requestTeamId || session.metadata?.team_id;
-    const planId = requestPlanId || session.metadata?.plan_id;
+    const metadataTeamId = session.metadata?.team_id || null;
+    const metadataPlanId = session.metadata?.plan_id || null;
+
+    if (metadataTeamId && requestTeamId && metadataTeamId !== requestTeamId) {
+      return new Response(
+        JSON.stringify({ error: 'teamId não confere com o metadata do Stripe' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (metadataPlanId && requestPlanId && metadataPlanId !== requestPlanId) {
+      return new Response(
+        JSON.stringify({ error: 'planId não confere com o metadata do Stripe' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const teamId = metadataTeamId || requestTeamId || null;
+    const planId = metadataPlanId || requestPlanId || null;
 
     if (!teamId || !planId) {
       console.error('❌ teamId ou planId não encontrados no request nem no metadata do Stripe');
@@ -86,17 +102,6 @@ serve(async (req) => {
       );
     }
 
-    // Pagamento confirmado, buscar subscription
-    const subscriptionId = session.subscription as string;
-    if (!subscriptionId) {
-      throw new Error('Subscription ID não encontrado na session');
-    }
-
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-    const customerId = session.customer as string;
-
-    console.log(`✅ Pagamento confirmado - Subscription: ${subscriptionId}`);
-
     // Buscar plano no banco
     const { data: plan, error: planError } = await supabase
       .from('subscription_plans')
@@ -107,6 +112,105 @@ serve(async (req) => {
     if (planError || !plan) {
       throw new Error('Plano não encontrado no banco');
     }
+
+    const isLifetime = plan.billing_cycle === 'lifetime' || session.mode === 'payment';
+
+    const customerId = (session.customer as string | null) || null;
+
+    if (isLifetime) {
+      const paymentIntentId = (session.payment_intent as string | null) || null;
+
+      if (!paymentIntentId) {
+        throw new Error('Payment Intent não encontrado na session');
+      }
+
+      const { data: existingSubscription } = await supabase
+        .from('team_subscriptions')
+        .select('id')
+        .eq('team_id', teamId)
+        .maybeSingle();
+
+      const periodStart = new Date((session.created ?? Math.floor(Date.now() / 1000)) * 1000);
+
+      if (existingSubscription) {
+        const { error: updateError } = await supabase
+          .from('team_subscriptions')
+          .update({
+            plan_id: planId,
+            status: 'active',
+            gateway_payment_intent_id: paymentIntentId,
+            gateway_customer_id: customerId,
+            gateway_subscription_id: null,
+            current_period_starts_at: periodStart.toISOString(),
+            current_period_ends_at: null,
+            trial_ends_at: null,
+            canceled_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingSubscription.id);
+
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('team_subscriptions')
+          .insert({
+            team_id: teamId,
+            plan_id: planId,
+            status: 'active',
+            gateway_payment_intent_id: paymentIntentId,
+            gateway_customer_id: customerId,
+            gateway_subscription_id: null,
+            current_period_starts_at: periodStart.toISOString(),
+            current_period_ends_at: null,
+            trial_ends_at: null,
+          });
+
+        if (insertError) throw insertError;
+      }
+
+      await supabase.from('audit_logs').insert({
+        user_id: user.id,
+        team_id: teamId,
+        action: 'SUBSCRIPTION_ACTIVATED',
+        table_name: 'team_subscriptions',
+        record_id: paymentIntentId,
+        new_values: {
+          plan_name: plan.display_name,
+          stripe_payment_intent_id: paymentIntentId,
+          stripe_customer_id: customerId,
+          status: 'active',
+          lifetime: true,
+        },
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          status: 'active',
+          subscription: {
+            id: paymentIntentId,
+            plan_name: plan.display_name,
+            period_start: periodStart.toISOString(),
+            period_end: null,
+            billing_cycle: 'lifetime',
+          },
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Pagamento confirmado, buscar subscription
+    const subscriptionId = session.subscription as string;
+    if (!subscriptionId) {
+      throw new Error('Subscription ID não encontrado na session');
+    }
+
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+    console.log(`✅ Pagamento confirmado - Subscription: ${subscriptionId}`);
 
     // Verificar se já existe assinatura para a equipe
     const { data: existingSubscription } = await supabase
@@ -182,7 +286,8 @@ serve(async (req) => {
           id: subscriptionId,
           plan_name: plan.display_name,
           period_start: periodStart.toISOString(),
-          period_end: periodEnd.toISOString()
+          period_end: periodEnd.toISOString(),
+          billing_cycle: plan.billing_cycle
         }
       }),
       {

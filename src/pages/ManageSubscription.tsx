@@ -264,7 +264,7 @@ export default function ManageSubscription() {
                   status={subscription.status}
                   currentPeriodEnds={subscription.current_period_ends_at}
                   trialEnds={subscription.trial_ends_at}
-                  isLifetime={false}
+                  isLifetime={Boolean(subscription.is_lifetime || subscription.billing_cycle === 'lifetime' || subscription.subscription_plans?.billing_cycle === 'lifetime')}
                 />
 
                 {/* Uso do Plano */}

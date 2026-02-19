@@ -71,6 +71,17 @@ Deno.serve(async (req) => {
 
         // Update subscription status to active
         if (invoice.subscription) {
+          const { data: subRow } = await supabaseAdmin
+            .from('team_subscriptions')
+            .select('id, subscription_plans(billing_cycle)')
+            .eq('gateway_subscription_id', invoice.subscription as string)
+            .maybeSingle();
+
+          const billingCycle = (subRow as any)?.subscription_plans?.billing_cycle as string | undefined;
+          if (billingCycle === 'lifetime') {
+            break;
+          }
+
           const { error } = await supabaseAdmin
             .from('team_subscriptions')
             .update({ status: 'active' })
@@ -89,6 +100,17 @@ Deno.serve(async (req) => {
 
         // Update subscription status to past_due
         if (invoice.subscription) {
+          const { data: subRow } = await supabaseAdmin
+            .from('team_subscriptions')
+            .select('id, subscription_plans(billing_cycle)')
+            .eq('gateway_subscription_id', invoice.subscription as string)
+            .maybeSingle();
+
+          const billingCycle = (subRow as any)?.subscription_plans?.billing_cycle as string | undefined;
+          if (billingCycle === 'lifetime') {
+            break;
+          }
+
           const { error } = await supabaseAdmin
             .from('team_subscriptions')
             .update({ status: 'past_due' })
@@ -115,6 +137,17 @@ Deno.serve(async (req) => {
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
         console.log('Subscription updated:', subscription.id);
+
+        const { data: subRow } = await supabaseAdmin
+          .from('team_subscriptions')
+          .select('id, subscription_plans(billing_cycle)')
+          .eq('gateway_subscription_id', subscription.id)
+          .maybeSingle();
+
+        const billingCycle = (subRow as any)?.subscription_plans?.billing_cycle as string | undefined;
+        if (billingCycle === 'lifetime') {
+          break;
+        }
 
         // Update subscription status
         const statusMap: Record<string, string> = {
@@ -146,6 +179,17 @@ Deno.serve(async (req) => {
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
         console.log('Subscription deleted:', subscription.id);
+
+        const { data: subRow } = await supabaseAdmin
+          .from('team_subscriptions')
+          .select('id, subscription_plans(billing_cycle)')
+          .eq('gateway_subscription_id', subscription.id)
+          .maybeSingle();
+
+        const billingCycle = (subRow as any)?.subscription_plans?.billing_cycle as string | undefined;
+        if (billingCycle === 'lifetime') {
+          break;
+        }
 
         // Update subscription status to canceled
         const { error } = await supabaseAdmin

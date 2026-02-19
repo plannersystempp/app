@@ -103,9 +103,12 @@ Deno.serve(async (req) => {
         team_id,
         status,
         current_period_ends_at,
+        subscription_plans!inner(billing_cycle),
         teams!inner(name)
       `)
       .eq('status', 'active')
+      .not('current_period_ends_at', 'is', null)
+      .neq('subscription_plans.billing_cycle', 'lifetime')
       .lt('current_period_ends_at', new Date().toISOString())
       .limit(100);
 
