@@ -16,6 +16,14 @@ export function useStripeCheckout() {
         throw new Error('Usuário não autenticado');
       }
 
+      const { data: isSuperAdmin, error: isSuperAdminError } = await supabase.rpc('is_super_admin');
+      if (isSuperAdminError) throw isSuperAdminError;
+      if (isSuperAdmin) {
+        throw new Error(
+          'Superadmin não realiza checkout. Use uma conta admin do time para assinar ou gerencie assinaturas no painel.'
+        );
+      }
+
       const origin = window.location.origin;
       const successUrl = `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&plan=${planId}&team=${teamId}`;
       const cancelUrl = `${origin}/plans?payment=canceled`;

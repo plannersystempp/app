@@ -12,7 +12,6 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { resetPassword } from '@/services/authService';
 import { validateEmail, validatePassword, validateName, sanitizeInput } from '@/utils/validation';
-import { useStripeCheckout } from '@/hooks/useStripeCheckout';
 
 export const LoginScreen: React.FC = () => {
   const { login, signup, isLoading, user } = useAuth();
@@ -37,7 +36,6 @@ export const LoginScreen: React.FC = () => {
   const [signupMessage, setSignupMessage] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const planParam = searchParams.get('plan') || '';
-  const stripeCheckout = useStripeCheckout();
 
   useEffect(() => {
     if (user) {

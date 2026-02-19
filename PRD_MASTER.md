@@ -1,3 +1,14 @@
+## [2026-02-19] - fix: Superadmin não dispara auto-checkout e bloqueio foi reforçado
+ - Mudanças:
+   - Auto-checkout pós-signup ignora superadmin e limpa `pendingSignupPlan` para evitar tentativas de pagamento.
+   - Hook legado `useStripeCheckout` também bloqueia superadmin para prevenir chamadas acidentais.
+ - Arquivos:
+   - `src/App.tsx`
+   - `src/hooks/useStripeCheckout.ts`
+   - `src/components/LoginScreen.tsx`
+ - Impacto:
+   - Some o erro 404/"servidor de pagamentos" quando logado como superadmin (nenhuma chamada ao checkout é feita).
+
 ## [2026-02-19] - fix: Plano vitalício não expira e superadmin não entra em checkout
  - Mudanças:
    - Plano `lifetime` agora usa checkout de pagamento único (sem assinatura recorrente) e a ativação registra `gateway_payment_intent_id`.

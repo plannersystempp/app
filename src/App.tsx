@@ -42,7 +42,7 @@ import { TermsAcceptanceModal } from './components/shared/TermsAcceptanceModal';
 import { supabase } from './integrations/supabase/client';
 import './App.css';
 import { EnhancedAdminSettings } from './components/admin/EnhancedAdminSettings';
-import { useStripeCheckout } from './hooks/useStripeCheckout';
+import { useStripeCheckoutEnhanced } from './hooks/useStripeCheckoutEnhanced';
 import SuperAdmin from './pages/SuperAdmin';
 import UpgradePlan from './pages/UpgradePlan';
 import PlansPage from './pages/PlansPage';
@@ -147,7 +147,7 @@ const RealtimeSyncInitializer = () => {
 
 const AppContent = () => {
   const { user, isLoading } = useAuth();
-  const stripeCheckout = useStripeCheckout();
+  const { createCheckout } = useStripeCheckoutEnhanced();
   const [attemptedAutoCheckout, setAttemptedAutoCheckout] = useState(false);
   const [autoCheckoutStarting, setAutoCheckoutStarting] = useState(false);
   const [teamApprovalStatus, setTeamApprovalStatus] = useState<{
@@ -269,6 +269,19 @@ const AppContent = () => {
   useEffect(() => {
     const runAutoCheckout = async () => {
       if (!user || attemptedAutoCheckout) return;
+
+      if (user.role === 'superadmin') {
+        try {
+          localStorage.removeItem('pendingSignupPlan');
+        } catch {
+          return;
+        } finally {
+          setAttemptedAutoCheckout(true);
+          setAutoCheckoutStarting(false);
+        }
+        return;
+      }
+
       let pendingPlan: string | null = null;
       try {
         pendingPlan = localStorage.getItem('pendingSignupPlan');
@@ -276,6 +289,12 @@ const AppContent = () => {
         console.warn('[AutoCheckout] Falha ao ler pendingSignupPlan do localStorage', e);
       }
       if (!pendingPlan) return;
+
+      try {
+        localStorage.removeItem('pendingSignupPlan');
+      } catch (e) {
+        console.warn('[AutoCheckout] Falha ao remover pendingSignupPlan do localStorage', e);
+      }
 
       try {
         setAutoCheckoutStarting(true);
@@ -290,22 +309,14 @@ const AppContent = () => {
           return;
         }
         const teamId = ownedTeams[0].id as string;
-        const result = await stripeCheckout.mutateAsync({ planId: pendingPlan, teamId });
-        if (result?.url) {
-          try {
-            localStorage.removeItem('pendingSignupPlan');
-          } catch (e) {
-            console.warn('[AutoCheckout] Falha ao remover pendingSignupPlan do localStorage', e);
-          }
-          window.location.href = result.url;
-        }
+        await createCheckout({ planId: pendingPlan, teamId });
       } catch (err) {
         setAttemptedAutoCheckout(true);
         setAutoCheckoutStarting(false);
       }
     };
     runAutoCheckout();
-  }, [user, attemptedAutoCheckout, stripeCheckout]);
+  }, [user, attemptedAutoCheckout, createCheckout]);
 
   if (isLoading || (user && teamApprovalStatus.loading)) {
     return (
