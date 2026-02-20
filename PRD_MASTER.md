@@ -1,3 +1,14 @@
+## [2026-02-20] - fix: Hardening de segurança no Supabase (Security Advisor)
+ - Mudanças:
+   - Fixado `search_path` (pg_catalog, public) em funções críticas e SECURITY DEFINER para mitigar hijacking.
+   - Habilitado RLS em `event_supplier_payments` com políticas alinhadas ao acesso de `event_supplier_costs`.
+   - Ajustada a view `freelancer_ratings_enriched` para `security_invoker` quando suportado.
+   - Tentativa segura (idempotente) de mover `pg_net`/`pg_cron` para o schema `extensions` quando instaladas em `public`.
+ - Arquivos:
+   - `supabase/migrations/fix_security_advisor_issues.sql`
+ - Impacto:
+   - Reduz superfície de ataque em funções SECURITY DEFINER e remove warning de RLS desabilitado em pagamentos de fornecedores.
+
 ## [2026-02-19] - fix: Superadmin não dispara auto-checkout e bloqueio foi reforçado
  - Mudanças:
    - Auto-checkout pós-signup ignora superadmin e limpa `pendingSignupPlan` para evitar tentativas de pagamento.
