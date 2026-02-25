@@ -9,6 +9,41 @@ import type { Personnel } from '@/contexts/EnhancedDataContext';
 import type { PersonnelFormData } from '@/types/personnelForm';
 import { sanitizePersonnelData } from '@/utils/dataTransform';
 import { logger } from '@/utils/logger';
+import type { PersonnelFunctionsRepository, PersonnelFunctionRow } from '@/services/personnelFunctionsService';
+import {
+  buildPersonnelFunctionRows,
+  replacePersonnelFunctions,
+  upsertPersonnelFunctionCustomValues,
+} from '@/services/personnelFunctionsService';
+
+const createSupabasePersonnelFunctionsRepository = (): PersonnelFunctionsRepository => {
+  return {
+    listByPersonnelId: async ({ teamId, personnelId }) => {
+      const { data, error } = await supabase
+        .from('personnel_functions')
+        .select('personnel_id, function_id, team_id, is_primary, custom_cache, custom_overtime')
+        .eq('personnel_id', personnelId)
+        .eq('team_id', teamId);
+      return { data: (data ?? []) as unknown as PersonnelFunctionRow[], error };
+    },
+    deleteByPersonnelId: async ({ teamId, personnelId }) => {
+      const { error } = await supabase
+        .from('personnel_functions')
+        .delete()
+        .eq('personnel_id', personnelId)
+        .eq('team_id', teamId);
+      return { error };
+    },
+    insert: async (rows) => {
+      const { error } = await supabase.from('personnel_functions').insert(rows);
+      return { error };
+    },
+    upsert: async (rows, onConflict) => {
+      const { error } = await supabase.from('personnel_functions').upsert(rows, { onConflict });
+      return { error };
+    },
+  };
+};
 
 // Query keys for consistent caching (SIMPLIFIED)
 export const personnelKeys = {
@@ -512,6 +547,7 @@ export const useCreatePersonnelMutation = () => {
   const { activeTeam } = useTeam();
   const { toast } = useToast();
   const { broadcast } = useBroadcastInvalidation();
+  const personnelFunctionsRepo = createSupabasePersonnelFunctionsRepository();
 
   return useMutation({
     mutationFn: async (personnelData: PersonnelFormData) => {
@@ -554,23 +590,24 @@ export const useCreatePersonnelMutation = () => {
 
       // Associate functions if provided
       if (functionIds && functionIds.length > 0) {
-        const uniqueIds = Array.from(new Set(functionIds));
-        const functionAssociations = uniqueIds.map(functionId => ({
-          personnel_id: personnelResult.id,
-          function_id: functionId,
-          team_id: activeTeam.id,
-          is_primary: primaryFunctionId ? functionId === primaryFunctionId : uniqueIds.length === 1 ? functionId === uniqueIds[0] : false,
-          custom_cache: functionCaches ? functionCaches[functionId] ?? null : null,
-          custom_overtime: functionOvertimes ? functionOvertimes[functionId] ?? null : null,
-        }));
+        const rows = buildPersonnelFunctionRows({
+          personnelId: personnelResult.id,
+          teamId: activeTeam.id,
+          functionIds,
+          primaryFunctionId: primaryFunctionId || undefined,
+          functionCaches: functionCaches || undefined,
+          functionOvertimes: functionOvertimes || undefined,
+        });
 
-        const { error: functionsError } = await supabase
-          .from('personnel_functions')
-          .insert(functionAssociations);
-
+        const { error: functionsError } = await personnelFunctionsRepo.insert(rows);
         if (functionsError) {
-          console.warn('Some functions could not be associated:', functionsError);
-          // Don't fail the entire operation for function association issues
+          logger.query.error('personnel_functions_insert_create', functionsError);
+          try {
+            await supabase.from('personnel').delete().eq('id', personnelResult.id).eq('team_id', activeTeam.id);
+          } catch (rollbackError) {
+            logger.personnel.error('CREATE_ROLLBACK_ERROR', rollbackError);
+          }
+          throw functionsError;
         }
       }
 
@@ -673,6 +710,7 @@ export const useUpdatePersonnelMutation = () => {
   const { activeTeam } = useTeam();
   const { toast } = useToast();
   const { broadcast } = useBroadcastInvalidation();
+  const personnelFunctionsRepo = createSupabasePersonnelFunctionsRepository();
 
   return useMutation({
     mutationFn: async ({ id, ...personnelData }: { id: string } & Partial<PersonnelFormData>) => {
@@ -709,50 +747,28 @@ export const useUpdatePersonnelMutation = () => {
 
       // Update function associations if provided
       if (functionIds !== undefined) {
-        const uniqueIds = Array.from(new Set(functionIds));
+        const rows = buildPersonnelFunctionRows({
+          personnelId: id,
+          teamId: activeTeam!.id,
+          functionIds,
+          primaryFunctionId: primaryFunctionId || undefined,
+          functionCaches: functionCaches || undefined,
+          functionOvertimes: functionOvertimes || undefined,
+        });
 
-        // Remove existing associations
-        await supabase
-          .from('personnel_functions')
-          .delete()
-          .eq('personnel_id', id)
-          .eq('team_id', activeTeam!.id);
-
-        // Insert new associations
-        if (uniqueIds.length > 0) {
-          const functionAssociations = uniqueIds.map(functionId => ({
-            personnel_id: id,
-            function_id: functionId,
-            team_id: activeTeam!.id,
-            is_primary: primaryFunctionId ? functionId === primaryFunctionId : uniqueIds.length === 1 ? functionId === uniqueIds[0] : false,
-            custom_cache: functionCaches ? functionCaches[functionId] ?? null : null,
-            custom_overtime: functionOvertimes ? functionOvertimes[functionId] ?? null : null,
-          }));
-
-          await supabase
-            .from('personnel_functions')
-            .insert(functionAssociations);
-        }
+        await replacePersonnelFunctions(personnelFunctionsRepo, {
+          personnelId: id,
+          teamId: activeTeam!.id,
+          rows,
+        });
       } else {
         // Apenas atualizar caches/horas extras existentes quando funções não foram alteradas
-        const idsToUpdate = Array.from(new Set([
-          ...Object.keys(functionCaches || {}),
-          ...Object.keys(functionOvertimes || {}),
-        ]));
-
-        if (idsToUpdate.length > 0) {
-          const rows = idsToUpdate.map(functionId => ({
-            personnel_id: id,
-            function_id: functionId,
-            team_id: activeTeam!.id,
-            custom_cache: functionCaches ? functionCaches[functionId] ?? null : null,
-            custom_overtime: functionOvertimes ? functionOvertimes[functionId] ?? null : null,
-          }));
-
-          await supabase
-            .from('personnel_functions')
-            .upsert(rows, { onConflict: 'personnel_id,function_id' });
-        }
+        await upsertPersonnelFunctionCustomValues(personnelFunctionsRepo, {
+          personnelId: id,
+          teamId: activeTeam!.id,
+          functionCaches: functionCaches || undefined,
+          functionOvertimes: functionOvertimes || undefined,
+        });
       }
 
       return data;

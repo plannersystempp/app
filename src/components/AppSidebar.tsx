@@ -17,7 +17,8 @@ import {
   ShieldCheck,
   Package,
   CalendarClock,
-  CalendarRange
+  CalendarRange,
+  FileText
 } from 'lucide-react';
 import {
   Sidebar,
@@ -65,6 +66,7 @@ const menuItems = [
 
 const financialItems = [
   { title: 'Custos', url: '/app/custos', icon: DollarSign },
+  { title: 'Relatório Fornecedores', url: '/app/relatorios/pagamentos-fornecedores', icon: FileText },
   { 
     title: 'Folha de Pagamento', 
     icon: Calculator,

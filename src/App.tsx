@@ -25,6 +25,7 @@ import PersonnelExportPage from './pages/PersonnelExportPage';
 import PersonnelPaymentsPage from './pages/PersonnelPayments';
 import PersonnelPaymentsReportPage from './pages/PersonnelPaymentsReportPage';
 import PaymentForecastReportPage from './pages/PaymentForecastReportPage';
+import SupplierPaymentsReportPage from './pages/SupplierPaymentsReportPage';
 import ReportarErroPage from './pages/ReportarErro';
 import { Settings } from './components/admin/Settings';
 import { SettingsPage } from './components/SettingsPage';
@@ -489,6 +490,13 @@ const AppContent = () => {
                   <RouteErrorBoundary routeName="Relatório de Previsão de Pagamentos">
                     <PermissionGuard pageLabel="Relatório de Previsão de Pagamentos" required="finance">
                       <PaymentForecastReportPage />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/relatorios/pagamentos-fornecedores" element={
+                  <RouteErrorBoundary routeName="Relatório de Pagamentos de Fornecedores">
+                    <PermissionGuard pageLabel="Relatório de Pagamentos de Fornecedores" required="finance">
+                      <SupplierPaymentsReportPage />
                     </PermissionGuard>
                   </RouteErrorBoundary>
                 } />

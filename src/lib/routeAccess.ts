@@ -19,6 +19,7 @@ export const routeAccessRules: RouteAccessRule[] = [
   { pattern: '/app/pagamentos-avulsos/relatorio', pageLabel: 'Relatório de Pagamentos Avulsos', required: 'finance' },
   { pattern: '/app/previsao-pagamentos', pageLabel: 'Previsão de Pagamentos', required: 'finance' },
   { pattern: '/app/previsao-pagamentos/relatorio', pageLabel: 'Relatório de Previsão de Pagamentos', required: 'finance' },
+  { pattern: '/app/relatorios/pagamentos-fornecedores', pageLabel: 'Relatório de Pagamentos de Fornecedores', required: 'finance' },
 
   { pattern: '/app/upgrade', pageLabel: 'Upgrade', required: 'billing' },
   { pattern: '/app/plans', pageLabel: 'Planos', required: 'billing' },
@@ -35,4 +36,3 @@ export const findRouteAccessRule = (pathname: string): RouteAccessRule | null =>
   }
   return null;
 };
-

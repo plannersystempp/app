@@ -1,0 +1,336 @@
+import React, { useMemo, useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ExportDropdown } from '@/components/shared/ExportDropdown';
+import { useTeam } from '@/contexts/TeamContext';
+import { formatCurrency } from '@/utils/formatters';
+import { formatDateShort } from '@/utils/dateUtils';
+import FilterChips from '@/components/dashboard/FilterChips';
+import { useSupplierPaymentsReport } from '@/hooks/reports/useSupplierPaymentsReport';
+import type { SupplierPaymentsStatusFilter } from '@/utils/supplierPaymentsReport';
+import { FileText } from 'lucide-react';
+import { useEventsQuery } from '@/hooks/queries/useEventsQuery';
+import { useSuppliersQuery } from '@/hooks/queries/useSuppliersQuery';
+import { useSupplierCostsQuery } from '@/hooks/queries/useSupplierCostsQuery';
+
+const isoToday = () => {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const isoMonthStart = () => {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${yyyy}-${mm}-01`;
+};
+
+export default function SupplierPaymentsReportPage() {
+  const { activeTeam } = useTeam();
+  const eventsQuery = useEventsQuery();
+  const suppliersQuery = useSuppliersQuery();
+  const costsQuery = useSupplierCostsQuery();
+
+  const isLoading = eventsQuery.isLoading || suppliersQuery.isLoading || costsQuery.isLoading;
+  const loadError = eventsQuery.error || suppliersQuery.error || costsQuery.error;
+
+  const [startDate, setStartDate] = useState<string>(isoMonthStart());
+  const [endDate, setEndDate] = useState<string>(isoToday());
+  const [status, setStatus] = useState<SupplierPaymentsStatusFilter>('todos');
+  const [supplierId, setSupplierId] = useState<string>('');
+  const [eventId, setEventId] = useState<string>('');
+
+  const filters = useMemo(
+    () => ({
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      status,
+      supplierId: supplierId || undefined,
+      eventId: eventId || undefined,
+    }),
+    [endDate, eventId, startDate, status, supplierId]
+  );
+
+  const { rows, totals } = useSupplierPaymentsReport({
+    costs: costsQuery.data || [],
+    events: (eventsQuery.data || []).map((e) => ({ id: e.id, name: e.name })),
+    suppliers: (suppliersQuery.data || []).map((s) => ({ id: s.id, name: s.name })),
+    filters,
+  });
+
+  const exportItems = useMemo(() => {
+    const baseFilename = 'relatorio_pagamentos_fornecedores';
+    const baseTitle = 'Relatório de Pagamentos de Fornecedores';
+    const periodLabel = `${startDate || '-'}_a_${endDate || '-'}`;
+
+    const csvHeaders = [
+      { key: 'fornecedor', label: 'Fornecedor' },
+      { key: 'evento', label: 'Evento' },
+      { key: 'descricao', label: 'Descrição/Item' },
+      { key: 'quantidade', label: 'Quantidade' },
+      { key: 'valor_unitario', label: 'Valor Unitário' },
+      { key: 'valor_total', label: 'Valor Total' },
+      { key: 'valor_pago', label: 'Valor Pago' },
+      { key: 'valor_pendente', label: 'Valor Pendente' },
+      { key: 'status', label: 'Status' },
+      { key: 'data_pagamento', label: 'Data de Pagamento' },
+    ];
+
+    const pdfHeaders = csvHeaders;
+
+    return [
+      {
+        kind: 'csv' as const,
+        label: 'Exportar CSV',
+        getPayload: async () => {
+          const data = rows.map((r) => ({
+            fornecedor: r.supplierName,
+            evento: r.eventName,
+            descricao: r.description,
+            quantidade: r.quantity,
+            valor_unitario: r.unitPrice,
+            valor_total: r.totalAmount,
+            valor_pago: r.paidAmount,
+            valor_pendente: r.pendingAmount,
+            status: r.statusLabel,
+            data_pagamento: r.paymentDate || '',
+          }));
+
+          return {
+            data,
+            headers: csvHeaders,
+            filename: `${baseFilename}_${periodLabel}`,
+            title: baseTitle,
+          };
+        },
+      },
+      {
+        kind: 'pdf' as const,
+        label: 'Exportar PDF',
+        getPayload: async () => {
+          const data = rows.map((r) => ({
+            fornecedor: r.supplierName,
+            evento: r.eventName,
+            descricao: r.description,
+            quantidade: r.quantity,
+            valor_unitario: formatCurrency(r.unitPrice),
+            valor_total: formatCurrency(r.totalAmount),
+            valor_pago: formatCurrency(r.paidAmount),
+            valor_pendente: formatCurrency(r.pendingAmount),
+            status: r.statusLabel,
+            data_pagamento: r.paymentDate ? formatDateShort(r.paymentDate) : '-',
+          }));
+
+          const titleWithTeam = activeTeam?.name ? `${baseTitle} — ${activeTeam.name}` : baseTitle;
+          return {
+            data,
+            headers: pdfHeaders,
+            filename: `${baseFilename}_${periodLabel}`,
+            title: titleWithTeam,
+          };
+        },
+      },
+    ];
+  }, [activeTeam?.name, endDate, rows, startDate]);
+
+  const clearFilters = () => {
+    setStartDate(isoMonthStart());
+    setEndDate(isoToday());
+    setStatus('todos');
+    setSupplierId('');
+    setEventId('');
+  };
+
+  return (
+    <div className="min-h-screen space-y-4">
+      <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-lg sm:text-xl md:text-2xl font-semibold">Relatório de Pagamentos de Fornecedores</h1>
+          <p className="text-sm text-muted-foreground">Filtre por período, status, fornecedor e evento, e exporte CSV/PDF.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <ExportDropdown
+            data={[]}
+            filename="relatorio_pagamentos_fornecedores"
+            title="Relatório de Pagamentos de Fornecedores"
+            items={exportItems}
+            disabled={isLoading || rows.length === 0}
+          />
+          <Button variant="outline" onClick={clearFilters} disabled={isLoading}>
+            Limpar filtros
+          </Button>
+        </div>
+      </div>
+
+      {loadError ? (
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-red-600">Falha ao carregar relatório: {loadError instanceof Error ? loadError.message : 'erro desconhecido'}</p>
+            <div className="mt-4 flex gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  eventsQuery.refetch();
+                  suppliersQuery.refetch();
+                  costsQuery.refetch();
+                }}
+              >
+                Tentar novamente
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardContent className="p-4 sm:p-6 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground" htmlFor="startDate">Data inicial</label>
+              <Input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground" htmlFor="endDate">Data final</label>
+              <Input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Fornecedor</label>
+              <Select value={supplierId} onValueChange={setSupplierId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Todos</SelectItem>
+                  {(suppliersQuery.data || []).map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Evento</label>
+              <Select value={eventId} onValueChange={setEventId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Todos</SelectItem>
+                  {(eventsQuery.data || []).map((ev) => (
+                    <SelectItem key={ev.id} value={ev.id}>{ev.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <FilterChips
+            label="Status"
+            options={['todos', 'pendente', 'pago'] as const}
+            value={status}
+            onChange={setStatus}
+            showCounts
+            counts={{
+              todos: totals.countTotal,
+              pendente: totals.countPending,
+              pago: totals.countPaid,
+            }}
+            activeVariant="filled"
+          />
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold">{formatCurrency(totals.totalAmount)}</div>
+            <p className="text-xs text-muted-foreground">Valor total ({totals.countTotal})</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-emerald-600">{formatCurrency(totals.paidAmount)}</div>
+            <p className="text-xs text-muted-foreground">Valor pago ({totals.countPaid})</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-amber-600">{formatCurrency(totals.pendingAmount)}</div>
+            <p className="text-xs text-muted-foreground">Valor pendente ({totals.countPending})</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <div className="flex items-center justify-between px-4 py-3 border-b">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Resultados</span>
+            </div>
+            <span className="text-xs text-muted-foreground">Período: {startDate} — {endDate}</span>
+          </div>
+
+          {isLoading ? (
+            <div className="p-6 text-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-3"></div>
+              <p className="text-muted-foreground">Carregando dados…</p>
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="p-6 text-center">
+              <p className="text-muted-foreground">Nenhum resultado para os filtros selecionados.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table className="min-w-[1000px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fornecedor</TableHead>
+                    <TableHead>Evento</TableHead>
+                    <TableHead>Descrição/Item</TableHead>
+                    <TableHead className="text-right">Qtd.</TableHead>
+                    <TableHead className="text-right">V. Unit.</TableHead>
+                    <TableHead className="text-right">V. Total</TableHead>
+                    <TableHead className="text-right">V. Pago</TableHead>
+                    <TableHead className="text-right">V. Pendente</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Data</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-medium">{r.supplierName}</TableCell>
+                      <TableCell>{r.eventName}</TableCell>
+                      <TableCell className="max-w-[360px] whitespace-normal">{r.description}</TableCell>
+                      <TableCell className="text-right tabular-nums">{r.quantity}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatCurrency(r.unitPrice)}</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold">{formatCurrency(r.totalAmount)}</TableCell>
+                      <TableCell className="text-right tabular-nums text-emerald-600">{formatCurrency(r.paidAmount)}</TableCell>
+                      <TableCell className="text-right tabular-nums text-amber-600">{formatCurrency(r.pendingAmount)}</TableCell>
+                      <TableCell>
+                        <span className={
+                          r.statusLabel === 'Pago'
+                            ? 'inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200'
+                            : 'inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200'
+                        }>
+                          {r.statusLabel}
+                        </span>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{r.paymentDate ? formatDateShort(r.paymentDate) : '-'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

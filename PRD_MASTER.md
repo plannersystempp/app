@@ -1,3 +1,33 @@
+## [2026-02-25] - fix: Cachê por função e hora extra não persistiam no cadastro de pessoal
+ - Mudanças:
+   - Ajustada a persistência de `custom_cache`/`custom_overtime` por função com tratamento de erro e rollback seguro.
+   - Alinhadas as políticas de escrita da tabela `personnel_functions` para permitir `coordinator` (quando membro aprovado) gerenciar funções/cachês.
+ - Arquivos:
+   - `supabase/migrations/allow_coordinator_manage_personnel_functions.sql`
+   - `src/services/personnelFunctionsService.ts`
+   - `src/hooks/queries/usePersonnelQuery.ts`
+   - `src/services/__tests__/personnelFunctionsService.test.ts`
+ - Impacto:
+   - Ao editar/cadastrar uma pessoa com múltiplas funções, os valores por função (cachê e hora extra) passam a salvar e reaparecem corretamente ao reabrir.
+
+## [2026-02-25] - feat: Relatório de Pagamentos de Fornecedores (CSV/PDF)
+ - Mudanças:
+   - Criada página de relatório com filtros (período, status, fornecedor, evento), totais e tabela.
+   - Implementadas queries via React Query para fornecedores e custos, com exportação CSV/PDF.
+   - Adicionada rota com `PermissionGuard` (finance) e item no menu Financeiro.
+ - Arquivos:
+   - `src/pages/SupplierPaymentsReportPage.tsx`
+   - `src/hooks/queries/useSuppliersQuery.ts`
+   - `src/hooks/queries/useSupplierCostsQuery.ts`
+   - `src/hooks/reports/useSupplierPaymentsReport.ts`
+   - `src/utils/supplierPaymentsReport.ts`
+   - `src/lib/routeAccess.ts`
+   - `src/App.tsx`
+   - `src/components/AppSidebar.tsx`
+   - `src/utils/__tests__/supplierPaymentsReport.test.ts`
+ - Impacto:
+   - Time financeiro consegue auditar pagamentos de fornecedores por recorte e exportar relatórios.
+
 ## [2026-02-20] - fix: Hardening de segurança no Supabase (Security Advisor)
  - Mudanças:
    - Fixado `search_path` (pg_catalog, public) em funções críticas e SECURITY DEFINER para mitigar hijacking.
