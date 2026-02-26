@@ -1,3 +1,13 @@
+## [2026-02-26] - fix: Erro 409 ao salvar funções/cachês por função (trigger de função principal)
+ - Mudanças:
+   - Ajustada a estratégia de substituição de funções no update para evitar conflito do trigger `ensure_primary_function` durante deleções em lote.
+   - Inserção em `personnel_functions` passa a ocorrer com a linha primária primeiro para evitar múltiplos `is_primary=true` em inserts multi-row.
+ - Arquivos:
+   - `src/services/personnelFunctionsService.ts`
+   - `src/hooks/queries/usePersonnelQuery.ts`
+ - Impacto:
+   - Salvar edição de pessoal com múltiplas funções deixa de falhar com `409 Conflict` e os valores por função persistem corretamente.
+
 ## [2026-02-25] - fix: Cachê por função e hora extra não persistiam no cadastro de pessoal
  - Mudanças:
    - Ajustada a persistência de `custom_cache`/`custom_overtime` por função com tratamento de erro e rollback seguro.

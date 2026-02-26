@@ -12,6 +12,7 @@ import { logger } from '@/utils/logger';
 import type { PersonnelFunctionsRepository, PersonnelFunctionRow } from '@/services/personnelFunctionsService';
 import {
   buildPersonnelFunctionRows,
+  insertPersonnelFunctions,
   replacePersonnelFunctions,
   upsertPersonnelFunctionCustomValues,
 } from '@/services/personnelFunctionsService';
@@ -32,6 +33,16 @@ const createSupabasePersonnelFunctionsRepository = (): PersonnelFunctionsReposit
         .delete()
         .eq('personnel_id', personnelId)
         .eq('team_id', teamId);
+      return { error };
+    },
+    deleteByFunctionIds: async ({ teamId, personnelId, functionIds }) => {
+      if (functionIds.length === 0) return { error: null };
+      const { error } = await supabase
+        .from('personnel_functions')
+        .delete()
+        .eq('personnel_id', personnelId)
+        .eq('team_id', teamId)
+        .in('function_id', functionIds);
       return { error };
     },
     insert: async (rows) => {
@@ -599,9 +610,9 @@ export const useCreatePersonnelMutation = () => {
           functionOvertimes: functionOvertimes || undefined,
         });
 
-        const { error: functionsError } = await personnelFunctionsRepo.insert(rows);
-        if (functionsError) {
-          logger.query.error('personnel_functions_insert_create', functionsError);
+        try {
+          await insertPersonnelFunctions(personnelFunctionsRepo, rows);
+        } catch (functionsError) {
           try {
             await supabase.from('personnel').delete().eq('id', personnelResult.id).eq('team_id', activeTeam.id);
           } catch (rollbackError) {

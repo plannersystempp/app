@@ -71,6 +71,7 @@ describe('personnelFunctionsService', () => {
       const repo: PersonnelFunctionsRepository = {
         listByPersonnelId: vi.fn(async () => ({ data: previous, error: null })),
         deleteByPersonnelId: vi.fn(async () => ({ error: null })),
+        deleteByFunctionIds: vi.fn(async () => ({ error: null })),
         insert: vi.fn(async () => ({ error: makePgError('rls') })),
         upsert: vi.fn(async () => ({ error: null })),
       };
@@ -93,10 +94,9 @@ describe('personnelFunctionsService', () => {
       ).rejects.toMatchObject({ message: 'rls' });
 
       expect(repo.listByPersonnelId).toHaveBeenCalledTimes(1);
-      expect(repo.deleteByPersonnelId).toHaveBeenCalledTimes(1);
+      expect(repo.deleteByFunctionIds).toHaveBeenCalledTimes(1);
       expect(repo.insert).toHaveBeenCalledTimes(2);
       expect((repo.insert as unknown as { mock: { calls: unknown[][] } }).mock.calls[1][0]).toEqual(previous);
     });
   });
 });
-

@@ -16,6 +16,11 @@ export interface PersonnelFunctionsRepository {
     error: PostgrestError | null;
   }>;
   deleteByPersonnelId(params: { teamId: string; personnelId: string }): Promise<{ error: PostgrestError | null }>;
+  deleteByFunctionIds(params: {
+    teamId: string;
+    personnelId: string;
+    functionIds: string[];
+  }): Promise<{ error: PostgrestError | null }>;
   insert(rows: PersonnelFunctionRow[]): Promise<{ error: PostgrestError | null }>;
   upsert(rows: PersonnelFunctionRow[], onConflict: string): Promise<{ error: PostgrestError | null }>;
 }
@@ -49,6 +54,38 @@ export const buildPersonnelFunctionRows = (params: {
   }));
 };
 
+const insertPersonnelFunctionsWithPrimaryFirst = async (
+  repo: PersonnelFunctionsRepository,
+  rows: PersonnelFunctionRow[]
+): Promise<{ error: PostgrestError | null }> => {
+  if (rows.length === 0) return { error: null };
+
+  const primaryRow = rows.find((r) => r.is_primary);
+  const orderedRows = primaryRow
+    ? [primaryRow, ...rows.filter((r) => r.function_id !== primaryRow.function_id)]
+    : rows;
+
+  const first = orderedRows[0];
+  const { error: firstError } = await repo.insert([first]);
+  if (firstError) return { error: firstError };
+
+  const remaining = orderedRows.slice(1);
+  if (remaining.length === 0) return { error: null };
+
+  return repo.insert(remaining);
+};
+
+export const insertPersonnelFunctions = async (
+  repo: PersonnelFunctionsRepository,
+  rows: PersonnelFunctionRow[]
+): Promise<void> => {
+  const { error } = await insertPersonnelFunctionsWithPrimaryFirst(repo, rows);
+  if (error) {
+    logger.query.error('personnel_functions_insert', error);
+    throw error;
+  }
+};
+
 export const replacePersonnelFunctions = async (repo: PersonnelFunctionsRepository, params: {
   personnelId: string;
   teamId: string;
@@ -64,24 +101,42 @@ export const replacePersonnelFunctions = async (repo: PersonnelFunctionsReposito
     throw existingError;
   }
 
-  const { error: deleteError } = await repo.deleteByPersonnelId({
-    teamId: params.teamId,
-    personnelId: params.personnelId,
-  });
-  if (deleteError) {
-    logger.query.error('personnel_functions_delete', deleteError);
-    throw deleteError;
+  const existingPrimaryIds = existingRows.filter((r) => r.is_primary).map((r) => r.function_id);
+  const existingNonPrimaryIds = existingRows.filter((r) => !r.is_primary).map((r) => r.function_id);
+
+  if (existingNonPrimaryIds.length > 0) {
+    const { error: deleteNonPrimaryError } = await repo.deleteByFunctionIds({
+      teamId: params.teamId,
+      personnelId: params.personnelId,
+      functionIds: existingNonPrimaryIds,
+    });
+    if (deleteNonPrimaryError) {
+      logger.query.error('personnel_functions_delete_non_primary', deleteNonPrimaryError);
+      throw deleteNonPrimaryError;
+    }
+  }
+
+  for (const functionId of existingPrimaryIds) {
+    const { error: deletePrimaryError } = await repo.deleteByFunctionIds({
+      teamId: params.teamId,
+      personnelId: params.personnelId,
+      functionIds: [functionId],
+    });
+    if (deletePrimaryError) {
+      logger.query.error('personnel_functions_delete_primary', deletePrimaryError);
+      throw deletePrimaryError;
+    }
   }
 
   if (params.rows.length === 0) return;
 
-  const { error: insertError } = await repo.insert(params.rows);
+  const { error: insertError } = await insertPersonnelFunctionsWithPrimaryFirst(repo, params.rows);
   if (!insertError) return;
 
   logger.query.error('personnel_functions_insert', insertError);
 
   if (existingRows.length > 0) {
-    const { error: restoreError } = await repo.insert(existingRows);
+    const { error: restoreError } = await insertPersonnelFunctionsWithPrimaryFirst(repo, existingRows);
     if (restoreError) {
       logger.query.error('personnel_functions_restore_previous', restoreError);
     }
@@ -116,4 +171,3 @@ export const upsertPersonnelFunctionCustomValues = async (repo: PersonnelFunctio
     throw error;
   }
 };
-
