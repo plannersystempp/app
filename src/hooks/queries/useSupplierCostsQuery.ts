@@ -7,15 +7,56 @@ import type { EventSupplierCost } from '@/contexts/data/types';
 export const supplierCostKeys = {
   all: ['supplierCosts'] as const,
   lists: () => [...supplierCostKeys.all, 'list'] as const,
-  list: (teamId?: string) => [...supplierCostKeys.lists(), { teamId }] as const,
+  list: (input: { teamId?: string; startDate?: string; endDate?: string; status?: 'todos' | 'pendente' | 'pago'; supplierId?: string; eventId?: string }) =>
+    [...supplierCostKeys.lists(), input] as const,
 };
 
-const fetchTeamSupplierCosts = async (teamId: string): Promise<EventSupplierCost[]> => {
-  const { data, error } = await supabase
+type SupplierCostsReportFilters = {
+  startDate?: string;
+  endDate?: string;
+  status?: 'todos' | 'pendente' | 'pago';
+  supplierId?: string;
+  eventId?: string;
+};
+
+const toStartTimestamp = (isoDate: string) => `${isoDate}T00:00:00.000Z`;
+const toEndTimestamp = (isoDate: string) => `${isoDate}T23:59:59.999Z`;
+
+const fetchTeamSupplierCosts = async (teamId: string, filters?: SupplierCostsReportFilters): Promise<EventSupplierCost[]> => {
+  let query = supabase
     .from('event_supplier_costs')
     .select('id, team_id, event_id, supplier_id, supplier_name, description, unit_price, quantity, total_amount, payment_status, paid_amount, payment_date, notes, created_at, updated_at')
-    .eq('team_id', teamId)
-    .order('created_at', { ascending: false });
+    .eq('team_id', teamId);
+
+  if (filters?.supplierId) query = query.eq('supplier_id', filters.supplierId);
+  if (filters?.eventId) query = query.eq('event_id', filters.eventId);
+
+  if (filters?.status === 'pago') query = query.eq('payment_status', 'paid');
+  if (filters?.status === 'pendente') query = query.neq('payment_status', 'paid');
+
+  const startDate = filters?.startDate;
+  const endDate = filters?.endDate;
+
+  if (startDate || endDate) {
+    const start = startDate ?? '1900-01-01';
+    const end = endDate ?? '9999-12-31';
+    const startTs = toStartTimestamp(start);
+    const endTs = toEndTimestamp(end);
+
+    if (filters?.status === 'pago') {
+      query = query.gte('payment_date', start).lte('payment_date', end);
+    } else if (filters?.status === 'pendente') {
+      query = query.gte('created_at', startTs).lte('created_at', endTs);
+    } else {
+      query = query.or(
+        `and(payment_status.eq.paid,payment_date.gte.${start},payment_date.lte.${end}),and(payment_status.neq.paid,created_at.gte.${startTs},created_at.lte.${endTs}),and(payment_status.is.null,created_at.gte.${startTs},created_at.lte.${endTs})`
+      );
+    }
+  }
+
+  const { data, error } = await query
+    .order('created_at', { ascending: false })
+    .limit(5000);
 
   if (error) throw error;
 
@@ -39,16 +80,22 @@ const fetchTeamSupplierCosts = async (teamId: string): Promise<EventSupplierCost
   }));
 };
 
-export const useSupplierCostsQuery = () => {
+export const useSupplierCostsQuery = (filters?: SupplierCostsReportFilters) => {
   const { user } = useAuth();
   const { activeTeam } = useTeam();
 
   return useQuery({
-    queryKey: supplierCostKeys.list(activeTeam?.id),
-    queryFn: () => fetchTeamSupplierCosts(activeTeam!.id),
+    queryKey: supplierCostKeys.list({
+      teamId: activeTeam?.id,
+      startDate: filters?.startDate,
+      endDate: filters?.endDate,
+      status: filters?.status,
+      supplierId: filters?.supplierId,
+      eventId: filters?.eventId,
+    }),
+    queryFn: () => fetchTeamSupplierCosts(activeTeam!.id, filters),
     enabled: !!user && !!activeTeam?.id,
     staleTime: 10 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 };
-

@@ -1,17 +1,17 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Search, Package } from 'lucide-react';
+import { Download, Plus, Search, Package } from 'lucide-react';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Input } from '@/components/ui/input';
 import { SupplierForm } from './SupplierForm';
 import { SupplierCard } from './SupplierCard';
-import { ExportDropdown } from '@/components/shared/ExportDropdown';
-import { formatCNPJ, formatPhoneBrazil } from '@/utils/supplierUtils';
 
 export const ManageSuppliers: React.FC = () => {
+  const navigate = useNavigate();
   const { suppliers, supplierItems } = useEnhancedData();
   const { user } = useAuth();
   const [showForm, setShowForm] = useState(false);
@@ -42,27 +42,18 @@ export const ManageSuppliers: React.FC = () => {
     );
   }, [suppliers, searchTerm]);
 
-  const exportData = filteredSuppliers.map(supplier => ({
-    nome_fantasia: supplier.name,
-    razao_social: supplier.legal_name || '',
-    cnpj: supplier.cnpj ? formatCNPJ(supplier.cnpj) : '',
-    inscricao_estadual: supplier.state_registration || '',
-    inscricao_municipal: supplier.municipal_registration || '',
-    cep: supplier.address_zip_code || '',
-    logradouro: supplier.address_street || '',
-    numero: supplier.address_number || '',
-    complemento: supplier.address_complement || '',
-    bairro: supplier.address_neighborhood || '',
-    cidade: supplier.address_city || '',
-    estado: supplier.address_state || '',
-    pessoa_contato: supplier.contact_person || '',
-    telefone_1: supplier.phone ? formatPhoneBrazil(supplier.phone) : '',
-    telefone_2: supplier.phone_secondary ? formatPhoneBrazil(supplier.phone_secondary) : '',
-    email: supplier.email || '',
-    avaliacao_media: supplier.average_rating.toFixed(1),
-    total_avaliacoes: supplier.total_ratings,
-    observacoes: supplier.notes || ''
-  }));
+  const handleOpenExport = () => {
+    const isFilterActive = !!searchTerm.trim();
+    navigate('/app/fornecedores/exportar', {
+      state: {
+        filters: {
+          search: searchTerm,
+        },
+        filteredCount: filteredSuppliers.length,
+        isFilterActive,
+      },
+    });
+  };
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -76,18 +67,10 @@ export const ManageSuppliers: React.FC = () => {
 
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full">
           <div className="order-2 sm:order-1 flex-1">
-            <ExportDropdown
-              data={exportData}
-              headers={[
-                'nome_fantasia', 'razao_social', 'cnpj', 'inscricao_estadual', 'inscricao_municipal',
-                'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'cidade', 'estado',
-                'pessoa_contato', 'telefone_1', 'telefone_2', 'email', 
-                'avaliacao_media', 'total_avaliacoes', 'observacoes'
-              ]}
-              filename="fornecedores"
-              title="Relatório de Fornecedores"
-              disabled={filteredSuppliers.length === 0}
-            />
+            <Button variant="outline" onClick={handleOpenExport} disabled={filteredSuppliers.length === 0}>
+              <Download className="w-4 h-4 mr-2" />
+              Exportar
+            </Button>
           </div>
           {isAdmin && (
             <Button onClick={() => setShowForm(true)} className="order-1 sm:order-2 w-full sm:w-auto">

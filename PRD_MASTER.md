@@ -1,3 +1,33 @@
+## [2026-03-03] - fix: Exportação PDF/CSV de fornecedores com colunas selecionáveis e PDF legível
+ - Mudanças:
+   - Adicionada seleção de colunas (persistida por equipe) na exportação da página Fornecedores e no Relatório de Pagamentos de Fornecedores.
+   - PDF passou a limitar quebra de texto em até 3 linhas por célula (com truncamento), evitando “colunas verticais” ilegíveis.
+   - Botão “Exportar” em Fornecedores agora abre uma página dedicada com seleção de colunas e pré-visualização.
+   - Adicionados filtros na página de exportação (busca, cidade e estado) para viabilizar “Exportar Filtrado”.
+ - Arquivos:
+   - `src/components/suppliers/ManageSuppliers.tsx`
+   - `src/pages/SupplierExportPage.tsx`
+   - `src/components/suppliers/SupplierExportColumnPicker.tsx`
+   - `src/components/suppliers/SupplierReportColumnSelector.tsx`
+   - `src/components/suppliers/supplierReportColumns.ts`
+   - `src/pages/SupplierPaymentsReportPage.tsx`
+   - `src/components/suppliers/SupplierPaymentsReportColumnSelector.tsx`
+   - `src/components/suppliers/supplierPaymentsReportColumns.ts`
+   - `src/utils/exportUtils.ts`
+ - Impacto:
+   - Exportações deixam de sair desconfiguradas e o usuário consegue exportar apenas as colunas necessárias para o relatório.
+
+## [2026-03-03] - fix: Relatório de fornecedores não quebra a rota ao abrir
+ - Mudanças:
+   - Corrigido crash por `SelectItem` com value vazio usando sentinel `all` e mapeando para `undefined` nos filtros.
+   - Corrigido ReferenceError por acesso a `costsQuery` antes da inicialização (ordem de declaração na página).
+   - Ajustado o fetch de `event_supplier_costs` para filtrar no servidor por período/status/fornecedor/evento e limitar volume retornado.
+ - Arquivos:
+   - `src/pages/SupplierPaymentsReportPage.tsx`
+   - `src/hooks/queries/useSupplierCostsQuery.ts`
+ - Impacto:
+   - A rota `/app/relatorios/pagamentos-fornecedores` abre de forma estável e com melhor performance em equipes grandes.
+
 ## [2026-02-26] - fix: Erro 409 ao salvar funções/cachês por função (trigger de função principal)
  - Mudanças:
    - Ajustada a estratégia de substituição de funções no update para evitar conflito do trigger `ensure_primary_function` durante deleções em lote.
@@ -37,6 +67,17 @@
    - `src/utils/__tests__/supplierPaymentsReport.test.ts`
  - Impacto:
    - Time financeiro consegue auditar pagamentos de fornecedores por recorte e exportar relatórios.
+
+## [2026-03-03] - fix: Relatório de pagamentos de fornecedores não trava ao abrir
+ - Mudanças:
+   - Ajustado o fetch de `event_supplier_costs` para filtrar no servidor por período/status/fornecedor/evento e limitar volume retornado.
+   - A página de relatório passa a buscar dados já recortados, reduzindo processamento e renderização em datasets grandes.
+   - Corrigido crash de UI ao abrir relatório (Radix Select não aceita `SelectItem` com value vazio).
+ - Arquivos:
+   - `src/hooks/queries/useSupplierCostsQuery.ts`
+   - `src/pages/SupplierPaymentsReportPage.tsx`
+ - Impacto:
+   - Navegação para `/app/relatorios/pagamentos-fornecedores` deixa de “congelar” em equipes com muitos custos lançados.
 
 ## [2026-02-20] - fix: Hardening de segurança no Supabase (Security Advisor)
  - Mudanças:

@@ -9,6 +9,7 @@ export type RouteAccessRule = {
 
 export const routeAccessRules: RouteAccessRule[] = [
   { pattern: '/app/fornecedores', pageLabel: 'Fornecedores', required: 'suppliers' },
+  { pattern: '/app/fornecedores/exportar', pageLabel: 'Exportar Fornecedores', required: 'suppliers' },
 
   { pattern: '/app/custos', pageLabel: 'Custos', required: 'finance' },
   { pattern: '/app/folha', pageLabel: 'Folha de Pagamento', required: 'finance' },

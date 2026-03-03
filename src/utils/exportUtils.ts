@@ -31,6 +31,18 @@ const normalizeColumns = (cols?: ExportColumn[]) => {
   };
 };
 
+const clampAutoTableLines = (value: unknown, maxLines: number): string[] => {
+  const baseLines = Array.isArray(value) ? value : [value];
+  const lines = baseLines.map((v) => (v === null || v === undefined ? '' : String(v)));
+  if (lines.length <= maxLines) return lines;
+
+  const clamped = lines.slice(0, maxLines);
+  const lastIdx = maxLines - 1;
+  const last = clamped[lastIdx] ?? '';
+  clamped[lastIdx] = last.endsWith('…') ? last : `${last}…`;
+  return clamped;
+};
+
 export const exportToCSV = (data: Array<Record<string, unknown>>, filename: string, headers?: ExportColumn[]) => {
   if (!data || data.length === 0) {
     throw new Error('Nenhum dado para exportar');
@@ -113,7 +125,7 @@ export const exportToPDF = (data: Array<Record<string, unknown>>, headers: Expor
     body: tableData,
     startY: 40,
     styles: {
-      fontSize: 8,
+      fontSize: pdfLabels.length > 10 ? 6 : 8,
       cellPadding: 2,
       overflow: 'linebreak',
     },
@@ -123,6 +135,11 @@ export const exportToPDF = (data: Array<Record<string, unknown>>, headers: Expor
     },
     alternateRowStyles: {
       fillColor: [245, 245, 245],
+    },
+    didParseCell: (hookData) => {
+      const cell = hookData.cell;
+      if (!cell) return;
+      cell.text = clampAutoTableLines(cell.text, 3);
     },
   });
   

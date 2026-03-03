@@ -31,6 +31,7 @@ import { Settings } from './components/admin/Settings';
 import { SettingsPage } from './components/SettingsPage';
 import { TeamManagement } from './components/teams/TeamManagement';
 import { ManageSuppliers } from './components/suppliers/ManageSuppliers';
+import SupplierExportPage from './pages/SupplierExportPage';
 import { Card, CardContent } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
@@ -413,6 +414,13 @@ const AppContent = () => {
                   <RouteErrorBoundary routeName="Fornecedores">
                     <PermissionGuard pageLabel="Fornecedores" required="suppliers">
                       <ManageSuppliers />
+                    </PermissionGuard>
+                  </RouteErrorBoundary>
+                } />
+                <Route path="/fornecedores/exportar" element={
+                  <RouteErrorBoundary routeName="Exportar Fornecedores">
+                    <PermissionGuard pageLabel="Exportar Fornecedores" required="suppliers">
+                      <SupplierExportPage />
                     </PermissionGuard>
                   </RouteErrorBoundary>
                 } />

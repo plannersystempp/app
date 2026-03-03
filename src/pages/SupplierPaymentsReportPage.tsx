@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,14 @@ import { FileText } from 'lucide-react';
 import { useEventsQuery } from '@/hooks/queries/useEventsQuery';
 import { useSuppliersQuery } from '@/hooks/queries/useSuppliersQuery';
 import { useSupplierCostsQuery } from '@/hooks/queries/useSupplierCostsQuery';
+import { safeLocalStorage } from '@/utils/safeStorage';
+import { SupplierPaymentsReportColumnSelector } from '@/components/suppliers/SupplierPaymentsReportColumnSelector';
+import {
+  getDefaultVisibleSupplierPaymentsReportColumns,
+  getSupplierPaymentsReportColumnLabel,
+  sanitizeSupplierPaymentsReportColumns,
+  type SupplierPaymentsReportColumnId,
+} from '@/components/suppliers/supplierPaymentsReportColumns';
 
 const isoToday = () => {
   const d = new Date();
@@ -35,26 +43,62 @@ export default function SupplierPaymentsReportPage() {
   const { activeTeam } = useTeam();
   const eventsQuery = useEventsQuery();
   const suppliersQuery = useSuppliersQuery();
-  const costsQuery = useSupplierCostsQuery();
-
-  const isLoading = eventsQuery.isLoading || suppliersQuery.isLoading || costsQuery.isLoading;
-  const loadError = eventsQuery.error || suppliersQuery.error || costsQuery.error;
 
   const [startDate, setStartDate] = useState<string>(isoMonthStart());
   const [endDate, setEndDate] = useState<string>(isoToday());
   const [status, setStatus] = useState<SupplierPaymentsStatusFilter>('todos');
-  const [supplierId, setSupplierId] = useState<string>('');
-  const [eventId, setEventId] = useState<string>('');
+  const [supplierId, setSupplierId] = useState<string>('all');
+  const [eventId, setEventId] = useState<string>('all');
 
   const filters = useMemo(
     () => ({
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       status,
-      supplierId: supplierId || undefined,
-      eventId: eventId || undefined,
+      supplierId: supplierId === 'all' ? undefined : supplierId,
+      eventId: eventId === 'all' ? undefined : eventId,
     }),
     [endDate, eventId, startDate, status, supplierId]
+  );
+
+  const costsQuery = useSupplierCostsQuery(filters);
+
+  const isLoading = eventsQuery.isLoading || suppliersQuery.isLoading || costsQuery.isLoading;
+  const loadError = eventsQuery.error || suppliersQuery.error || costsQuery.error;
+
+  const columnsStorageKey = activeTeam?.id
+    ? `supplier_payments_report_columns:${activeTeam.id}`
+    : 'supplier_payments_report_columns';
+  const [visibleColumns, setVisibleColumns] = useState<SupplierPaymentsReportColumnId[]>(() => {
+    const raw = safeLocalStorage.getItem(columnsStorageKey);
+    if (!raw) return getDefaultVisibleSupplierPaymentsReportColumns();
+    try {
+      return sanitizeSupplierPaymentsReportColumns(JSON.parse(raw));
+    } catch {
+      return getDefaultVisibleSupplierPaymentsReportColumns();
+    }
+  });
+
+  useEffect(() => {
+    const raw = safeLocalStorage.getItem(columnsStorageKey);
+    if (!raw) {
+      setVisibleColumns(getDefaultVisibleSupplierPaymentsReportColumns());
+      return;
+    }
+    try {
+      setVisibleColumns(sanitizeSupplierPaymentsReportColumns(JSON.parse(raw)));
+    } catch {
+      setVisibleColumns(getDefaultVisibleSupplierPaymentsReportColumns());
+    }
+  }, [columnsStorageKey]);
+
+  useEffect(() => {
+    safeLocalStorage.setItem(columnsStorageKey, JSON.stringify(visibleColumns));
+  }, [columnsStorageKey, visibleColumns]);
+
+  const exportHeaders = useMemo(
+    () => visibleColumns.map((id) => ({ key: id, label: getSupplierPaymentsReportColumnLabel(id) })),
+    [visibleColumns]
   );
 
   const { rows, totals } = useSupplierPaymentsReport({
@@ -69,20 +113,7 @@ export default function SupplierPaymentsReportPage() {
     const baseTitle = 'Relatório de Pagamentos de Fornecedores';
     const periodLabel = `${startDate || '-'}_a_${endDate || '-'}`;
 
-    const csvHeaders = [
-      { key: 'fornecedor', label: 'Fornecedor' },
-      { key: 'evento', label: 'Evento' },
-      { key: 'descricao', label: 'Descrição/Item' },
-      { key: 'quantidade', label: 'Quantidade' },
-      { key: 'valor_unitario', label: 'Valor Unitário' },
-      { key: 'valor_total', label: 'Valor Total' },
-      { key: 'valor_pago', label: 'Valor Pago' },
-      { key: 'valor_pendente', label: 'Valor Pendente' },
-      { key: 'status', label: 'Status' },
-      { key: 'data_pagamento', label: 'Data de Pagamento' },
-    ];
-
-    const pdfHeaders = csvHeaders;
+    const selectedHeaders = exportHeaders;
 
     return [
       {
@@ -104,7 +135,7 @@ export default function SupplierPaymentsReportPage() {
 
           return {
             data,
-            headers: csvHeaders,
+            headers: selectedHeaders,
             filename: `${baseFilename}_${periodLabel}`,
             title: baseTitle,
           };
@@ -130,21 +161,21 @@ export default function SupplierPaymentsReportPage() {
           const titleWithTeam = activeTeam?.name ? `${baseTitle} — ${activeTeam.name}` : baseTitle;
           return {
             data,
-            headers: pdfHeaders,
+            headers: selectedHeaders,
             filename: `${baseFilename}_${periodLabel}`,
             title: titleWithTeam,
           };
         },
       },
     ];
-  }, [activeTeam?.name, endDate, rows, startDate]);
+  }, [activeTeam?.name, endDate, exportHeaders, rows, startDate]);
 
   const clearFilters = () => {
     setStartDate(isoMonthStart());
     setEndDate(isoToday());
     setStatus('todos');
-    setSupplierId('');
-    setEventId('');
+    setSupplierId('all');
+    setEventId('all');
   };
 
   return (
@@ -155,6 +186,7 @@ export default function SupplierPaymentsReportPage() {
           <p className="text-sm text-muted-foreground">Filtre por período, status, fornecedor e evento, e exporte CSV/PDF.</p>
         </div>
         <div className="flex items-center gap-2">
+          <SupplierPaymentsReportColumnSelector visibleColumns={visibleColumns} onChange={setVisibleColumns} disabled={isLoading || rows.length === 0} />
           <ExportDropdown
             data={[]}
             filename="relatorio_pagamentos_fornecedores"
@@ -206,7 +238,7 @@ export default function SupplierPaymentsReportPage() {
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   {(suppliersQuery.data || []).map((s) => (
                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                   ))}
@@ -220,7 +252,7 @@ export default function SupplierPaymentsReportPage() {
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   {(eventsQuery.data || []).map((ev) => (
                     <SelectItem key={ev.id} value={ev.id}>{ev.name}</SelectItem>
                   ))}
