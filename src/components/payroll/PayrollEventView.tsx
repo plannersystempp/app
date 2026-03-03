@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,18 +17,23 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SupplierPaymentDialog } from '../events/costs/SupplierPaymentDialog';
 import { type EventSupplierCost } from '@/contexts/data/types';
-import { Clock } from 'lucide-react';
+import { useEventsQuery } from '@/hooks/queries/useEventsQuery';
+import { useSupplierCostsQuery } from '@/hooks/queries/useSupplierCostsQuery';
+import { Clock, Loader2 } from 'lucide-react';
 
 export const PayrollEventView: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
-  const { events, eventSupplierCosts } = useEnhancedData();
+
+  const { data: events = [], isLoading: loadingEvents } = useEventsQuery();
+  const { data: eventSupplierCosts = [], isLoading: loadingCosts } = useSupplierCostsQuery({ eventId });
+
   const { activeTeam, userRole } = useTeam();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-  
+
   // Tab de Categoria (Pessoal vs Fornecedores)
   const [categoryTab, setCategoryTab] = useState<'staff' | 'suppliers'>('staff');
-  
+
   const [paymentFilter, setPaymentFilter] = useState<'todos' | 'pendentes' | 'pagos'>('todos');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCostForPayment, setSelectedCostForPayment] = useState<EventSupplierCost | null>(null);
@@ -43,16 +47,16 @@ export const PayrollEventView: React.FC = () => {
   const supplierCosts = useMemo(() => {
     if (!eventSupplierCosts || !eventId) return [];
     let result = eventSupplierCosts.filter(cost => cost.event_id === eventId);
-    
+
     // Filter by search
     if (searchTerm.trim() && categoryTab === 'suppliers') {
       const lowerTerm = searchTerm.toLowerCase();
-      result = result.filter(item => 
+      result = result.filter(item =>
         item.description.toLowerCase().includes(lowerTerm) ||
         (item.supplier_name || '').toLowerCase().includes(lowerTerm)
       );
     }
-    
+
     return result;
   }, [eventSupplierCosts, eventId, searchTerm, categoryTab]);
 
@@ -70,7 +74,7 @@ export const PayrollEventView: React.FC = () => {
     // 2. Filtro de Busca (Nome)
     if (searchTerm.trim() && categoryTab === 'staff') {
       const lowerTerm = searchTerm.toLowerCase();
-      result = result.filter(item => 
+      result = result.filter(item =>
         item.personName.toLowerCase().includes(lowerTerm)
       );
     }
@@ -81,7 +85,7 @@ export const PayrollEventView: React.FC = () => {
   // Estatísticas gerais (Combinadas)
   const totalStaffToPay = useMemo(() => payrollDetails.reduce((sum, item) => sum + (item.totalPay || 0), 0), [payrollDetails]);
   const totalStaffPaid = useMemo(() => payrollDetails.reduce((sum, item) => sum + (item.paidAmount || 0), 0), [payrollDetails]);
-  
+
   const totalSuppliersToPay = useMemo(() => (supplierCosts || []).reduce((sum, item) => sum + Number(item.total_amount || 0), 0), [supplierCosts]);
   const totalSuppliersPaid = useMemo(() => (supplierCosts || []).reduce((sum, item) => sum + Number(item.paid_amount || 0), 0), [supplierCosts]);
 
@@ -98,17 +102,17 @@ export const PayrollEventView: React.FC = () => {
     return Math.max(currentTotalToPay - currentTotalPaid, 0);
   }, [currentTotalToPay, currentTotalPaid]);
 
-  const paidCount = useMemo(() => 
-    categoryTab === 'staff' 
+  const paidCount = useMemo(() =>
+    categoryTab === 'staff'
       ? payrollDetails.filter(p => p.paid).length
       : (supplierCosts || []).filter(c => c.payment_status === 'paid').length
-  , [payrollDetails, supplierCosts, categoryTab]);
-  
-  const pendingCount = useMemo(() => 
+    , [payrollDetails, supplierCosts, categoryTab]);
+
+  const pendingCount = useMemo(() =>
     categoryTab === 'staff'
       ? payrollDetails.filter(p => !p.paid).length
       : (supplierCosts || []).filter(c => c.payment_status !== 'paid').length
-  , [payrollDetails, supplierCosts, categoryTab]);
+    , [payrollDetails, supplierCosts, categoryTab]);
 
   const handleOpenPaymentDialog = (cost: EventSupplierCost) => {
     setSelectedCostForPayment(cost);
@@ -159,6 +163,15 @@ export const PayrollEventView: React.FC = () => {
     );
   }
 
+  if (loadingEvents || loadingCosts) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        <p className="text-muted-foreground animate-pulse">Carregando dados do evento...</p>
+      </div>
+    );
+  }
+
   if (!selectedEvent) {
     return (
       <div className="w-full max-w-full p-3 sm:p-4 md:p-6">
@@ -180,16 +193,16 @@ export const PayrollEventView: React.FC = () => {
       {/* Cabeçalho com informações do evento */}
       <div className="space-y-3">
         <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex items-center justify-between'}`}>
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             onClick={handleBackToSelection}
             className={`${isMobile ? 'self-start' : ''} -ml-2`}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Voltar
           </Button>
-          
-          <Button 
+
+          <Button
             onClick={handleGoToEvent}
             className={`${isMobile ? 'w-full' : 'w-auto'}`}
           >
@@ -197,7 +210,7 @@ export const PayrollEventView: React.FC = () => {
             {isMobile ? 'Ver Evento' : 'Ver Detalhes do Evento'}
           </Button>
         </div>
-        
+
         <div className="space-y-1">
           <h1 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold leading-tight`}>
             Gestão Financeira do Evento
@@ -209,7 +222,7 @@ export const PayrollEventView: React.FC = () => {
             <Calendar className="w-4 h-4" />
             <span>
               {selectedEvent.start_date && formatDateBR(selectedEvent.start_date)}
-              {selectedEvent.end_date && selectedEvent.start_date !== selectedEvent.end_date && 
+              {selectedEvent.end_date && selectedEvent.start_date !== selectedEvent.end_date &&
                 ` - ${formatDateBR(selectedEvent.end_date)}`}
             </span>
           </div>
@@ -228,7 +241,7 @@ export const PayrollEventView: React.FC = () => {
               <span>Detalhes da Folha</span>
             </CardTitle>
             <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex gap-2'}`}>
-              <Button 
+              <Button
                 onClick={handleOpenReport}
                 disabled={payrollDetails.length === 0}
                 className={`${isMobile ? 'w-full' : 'w-auto'} text-sm`}
@@ -342,13 +355,13 @@ export const PayrollEventView: React.FC = () => {
               </div>
 
               {/* Placeholder para Loading (usando dados do contexto não temos loading state explícito separado) */}
-               {false ? (
-                  <div className="space-y-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                  </div>
-               ) : supplierCosts.length === 0 ? (
+              {false ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              ) : supplierCosts.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   Nenhum custo de fornecedor registrado para este evento.
                 </div>
@@ -364,7 +377,7 @@ export const PayrollEventView: React.FC = () => {
                           </div>
                           <div className="text-right">
                             <div className="font-bold text-lg">{formatCurrency(Number(cost.total_amount))}</div>
-                            <Badge 
+                            <Badge
                               variant={cost.payment_status === 'paid' ? 'default' : 'destructive'}
                               className={cost.payment_status === 'paid' ? 'bg-green-100 text-green-800 border-green-200' : ''}
                             >
@@ -386,21 +399,21 @@ export const PayrollEventView: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          
+
                           <div className="flex gap-2 w-full sm:w-auto">
                             {cost.payment_status !== 'paid' && (
                               <>
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
+                                <Button
+                                  variant="outline"
+                                  size="sm"
                                   onClick={() => handleOpenPaymentDialog(cost)}
                                   className="flex-1 sm:flex-none h-8 text-xs"
                                 >
                                   <Clock className="w-3.5 h-3.5 mr-1.5" />
                                   Parcial
                                 </Button>
-                                <Button 
-                                  size="sm" 
+                                <Button
+                                  size="sm"
                                   onClick={() => handleOpenPaymentDialog(cost)}
                                   className="flex-1 sm:flex-none h-8 text-xs"
                                 >

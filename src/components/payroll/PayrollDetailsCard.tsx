@@ -11,6 +11,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { PersonnelHistoryDialog } from '../personnel/PersonnelHistory/PersonnelHistoryDialog';
 import { AbsencesModal } from '../personnel/AbsencesModal';
 import { PartialPaymentDialog } from './PartialPaymentDialog';
+import { FullPaymentConfirmationDialog } from './FullPaymentConfirmationDialog';
 import { formatCurrency } from '@/utils/formatters';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -53,6 +54,7 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
   const [showAbsencesModal, setShowAbsencesModal] = useState(false);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [showPartialPaymentDialog, setShowPartialPaymentDialog] = useState(false);
+  const [showFullPaymentDialog, setShowFullPaymentDialog] = useState(false);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   const [confirmPermanent, setConfirmPermanent] = useState(false);
   const cacheDailyRate = eventSpecificCacheRate
@@ -83,15 +85,15 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
         <div className={`${isMobile ? 'space-y-1.5' : 'flex items-center justify-between'} mb-1.5`}>
           <div className={isMobile ? 'space-y-1.5' : ''}>
             <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-              <h3 
+              <h3
                 className="font-semibold text-sm sm:text-base cursor-pointer hover:underline decoration-primary hover:text-primary transition-colors"
                 onClick={() => setShowHistoryDialog(true)}
               >
                 {detail.personName}
               </h3>
               {detail.absencesCount > 0 && (
-                <Badge 
-                  variant="destructive" 
+                <Badge
+                  variant="destructive"
                   className="cursor-pointer hover:bg-destructive/90 text-xs"
                   onClick={() => setShowAbsencesModal(true)}
                 >
@@ -130,13 +132,12 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
         </div>
 
         <Separator className="my-1.5" />
-        
+
         {/* Detalhamento dos Cálculos */}
-        <div className={`${
-          isMobile 
-            ? 'grid grid-cols-2 gap-1.5'
-            : 'grid grid-cols-[1fr_1fr_minmax(180px,auto)_auto] items-start gap-1 md:gap-1.5 lg:gap-2'
-        } mb-0.5`}>
+        <div className={`${isMobile
+          ? 'grid grid-cols-2 gap-1.5'
+          : 'grid grid-cols-[1fr_1fr_minmax(180px,auto)_auto] items-start gap-1 md:gap-1.5 lg:gap-2'
+          } mb-0.5`}>
           {detail.personType === 'fixo' && (
             <div className={`${isMobile ? 'p-1.5 rounded-lg' : 'lg:flex-1 lg:min-w-0'}`}>
               <p className="text-xs sm:text-sm text-muted-foreground">Salário Base</p>
@@ -182,7 +183,7 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
             {detail.overtimeConversionApplied ? (
               <p className="text-[11px] text-muted-foreground mt-1">
                 {detail.overtimeCachesUsed} cachê{detail.overtimeCachesUsed > 1 ? 's' : ''} diário{detail.overtimeCachesUsed > 1 ? 's' : ''}
-                {detail.overtimeRemainingHours && detail.overtimeRemainingHours > 0 && 
+                {detail.overtimeRemainingHours && detail.overtimeRemainingHours > 0 &&
                   ` + ${detail.overtimeRemainingHours.toFixed(1)}h avulsas`
                 }
               </p>
@@ -203,12 +204,12 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
                   <p className={`text-xs font-mono ${isMobile ? 'truncate text-center' : 'truncate sm:max-w-[200px] md:max-w-[260px] lg:max-w-[340px]'}`}>{pixKey || '—'}</p>
                   <Button
                     variant="outline"
-                    size="sm" 
+                    size="sm"
                     onClick={copyPixKey}
                     disabled={!pixKey}
                     className="h-6 w-6 p-0 flex-shrink-0"
                   >
-                  <Copy className="w-3 h-3" />
+                    <Copy className="w-3 h-3" />
                   </Button>
                 </div>
               </div>
@@ -224,7 +225,7 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
                 </div>
               ) : detail.paidAmount > 0 ? (
                 <>
-                  <Button 
+                  <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setShowPartialPaymentDialog(true)}
@@ -234,9 +235,9 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
                     <Clock className="w-3 h-3 mr-1" />
                     Parcial
                   </Button>
-                  <Button 
+                  <Button
                     size="sm"
-                    onClick={() => onRegisterPayment(detail.personnelId, detail.pendingAmount)}
+                    onClick={() => setShowFullPaymentDialog(true)}
                     disabled={loading}
                     className={`h-4 px-1 sm:px-1 text-[11px]`}
                   >
@@ -246,7 +247,7 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
                 </>
               ) : (
                 <>
-                  <Button 
+                  <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setShowPartialPaymentDialog(true)}
@@ -256,9 +257,9 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
                     <Clock className="w-3 h-3 mr-1" />
                     Parcial
                   </Button>
-                  <Button 
+                  <Button
                     size="sm"
-                    onClick={() => onRegisterPayment(detail.personnelId, detail.totalPay)}
+                    onClick={() => setShowFullPaymentDialog(true)}
                     disabled={loading}
                     className={`h-4 px-1 sm:px-1 text-[11px]`}
                   >
@@ -279,11 +280,10 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
               <h4 className="font-medium mb-1.5 text-sm">Histórico de Pagamentos</h4>
               <div className="space-y-1.5">
                 {detail.paymentHistory.map((payment) => (
-                  <div key={payment.id} className={`${
-                    isMobile 
-                      ? 'flex flex-col space-y-1.5 p-1.5' 
-                      : 'flex items-center justify-between p-1.5'
-                  } bg-muted rounded-lg`}>
+                  <div key={payment.id} className={`${isMobile
+                    ? 'flex flex-col space-y-1.5 p-1.5'
+                    : 'flex items-center justify-between p-1.5'
+                    } bg-muted rounded-lg`}>
                     <div className={`${isMobile ? 'flex items-center gap-1.5 flex-1' : 'flex items-center gap-1.5'}`}>
                       <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -301,11 +301,10 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
                       size="sm"
                       onClick={() => setConfirmCancelId(payment.id)}
                       disabled={loading}
-                      className={`${
-                        isMobile 
-                          ? 'h-6 w-full justify-center' 
-                          : 'h-6 w-6 p-0'
-                      } text-destructive hover:text-destructive flex-shrink-0`}
+                      className={`${isMobile
+                        ? 'h-6 w-full justify-center'
+                        : 'h-6 w-6 p-0'
+                        } text-destructive hover:text-destructive flex-shrink-0`}
                     >
                       <Trash2 className="w-3 h-3" />
                       {isMobile && <span className="ml-2 text-xs">Cancelar</span>}
@@ -329,7 +328,7 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
               </div>
             ) : detail.paidAmount > 0 ? (
               <>
-                <Button 
+                <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setShowPartialPaymentDialog(true)}
@@ -339,9 +338,9 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
                   <Clock className="w-3 h-3 mr-1.5" />
                   Pagamento Parcial
                 </Button>
-                <Button 
+                <Button
                   size="sm"
-                  onClick={() => onRegisterPayment(detail.personnelId, detail.pendingAmount)}
+                  onClick={() => setShowFullPaymentDialog(true)}
                   disabled={loading}
                   className={`w-full h-5 px-1.5 text-xs`}
                 >
@@ -351,7 +350,7 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
               </>
             ) : (
               <>
-                <Button 
+                <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setShowPartialPaymentDialog(true)}
@@ -361,9 +360,9 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
                   <Clock className="w-3 h-3 mr-1.5" />
                   Pagamento Parcial
                 </Button>
-                <Button 
+                <Button
                   size="sm"
-                  onClick={() => onRegisterPayment(detail.personnelId, detail.totalPay)}
+                  onClick={() => setShowFullPaymentDialog(true)}
                   disabled={loading}
                   className={`w-full h-5 px-1.5 text-xs`}
                 >
@@ -383,7 +382,7 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
           absences={detail.absences}
           eventName="Evento" // You may want to pass the actual event name
         />
-        
+
         <PersonnelHistoryDialog
           open={showHistoryDialog}
           onOpenChange={setShowHistoryDialog}
@@ -402,6 +401,18 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
           onConfirm={(amount, notes) => {
             onRegisterPartialPayment(detail.personnelId, amount, notes);
             setShowPartialPaymentDialog(false);
+          }}
+          loading={loading}
+        />
+
+        <FullPaymentConfirmationDialog
+          open={showFullPaymentDialog}
+          onOpenChange={setShowFullPaymentDialog}
+          personName={detail.personName}
+          amount={detail.pendingAmount > 0 ? detail.pendingAmount : detail.totalPay}
+          onConfirm={(notes) => {
+            onRegisterPayment(detail.personnelId, detail.pendingAmount > 0 ? detail.pendingAmount : detail.totalPay, notes);
+            setShowFullPaymentDialog(false);
           }}
           loading={loading}
         />

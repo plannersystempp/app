@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -12,6 +13,7 @@ import { useTeam } from '@/contexts/TeamContext';
 import { getCachedEventStatus } from './eventStatusCache';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+
 
 interface EventSelectorProps {
   events: Event[];
@@ -69,32 +71,20 @@ export const EventSelector: React.FC<EventSelectorProps> = ({
   const { activeTeam } = useTeam();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('concluido_pagamento_pendente');
-  
-  // Usar função SQL otimizada para obter status de pagamento dos eventos
-  const [eventsWithStatus, setEventsWithStatus] = useState<Array<{
-    event_id: string;
-    event_name: string;
-    event_status: string;
-    end_date: string;
-    payment_due_date: string | null;
-    allocated_count: number;
-    paid_count: number;
-    has_pending_payments: boolean;
-  }>>([]);
 
-  useEffect(() => {
-    const fetchEventsStatus = async () => {
-      if (!activeTeam) return;
-      try {
-        // Usar cache para reduzir queries redundantes
-        const data = await getCachedEventStatus(activeTeam.id);
-        setEventsWithStatus(data);
-      } catch (e) {
-        console.error('Erro ao carregar status de eventos:', e);
-      }
-    };
-    fetchEventsStatus();
-  }, [activeTeam]);
+  // Use React Query so EventSelector reactively refetches when
+  // 'event-payment-status' is invalidated after payment actions
+  const { data: eventsWithStatus = [] } = useQuery({
+    queryKey: ['event-payment-status', activeTeam?.id],
+    queryFn: async () => {
+      if (!activeTeam?.id) return [];
+      return getCachedEventStatus(activeTeam.id);
+    },
+    enabled: !!activeTeam?.id,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+
 
   // Criar map para lookup rápido
   const eventStatusMap = useMemo(() => {
@@ -112,14 +102,20 @@ export const EventSelector: React.FC<EventSelectorProps> = ({
       // Obter informações de status de pagamento do evento
       const statusInfo = eventStatusMap.get(event.id);
       const hasPending = statusInfo?.has_pending_payments ?? false;
-      
+
+      // Fallback: se paid_count < allocated_count, há pendências (captura pagamentos parciais)
+      const allocatedCount = statusInfo?.allocated_count ?? 0;
+      const paidCount = statusInfo?.paid_count ?? 0;
+      const hasPaidLessThanAllocated = allocatedCount > 0 && paidCount < allocatedCount;
+
       // Regra para filtro "Pagamento Pendente":
       // - Excluir cancelados e planejados
-      // - Incluir eventos com pending payments reais (baseado em alocações vs pagamentos)
+      // - Incluir eventos com pending payments OU com menos pagos que alocados
       const matchesPendingFilter = (
-        event.status !== 'cancelado' && 
+        event.status !== 'cancelado' &&
         event.status !== 'planejado' &&
-        hasPending
+        allocatedCount > 0 &&
+        (hasPending || hasPaidLessThanAllocated)
       );
 
       const matchesStatus =
@@ -174,14 +170,14 @@ export const EventSelector: React.FC<EventSelectorProps> = ({
           const statusInfo = eventStatusMap.get(event.id);
           const dueStr = getEffectiveDueDate(event);
           const isDue = isDueTodayOrPast(dueStr);
-          
+
           const hasPendingPayments = statusInfo?.has_pending_payments ?? false;
-          
+
           // Cálculo de progresso de pagamentos
           const totalAllocated = statusInfo?.allocated_count || 0;
           const totalPaid = statusInfo?.paid_count || 0;
           const progressPercent = totalAllocated > 0 ? (totalPaid / totalAllocated) * 100 : 0;
-          
+
           const showDueWarning = (
             event.status === 'concluido_pagamento_pendente' ||
             hasPendingPayments ||
@@ -189,7 +185,7 @@ export const EventSelector: React.FC<EventSelectorProps> = ({
           );
 
           return (
-            <Card 
+            <Card
               key={event.id}
               className={cn(
                 "cursor-pointer transition-all hover:shadow-lg border-l-4 animate-in fade-in duration-300",
@@ -199,22 +195,22 @@ export const EventSelector: React.FC<EventSelectorProps> = ({
               onClick={() => navigate(`/app/folha/${event.id}`)}
             >
               <CardHeader className="p-4 pb-2">
-                 <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                        <h3 className="font-semibold text-base line-clamp-1" title={event.name}>
-                            {event.name}
-                        </h3>
-                        {event.location && (
-                            <div className="flex items-center text-xs text-muted-foreground">
-                                <MapPin className="h-3 w-3 mr-1" />
-                                <span className="line-clamp-1">{event.location}</span>
-                            </div>
-                        )}
-                    </div>
-                    <Badge variant="outline" className={cn("ml-2 whitespace-nowrap text-[10px]", statusConfig.className)}>
-                        {statusConfig.label}
-                    </Badge>
-                 </div>
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <h3 className="font-semibold text-base line-clamp-1" title={event.name}>
+                      {event.name}
+                    </h3>
+                    {event.location && (
+                      <div className="flex items-center text-xs text-muted-foreground">
+                        <MapPin className="h-3 w-3 mr-1" />
+                        <span className="line-clamp-1">{event.location}</span>
+                      </div>
+                    )}
+                  </div>
+                  <Badge variant="outline" className={cn("ml-2 whitespace-nowrap text-[10px]", statusConfig.className)}>
+                    {statusConfig.label}
+                  </Badge>
+                </div>
               </CardHeader>
 
               <CardContent className="p-4 py-2 space-y-3">
@@ -222,35 +218,35 @@ export const EventSelector: React.FC<EventSelectorProps> = ({
                   <Calendar className="h-4 w-4" />
                   <span>
                     {event.start_date && formatDateBR(event.start_date)}
-                    {event.end_date && event.start_date !== event.end_date && 
+                    {event.end_date && event.start_date !== event.end_date &&
                       ` - ${formatDateBR(event.end_date)}`}
                   </span>
                 </div>
 
                 {/* Seção Financeira */}
                 <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Pagamentos Realizados</span>
-                        <span className="font-medium">
-                            {totalPaid}/{totalAllocated}
-                        </span>
-                    </div>
-                    <Progress value={progressPercent} className="h-2" indicatorClassName={hasPendingPayments ? "bg-amber-500" : "bg-green-500"} />
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Pagamentos Realizados</span>
+                    <span className="font-medium">
+                      {totalPaid}/{totalAllocated}
+                    </span>
+                  </div>
+                  <Progress value={progressPercent} className="h-2" indicatorClassName={hasPendingPayments ? "bg-amber-500" : "bg-green-500"} />
                 </div>
               </CardContent>
 
               <CardFooter className="p-4 pt-2 border-t bg-muted/10 flex justify-between items-center">
-                 {dueStr && (
-                    <div className={cn("flex items-center gap-1.5 text-xs font-medium", showDueWarning ? "text-red-600" : "text-muted-foreground")}>
-                       <Clock className="h-3.5 w-3.5" />
-                       <span>Vence: {formatDateBR(dueStr)}</span>
-                    </div>
-                 )}
-                 
-                 <div className="text-xs text-primary font-medium flex items-center ml-auto">
-                    Gerenciar Folha
-                    <ChevronRight className="h-3 w-3 ml-1" />
-                 </div>
+                {dueStr && (
+                  <div className={cn("flex items-center gap-1.5 text-xs font-medium", showDueWarning ? "text-red-600" : "text-muted-foreground")}>
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>Vence: {formatDateBR(dueStr)}</span>
+                  </div>
+                )}
+
+                <div className="text-xs text-primary font-medium flex items-center ml-auto">
+                  Gerenciar Folha
+                  <ChevronRight className="h-3 w-3 ml-1" />
+                </div>
               </CardFooter>
             </Card>
           );

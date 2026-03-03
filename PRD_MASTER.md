@@ -1,3 +1,12 @@
+## [2026-03-03] - fix: Correção de compatibilidade do Preview com Vite (process.env)
+ - Mudanças:
+   - Substituído `process.env.NODE_ENV` por `import.meta.env.MODE` em arquivos do frontend, pois `process` não está definido no ambiente do navegador (causava crash na inicialização do preview).
+ - Arquivos:
+   - `src/providers/QueryProvider.tsx`
+   - `src/services/errorReporting.ts`
+ - Impacto:
+   - O Preview do aplicativo volta a carregar corretamente, eliminando o erro silencioso de inicialização.
+
 ## [2026-03-03] - fix: Exportação PDF/CSV de fornecedores com colunas selecionáveis e PDF legível
  - Mudanças:
    - Adicionada seleção de colunas (persistida por equipe) na exportação da página Fornecedores e no Relatório de Pagamentos de Fornecedores.

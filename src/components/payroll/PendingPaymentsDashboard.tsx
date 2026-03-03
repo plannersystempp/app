@@ -5,17 +5,20 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTeamPendingPayments, TeamPendingPaymentItem } from '@/hooks/queries/useTeamPendingPayments';
+import { usePersonnelPaymentsQuery, personnelPaymentsKeys } from '@/hooks/queries/usePersonnelPaymentsQuery';
+import { usePersonnelPaymentsRealtime } from '@/hooks/queries/usePersonnelPaymentsRealtime';
+import { usePayrollClosingsRealtime } from '@/hooks/queries/usePayrollClosingsRealtime';
+import { useSupplierCostsQuery } from '@/hooks/queries/useSupplierCostsQuery';
 import { formatCurrency } from '@/utils/formatters';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { DollarSign, Check, AlertCircle, ChevronDown, ChevronRight, Calendar } from 'lucide-react';
+import { DollarSign, Check, AlertCircle, ChevronDown, ChevronRight, Calendar, CreditCard, Package, Loader2 } from 'lucide-react';
 import { useTeam } from '@/contexts/TeamContext';
 import { personnelPaymentsService } from '@/services/personnelPaymentsService';
 import { CreatePersonnelPaymentData } from '@/contexts/data/formTypes';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { personnelHistoryKeys } from '@/hooks/queries/usePersonnelHistoryQuery';
-import { personnelPaymentsKeys } from '@/hooks/queries/usePersonnelPaymentsQuery';
 import { eventKeys } from '@/hooks/queries/useEventsQuery';
 import {
   AlertDialog,
@@ -28,6 +31,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Separator } from '@/components/ui/separator';
 
 export const PendingPaymentsDashboard: React.FC = () => {
   const { data: pendingItems, isLoading } = useTeamPendingPayments();
@@ -35,6 +39,19 @@ export const PendingPaymentsDashboard: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
+
+  // ✅ TAREFA 1 + 2: Avulso payments pending
+  const { data: avulsoPending = [], isLoading: avulsoLoading } = usePersonnelPaymentsQuery({ status: 'pending' });
+  const { data: eventSupplierCosts = [], isLoading: isLoadingCosts } = useSupplierCostsQuery();
+
+  // ✅ TAREFA 1: Supplier costs pending
+  const supplierPending = useMemo(() => {
+    return (eventSupplierCosts || []).filter(c => c.payment_status !== 'paid');
+  }, [eventSupplierCosts]);
+
+  // ✅ TAREFA 2: Realtime subscriptions so other users see changes without reload
+  usePersonnelPaymentsRealtime();
+  usePayrollClosingsRealtime();
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -44,7 +61,7 @@ export const PendingPaymentsDashboard: React.FC = () => {
   // Group by personnel
   const groupedItems = useMemo(() => {
     if (!pendingItems) return [];
-    
+
     const groups = new Map<string, {
       personnelId: string;
       personnelName: string;
@@ -69,7 +86,11 @@ export const PendingPaymentsDashboard: React.FC = () => {
     return Array.from(groups.values()).sort((a, b) => b.totalPending - a.totalPending);
   }, [pendingItems]);
 
-  const totalPendingAll = pendingItems?.reduce((acc, item) => acc + item.pendingAmount, 0) || 0;
+  // ✅ TAREFA 1: Grand total includes all payment types
+  const totalPayrollPending = pendingItems?.reduce((acc, item) => acc + item.pendingAmount, 0) || 0;
+  const totalAvulsoPending = avulsoPending.reduce((acc, p) => acc + Number(p.amount || 0), 0);
+  const totalSupplierPending = supplierPending.reduce((acc, c) => acc + Math.max((Number(c.total_amount) || 0) - (Number(c.paid_amount) || 0), 0), 0);
+  const totalPendingAll = totalPayrollPending + totalAvulsoPending + totalSupplierPending;
   const selectedTotal = pendingItems
     ?.filter(item => selectedIds.has(`${item.personnelId}-${item.eventId}`))
     .reduce((acc, item) => acc + item.pendingAmount, 0) || 0;
@@ -124,8 +145,8 @@ export const PendingPaymentsDashboard: React.FC = () => {
 
     try {
       setIsProcessing(true);
-      
-      const itemsToSettle = pendingItems.filter(item => 
+
+      const itemsToSettle = pendingItems.filter(item =>
         selectedIds.has(`${item.personnelId}-${item.eventId}`)
       );
 
@@ -159,7 +180,7 @@ export const PendingPaymentsDashboard: React.FC = () => {
         queryClient.invalidateQueries({ queryKey: eventKeys.all }),
         // We might want to invalidate specific personnel history if possible, but 'all' is safe
       ]);
-      
+
       setSelectedIds(new Set());
       setIsAlertOpen(false);
     } catch (error) {
@@ -174,16 +195,21 @@ export const PendingPaymentsDashboard: React.FC = () => {
     }
   };
 
-  if (isLoading) {
+  const anyLoading = isLoading || avulsoLoading || isLoadingCosts;
+
+  if (anyLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="flex flex-col items-center justify-center p-12 space-y-4">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        <p className="text-muted-foreground animate-pulse">Carregando indicadores financeiros...</p>
       </div>
     );
   }
 
-  if (!pendingItems || pendingItems.length === 0) {
+  // ✅ TAREFA 1: Consider ALL types for empty state, not just payroll
+  const hasAnyPending = (pendingItems && pendingItems.length > 0) || avulsoPending.length > 0 || supplierPending.length > 0;
+
+  if (!hasAnyPending) {
     return (
       <Card className="bg-muted/10 border-dashed">
         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -192,7 +218,7 @@ export const PendingPaymentsDashboard: React.FC = () => {
           </div>
           <h3 className="text-xl font-semibold mb-2">Tudo em dia!</h3>
           <p className="text-muted-foreground max-w-sm">
-            Não há pendências de pagamento para eventos concluídos neste momento.
+            Não há pendências de pagamento (folha, avulso ou fornecedores) neste momento.
           </p>
         </CardContent>
       </Card>
@@ -201,8 +227,8 @@ export const PendingPaymentsDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Resumo */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Resumo — All types consolidated */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -214,7 +240,55 @@ export const PendingPaymentsDashboard: React.FC = () => {
               {formatCurrency(totalPendingAll)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {pendingItems.length} pagamentos pendentes
+              Folha + Avulso + Fornecedor
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5" /> Folha (Eventos)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold text-amber-600">
+              {formatCurrency(totalPayrollPending)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {pendingItems?.length || 0} itens pendentes
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+              <CreditCard className="h-3.5 w-3.5" /> Pagamentos Avulsos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold text-blue-600">
+              {formatCurrency(totalAvulsoPending)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {avulsoPending.length} pagamento(s) pendente(s)
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+              <Package className="h-3.5 w-3.5" /> Fornecedores
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold text-purple-600">
+              {formatCurrency(totalSupplierPending)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {supplierPending.length} custo(s) pendente(s)
             </p>
           </CardContent>
         </Card>
@@ -236,8 +310,8 @@ export const PendingPaymentsDashboard: React.FC = () => {
         </Card>
 
         <div className="flex items-center justify-end">
-           {isAdmin && (
-            <Button 
+          {isAdmin && (
+            <Button
               size="lg"
               className="w-full md:w-auto gap-2"
               disabled={selectedIds.size === 0}
@@ -246,7 +320,7 @@ export const PendingPaymentsDashboard: React.FC = () => {
               <DollarSign className="w-4 h-4" />
               Baixar Selecionados
             </Button>
-           )}
+          )}
         </div>
       </div>
 
@@ -256,7 +330,7 @@ export const PendingPaymentsDashboard: React.FC = () => {
           <div className="flex items-center justify-between">
             <CardTitle>Pendências por Profissional</CardTitle>
             <div className="flex items-center gap-2">
-              <Checkbox 
+              <Checkbox
                 id="select-all"
                 checked={selectedIds.size === pendingItems.length && pendingItems.length > 0}
                 onCheckedChange={handleToggleSelectAll}
@@ -270,10 +344,10 @@ export const PendingPaymentsDashboard: React.FC = () => {
         <CardContent className="p-0">
           <div className="divide-y">
             {groupedItems.map((group) => {
-              const allSelected = group.items.every(item => 
+              const allSelected = group.items.every(item =>
                 selectedIds.has(`${item.personnelId}-${item.eventId}`)
               );
-              const someSelected = group.items.some(item => 
+              const someSelected = group.items.some(item =>
                 selectedIds.has(`${item.personnelId}-${item.eventId}`)
               );
               const isExpanded = expandedPersonnel.has(group.personnelId);
@@ -296,13 +370,13 @@ export const PendingPaymentsDashboard: React.FC = () => {
                           )}
                         </Button>
                       </CollapsibleTrigger>
-                      
-                      <Checkbox 
+
+                      <Checkbox
                         checked={allSelected}
                         onCheckedChange={() => handleTogglePersonnel(group.personnelId, group.items)}
                         className={someSelected && !allSelected ? "opacity-50" : ""}
                       />
-                      
+
                       <div className="flex flex-col cursor-pointer" onClick={() => toggleExpand(group.personnelId)}>
                         <span className="font-medium">{group.personnelName}</span>
                         <span className="text-xs text-muted-foreground">
@@ -327,7 +401,7 @@ export const PendingPaymentsDashboard: React.FC = () => {
                         return (
                           <div key={key} className="flex items-center justify-between p-3 bg-background rounded-md border ml-8">
                             <div className="flex items-center gap-3">
-                              <Checkbox 
+                              <Checkbox
                                 checked={isSelected}
                                 onCheckedChange={() => handleToggleItem(key)}
                               />
@@ -357,13 +431,97 @@ export const PendingPaymentsDashboard: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* ✅ TAREFA 1: Avulso Pending Payments Section */}
+      {avulsoPending.length > 0 && (
+        <Card>
+          <CardHeader className="pb-4 border-b">
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-blue-600" />
+              Pagamentos Avulsos Pendentes
+              <Badge variant="secondary">{avulsoPending.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {avulsoPending.map((payment) => {
+                const isOverdue = payment.payment_due_date && new Date(payment.payment_due_date) < new Date();
+                return (
+                  <div key={payment.id} className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
+                    <div className="flex flex-col gap-1 flex-1 min-w-0">
+                      <span className="font-medium truncate">{payment.personnel?.name || '—'}</span>
+                      {payment.description && (
+                        <span className="text-xs text-muted-foreground truncate">{payment.description}</span>
+                      )}
+                      {payment.payment_due_date && (
+                        <span className={`text-xs flex items-center gap-1 ${isOverdue ? 'text-red-600' : 'text-muted-foreground'}`}>
+                          <Calendar className="h-3 w-3" />
+                          Vencimento: {format(new Date(payment.payment_due_date), 'dd/MM/yyyy', { locale: ptBR })}
+                          {isOverdue && <Badge variant="destructive" className="ml-1 text-[10px] py-0">Atrasado</Badge>}
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-bold text-blue-600 ml-4 shrink-0">
+                      {formatCurrency(Number(payment.amount) || 0)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ✅ TAREFA 1: Supplier Pending Payments Section */}
+      {supplierPending.length > 0 && (
+        <Card>
+          <CardHeader className="pb-4 border-b">
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-purple-600" />
+              Fornecedores com Pagamento Pendente
+              <Badge variant="secondary">{supplierPending.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {supplierPending.map((cost) => {
+                const pendingAmount = Math.max((Number(cost.total_amount) || 0) - (Number(cost.paid_amount) || 0), 0);
+                const isOverdue = cost.payment_date && new Date(cost.payment_date) < new Date();
+                return (
+                  <div key={cost.id} className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
+                    <div className="flex flex-col gap-1 flex-1 min-w-0">
+                      <span className="font-medium truncate">{(cost as any).suppliers?.name || cost.supplier_id}</span>
+                      {(cost as any).description && (
+                        <span className="text-xs text-muted-foreground truncate">{(cost as any).description}</span>
+                      )}
+                      {cost.payment_date && (
+                        <span className={`text-xs flex items-center gap-1 ${isOverdue ? 'text-red-600' : 'text-muted-foreground'}`}>
+                          <Calendar className="h-3 w-3" />
+                          Previsto: {format(new Date(cost.payment_date), 'dd/MM/yyyy', { locale: ptBR })}
+                          {isOverdue && <Badge variant="destructive" className="ml-1 text-[10px] py-0">Atrasado</Badge>}
+                        </span>
+                      )}
+                      {Number(cost.paid_amount) > 0 && (
+                        <span className="text-xs text-green-600">Já pago: {formatCurrency(Number(cost.paid_amount))}</span>
+                      )}
+                    </div>
+                    <span className="font-bold text-purple-600 ml-4 shrink-0">
+                      {formatCurrency(pendingAmount)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Baixa em Lote</AlertDialogTitle>
             <AlertDialogDescription>
               Você está prestes a realizar a baixa de <strong>{selectedIds.size} pagamentos</strong>, totalizando <strong>{formatCurrency(selectedTotal)}</strong>.
-              <br/><br/>
+              <br /><br />
               Os registros de pagamento serão criados com a data de hoje. Deseja continuar?
             </AlertDialogDescription>
           </AlertDialogHeader>

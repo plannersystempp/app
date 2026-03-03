@@ -25,7 +25,7 @@ export const usePayrollQuery = (eventId: string) => {
     queryKey: ['team-config', activeTeam?.id],
     queryFn: async () => {
       if (!activeTeam?.id) return null;
-      
+
       const { data, error } = await supabase
         .from('teams')
         .select('default_overtime_threshold_hours, default_convert_overtime_to_daily')
@@ -47,15 +47,16 @@ export const usePayrollQuery = (eventId: string) => {
         default_convert_overtime_to_daily: teamConfig.default_convert_overtime_to_daily,
         default_overtime_threshold_hours: teamConfig.default_overtime_threshold_hours
       } : undefined;
-      
+
       return payrollDataService.getEventPayroll(eventId, config, personnel, divisions);
     },
     enabled: !!eventId && !!personnel.length,
-    staleTime: 60000,
+    staleTime: 0,
     gcTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
     refetchOnMount: 'always',
   });
+
 
   const eventData = data?.rawData;
   const payrollDetails = data?.details || [];

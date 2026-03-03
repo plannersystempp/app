@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { PersonnelSelector } from './allocation/PersonnelSelector';
 import { MultiPersonnelSelector } from './allocation/MultiPersonnelSelector';
-import { generateDateArray } from '@/utils/dateUtils';
+import { generateDateArray, getEventFullDateRange } from '@/utils/dateUtils';
 import { DivisionSelector } from './allocation/DivisionSelector';
 import { WorkDaysSelector } from './allocation/WorkDaysSelector';
 import { useAllocationForm } from './allocation/useAllocationForm';
@@ -55,26 +55,26 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   const { toast } = useToast();
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
   const isMobile = useIsMobile();
-  
+
   // Block Home/End keyboard shortcuts when modal is open
   useEffect(() => {
     if (!open) return;
-    
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Home' || e.key === 'End') {
         e.preventDefault();
         e.stopPropagation();
       }
     };
-    
+
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
   }, [open]);
-  
+
   // Get event details for work days calculation
   const event = events.find(e => e.id === eventId);
-  const availableDays = event ? generateDateArray(event.start_date, event.end_date) : [];
-  
+  const availableDays = getEventFullDateRange(event);
+
   const {
     selectedPersonnel,
     setSelectedPersonnel,
@@ -104,7 +104,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
     open,
     onOpenChange
   });
-  
+
   // Selection mode state
   const [selectionMode, setSelectionMode] = useState<'individual' | 'multiple'>('individual');
   const [multipleSelection, setMultipleSelection] = useState<SelectedPerson[]>([]);
@@ -187,7 +187,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
 
   const handleFormSubmit = async () => {
     setFormLoading(true);
-    
+
     try {
       if (selectionMode === 'individual') {
         // Individual validation
@@ -218,7 +218,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
           });
           return;
         }
-        
+
         if (divisionMode === 'new' && !newDivisionName.trim()) {
           toast({
             title: "Campos obrigatórios",
@@ -290,7 +290,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
           });
           return;
         }
-        
+
         if (divisionMode === 'new' && !newDivisionName.trim()) {
           toast({
             title: "Campos obrigatórios",
@@ -315,7 +315,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
         }
 
         // Create assignments for all selected personnel
-        const promises = multipleSelection.map(selectedPerson => 
+        const promises = multipleSelection.map(selectedPerson =>
           createAllocation.mutateAsync({
             event_id: eventId,
             personnel_id: selectedPerson.personnel.id,
@@ -339,7 +339,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
         setMultipleSelection([]);
         setSelectionMode('individual');
       }
-      
+
       clearPersistedState();
     } catch (error) {
       console.error('Error creating allocation:', error);
@@ -380,7 +380,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   }, [selectedDays.length, eventSpecificCache]);
 
   return (
-    <Dialog 
+    <Dialog
       open={open}
       onOpenChange={(isOpen) => {
         if (!isOpen) {
@@ -406,7 +406,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
             )}
           </div>
         </DialogHeader>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           <div className="lg:col-span-2 space-y-4 sm:space-y-6">
             <Card className="border-border/60 bg-card/80 supports-[backdrop-filter]:bg-card/70 backdrop-blur shadow-sm">
@@ -559,107 +559,107 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
                   <CardTitle className="text-sm sm:text-base tracking-tight">Cache</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-              
-              {/* Show default rate for comparison */}
-              {selectionMode === 'individual' && selectedPersonnel && (
-                <div className="text-sm text-muted-foreground">
-                  <span className="font-medium">Cache base: </span>
-                  {(() => {
-                    const person = personnel.find(p => p.id === selectedPersonnel);
-                    if (!person) return null;
-                    
-                    // Check base rate (without event specific override)
-                    const rate = getDailyCacheRate([{
-                      id: 'temp',
-                      personnel_id: person.id,
-                      event_id: eventId,
-                      work_days: [],
-                      event_specific_cache: null,
-                      function_name: selectedFunction
-                    }], person);
-                    
-                    const isFunctionCache = person.functions?.some(f => f.name === selectedFunction && f.custom_cache === rate && rate > (person.event_cache || 0));
 
-                    return (
-                      <span className={isFunctionCache ? "text-purple-600 font-bold" : ""}>
-                        {formatCurrency(rate)}/dia
-                        {isFunctionCache && " (Cache de Função ✨)"}
-                        {!isFunctionCache && " (Padrão)"}
-                      </span>
-                    );
-                  })()}
-                </div>
-              )}
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="eventSpecificCache" className="text-sm">
-                    Cache por Dia (Específico)
-                  </Label>
-                  <CurrencyInput
-                    id="eventSpecificCache"
-                    value={eventSpecificCache}
-                    onChange={handleDailyCacheChange}
-                    placeholder="R$ 0,000"
-                    maxDecimals={3}
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="totalEventValue" className="text-sm">
-                    Total do Evento
-                  </Label>
-                  <CurrencyInput
-                    id="totalEventValue"
-                    value={totalEventValue}
-                    onChange={handleTotalEventValueChange}
-                    placeholder="R$ 0,00"
-                  />
-                  {selectedDays.length > 0 && totalEventValue > 0 && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {formatCurrency(totalEventValue)} ÷ {selectedDays.length} dias = {formatCurrency(totalEventValue / selectedDays.length)} por dia
+                  {/* Show default rate for comparison */}
+                  {selectionMode === 'individual' && selectedPersonnel && (
+                    <div className="text-sm text-muted-foreground">
+                      <span className="font-medium">Cache base: </span>
+                      {(() => {
+                        const person = personnel.find(p => p.id === selectedPersonnel);
+                        if (!person) return null;
+
+                        // Check base rate (without event specific override)
+                        const rate = getDailyCacheRate([{
+                          id: 'temp',
+                          personnel_id: person.id,
+                          event_id: eventId,
+                          work_days: [],
+                          event_specific_cache: null,
+                          function_name: selectedFunction
+                        }], person);
+
+                        const isFunctionCache = person.functions?.some(f => f.name === selectedFunction && f.custom_cache === rate && rate > (person.event_cache || 0));
+
+                        return (
+                          <span className={isFunctionCache ? "text-purple-600 font-bold" : ""}>
+                            {formatCurrency(rate)}/dia
+                            {isFunctionCache && " (Cache de Função ✨)"}
+                            {!isFunctionCache && " (Padrão)"}
+                          </span>
+                        );
+                      })()}
                     </div>
                   )}
-                </div>
-                
-                {selectedDays.length > 0 && eventSpecificCache > 0 && (
-                  <div>
-                    <Label className="text-sm text-muted-foreground">
-                      Total do Evento
-                    </Label>
-                    <div className="mt-2 p-2 bg-primary/10 rounded border">
-                      <div className="font-semibold text-primary">
-                        {formatCurrency(eventSpecificCache * selectedDays.length)}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatCurrency(eventSpecificCache)} × {selectedDays.length} dias
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              <div className="text-xs text-muted-foreground">
-                {eventSpecificCache > 0 ? (
-                  <div className="flex items-start gap-2">
-                    <span className="text-orange-600">⚠️</span>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <div className="font-medium text-orange-700">Cache específico será aplicado</div>
-                      <div>
-                        {selectionMode === 'multiple' 
-                          ? 'Este valor substituirá o padrão para todas as pessoas selecionadas'
-                          : 'Este valor substituirá o cache padrão do profissional'
-                        }
-                      </div>
+                      <Label htmlFor="eventSpecificCache" className="text-sm">
+                        Cache por Dia (Específico)
+                      </Label>
+                      <CurrencyInput
+                        id="eventSpecificCache"
+                        value={eventSpecificCache}
+                        onChange={handleDailyCacheChange}
+                        placeholder="R$ 0,000"
+                        maxDecimals={3}
+                      />
                     </div>
+
+                    <div>
+                      <Label htmlFor="totalEventValue" className="text-sm">
+                        Total do Evento
+                      </Label>
+                      <CurrencyInput
+                        id="totalEventValue"
+                        value={totalEventValue}
+                        onChange={handleTotalEventValueChange}
+                        placeholder="R$ 0,00"
+                      />
+                      {selectedDays.length > 0 && totalEventValue > 0 && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {formatCurrency(totalEventValue)} ÷ {selectedDays.length} dias = {formatCurrency(totalEventValue / selectedDays.length)} por dia
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedDays.length > 0 && eventSpecificCache > 0 && (
+                      <div>
+                        <Label className="text-sm text-muted-foreground">
+                          Total do Evento
+                        </Label>
+                        <div className="mt-2 p-2 bg-primary/10 rounded border">
+                          <div className="font-semibold text-primary">
+                            {formatCurrency(eventSpecificCache * selectedDays.length)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatCurrency(eventSpecificCache)} × {selectedDays.length} dias
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span>ℹ️</span>
-                    <span>Será usado o cache padrão de cada profissional se não informado</span>
+
+                  <div className="text-xs text-muted-foreground">
+                    {eventSpecificCache > 0 ? (
+                      <div className="flex items-start gap-2">
+                        <span className="text-orange-600">⚠️</span>
+                        <div>
+                          <div className="font-medium text-orange-700">Cache específico será aplicado</div>
+                          <div>
+                            {selectionMode === 'multiple'
+                              ? 'Este valor substituirá o padrão para todas as pessoas selecionadas'
+                              : 'Este valor substituirá o cache padrão do profissional'
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span>ℹ️</span>
+                        <span>Será usado o cache padrão de cada profissional se não informado</span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
                 </CardContent>
               </Card>
             )}

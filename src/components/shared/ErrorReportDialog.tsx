@@ -27,7 +27,7 @@ interface ErrorReportDialogProps {
 export const ErrorReportDialog: React.FC<ErrorReportDialogProps> = ({ isOpen, onClose, returnFocusTo }) => {
   const { submitErrorReport, isSubmitting } = useErrorReporting();
   const { activeTeam } = useTeam();
-  
+
   const [whatTrying, setWhatTrying] = useState('');
   const [whatHappened, setWhatHappened] = useState('');
   const [steps, setSteps] = useState('');
@@ -36,13 +36,28 @@ export const ErrorReportDialog: React.FC<ErrorReportDialogProps> = ({ isOpen, on
   const [showSuccess, setShowSuccess] = useState(false);
   const [reportNumber, setReportNumber] = useState<string | null>(null);
 
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  React.useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   React.useEffect(() => {
     if (isOpen) {
       const payload = {
         action: 'ERROR_REPORT_OPENED',
         table_name: 'error_reports',
         record_id: null,
-        new_values: { url: window.location.href },
+        new_values: { url: window.location.href, is_online: navigator.onLine },
         team_id: activeTeam?.id || null,
         user_id: null,
       } as any;
@@ -142,7 +157,7 @@ export const ErrorReportDialog: React.FC<ErrorReportDialogProps> = ({ isOpen, on
           }
         }));
       }
-      
+
       setTimeout(() => {
         setWhatTrying('');
         setWhatHappened('');
@@ -170,7 +185,7 @@ export const ErrorReportDialog: React.FC<ErrorReportDialogProps> = ({ isOpen, on
             <div className="h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
               <Check className="h-8 w-8 text-green-600 dark:text-green-400" />
             </div>
-            
+
             <Alert className="w-full" role="alert" aria-live="polite" aria-atomic="true">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
@@ -182,7 +197,7 @@ export const ErrorReportDialog: React.FC<ErrorReportDialogProps> = ({ isOpen, on
             </Alert>
 
             <p className="text-xs text-center text-muted-foreground max-w-sm">
-              Nossa equipe irá analisar seu reporte em breve. Caso seja algo crítico, 
+              Nossa equipe irá analisar seu reporte em breve. Caso seja algo crítico,
               entraremos em contato por e-mail.
             </p>
           </div>
@@ -202,9 +217,18 @@ export const ErrorReportDialog: React.FC<ErrorReportDialogProps> = ({ isOpen, on
         </DialogHeader>
 
         <div className="space-y-4">
+          {!isOnline && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Você está offline. O reporte não poderá ser enviado até que sua conexão seja restaurada.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div>
             <Label htmlFor="what-trying" className="flex items-center gap-1">
-              O que você estava tentando fazer? 
+              O que você estava tentando fazer?
               <span className="text-destructive">*</span>
             </Label>
             <Textarea
@@ -222,7 +246,7 @@ export const ErrorReportDialog: React.FC<ErrorReportDialogProps> = ({ isOpen, on
 
           <div>
             <Label htmlFor="what-happened" className="flex items-center gap-1">
-              O que aconteceu de inesperado? 
+              O que aconteceu de inesperado?
               <span className="text-destructive">*</span>
             </Label>
             <Textarea
@@ -240,7 +264,7 @@ export const ErrorReportDialog: React.FC<ErrorReportDialogProps> = ({ isOpen, on
 
           <div>
             <Label htmlFor="steps" className="flex items-center gap-1">
-              Passos para reproduzir o erro 
+              Passos para reproduzir o erro
               <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
             </Label>
             <Textarea
@@ -300,15 +324,15 @@ export const ErrorReportDialog: React.FC<ErrorReportDialogProps> = ({ isOpen, on
         </div>
 
         <DialogFooter>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={handleClose}
             disabled={isSubmitting}
           >
             Cancelar
           </Button>
-          <Button 
-            onClick={handleSubmit} 
+          <Button
+            onClick={handleSubmit}
             disabled={isSubmitting}
           >
             {isSubmitting ? (

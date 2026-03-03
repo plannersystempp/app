@@ -264,7 +264,7 @@ class ErrorReportingService {
 
     try {
       // Exemplo de integração com API personalizada
-      if (process.env.NODE_ENV === 'production' && window.navigator.onLine) {
+      if (import.meta.env.MODE === 'production' && window.navigator.onLine) {
         // await fetch('/api/errors', {
         //   method: 'POST',
         //   headers: { 'Content-Type': 'application/json' },

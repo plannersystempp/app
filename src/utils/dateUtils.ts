@@ -52,20 +52,46 @@ export const formatDateRange = (startDate: string, endDate: string): string => {
 
 export const generateDateArray = (startDate: string, endDate: string): string[] => {
   if (!startDate || !endDate) return [];
-  
+
   const dates: string[] = [];
   const start = parseDateSafe(startDate);
   const end = parseDateSafe(endDate);
 
   if (isNaN(start.getTime()) || isNaN(end.getTime())) return [];
-  
+
   const current = new Date(start.getTime());
   while (current <= end) {
     dates.push(current.toISOString().split('T')[0]);
     current.setDate(current.getDate() + 1);
   }
-  
+
   return dates;
+};
+
+/**
+ * Retorna um array de strings (YYYY-MM-DD) representando o intervalo total do evento,
+ * considerando a data de início/fim e as datas de montagem (setup_start_date/setup_end_date).
+ */
+export const getEventFullDateRange = (event: any): string[] => {
+  if (!event) return [];
+
+  const dates = new Set<string>();
+
+  // Datas principais
+  if (event.start_date && event.end_date) {
+    generateDateArray(event.start_date, event.end_date).forEach(d => dates.add(d));
+  }
+
+  // Datas de montagem
+  if (event.setup_start_date && event.setup_end_date) {
+    generateDateArray(event.setup_start_date, event.setup_end_date).forEach(d => dates.add(d));
+  } else if (event.setup_start_date) {
+    // Se só tiver início da montagem, incluímos esse dia
+    dates.add(event.setup_start_date);
+  }
+
+  // Retornar ordenado
+  return Array.from(dates).sort();
 };
 
 export const formatDateWithWeekday = (dateStr: string): string => {
@@ -117,7 +143,7 @@ export const formatDateShort = (dateStr: string): string => {
  */
 export const formatPeriodDays = (dates: string[]): string => {
   if (!dates || dates.length === 0) return '—';
-  
+
   const dayNumbers = dates
     .map(d => parseDateSafe(d))
     .filter(dt => !isNaN(dt.getTime()))

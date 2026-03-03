@@ -60,6 +60,13 @@ export const usePayrollClosingsRealtime = () => {
             refetchType: 'active',
           });
 
+          // Invalidate EventSelector status to update "Pending Payment" filters
+          queryClient.invalidateQueries({
+            queryKey: ['event-payment-status'],
+            refetchType: 'active',
+          });
+
+
           if (personnelId) {
             queryClient.invalidateQueries({
               queryKey: personnelHistoryKeys.all(personnelId),

@@ -1,17 +1,17 @@
 
 import React, { useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Card, CardContent } from '@/components/ui/card';
-import { DollarSign } from 'lucide-react';
+import { DollarSign, Loader2 } from 'lucide-react';
 import { NoTeamSelected } from '@/components/shared/NoTeamSelected';
 import { EventSelector } from './EventSelector';
+import { useEventsQuery } from '@/hooks/queries/useEventsQuery';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export const PayrollManager: React.FC = () => {
-  const { events } = useEnhancedData();
+  const { data: events = [], isLoading } = useEventsQuery();
   const { activeTeam, userRole } = useTeam();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -52,6 +52,15 @@ export const PayrollManager: React.FC = () => {
     );
   }
 
+  if (isLoading) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        <p className="text-muted-foreground animate-pulse">Carregando eventos...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-full space-y-3 sm:space-y-4 md:space-y-6 overflow-x-hidden">
       {/* Cabeçalho */}
@@ -67,7 +76,7 @@ export const PayrollManager: React.FC = () => {
       <EventSelector
         events={events as any}
         selectedEventId=""
-        onEventChange={() => {}}
+        onEventChange={() => { }}
       />
     </div>
   );

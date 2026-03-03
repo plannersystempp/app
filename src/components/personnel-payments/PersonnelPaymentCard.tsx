@@ -88,10 +88,11 @@ export const PersonnelPaymentCard = ({ payment }: PersonnelPaymentCardProps) => 
       });
       setConfirmPermanent(false);
       setShowDelete(false);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error deleting payment:', error);
       toast({
         title: 'Erro ao excluir',
-        description: 'Não foi possível excluir o pagamento.',
+        description: error.message || 'Não foi possível excluir o pagamento.',
         variant: 'destructive',
       });
     }
@@ -121,112 +122,112 @@ export const PersonnelPaymentCard = ({ payment }: PersonnelPaymentCardProps) => 
           <div className="flex justify-between items-start">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                 <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                 </div>
-                 <div>
-                    <p className="font-semibold text-sm leading-none">{payment.personnel?.name || 'Sem nome'}</p>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1" title={payment.description}>
-                        {payment.description}
-                    </p>
-                 </div>
+                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm leading-none">{payment.personnel?.name || 'Sem nome'}</p>
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-1" title={payment.description}>
+                    {payment.description}
+                  </p>
+                </div>
               </div>
             </div>
             <Badge variant="outline" className={cn("ml-2 whitespace-nowrap gap-1", style.badge)}>
-                {style.icon}
-                {statusLabels[payment.payment_status]}
+              {style.icon}
+              {statusLabels[payment.payment_status]}
             </Badge>
           </div>
         </CardHeader>
 
         <CardContent className="px-4 py-2">
           <div className="flex items-center justify-between mt-2">
-             <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Valor</span>
-                <span className="text-xl font-bold text-foreground">
-                    {formatCurrency(Number(payment.amount))}
-                </span>
-             </div>
-             
-             <div className="flex flex-col items-end">
-                <span className="text-xs text-muted-foreground">Vencimento</span>
-                <div className={cn("flex items-center gap-1 text-sm font-medium", isOverdue ? "text-red-600" : "")}>
-                    <Calendar className="h-3.5 w-3.5" />
-                    {format(dueDate, "dd/MM", { locale: ptBR })}
-                </div>
-             </div>
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">Valor</span>
+              <span className="text-xl font-bold text-foreground">
+                {formatCurrency(Number(payment.amount))}
+              </span>
+            </div>
+
+            <div className="flex flex-col items-end">
+              <span className="text-xs text-muted-foreground">Vencimento</span>
+              <div className={cn("flex items-center gap-1 text-sm font-medium", isOverdue ? "text-red-600" : "")}>
+                <Calendar className="h-3.5 w-3.5" />
+                {format(dueDate, "dd/MM", { locale: ptBR })}
+              </div>
+            </div>
           </div>
-          
+
           {payment.notes && (
             <div className="mt-3 p-2 bg-muted/50 rounded text-xs italic text-muted-foreground border border-border/50">
-                "{payment.notes}"
+              "{payment.notes}"
             </div>
           )}
         </CardContent>
 
         <CardFooter className="px-4 py-3 bg-muted/20 border-t flex gap-2 items-center">
-             {payment.payment_status === 'pending' ? (
-                 <>
-                    <Button 
-                        size="sm" 
-                        className="flex-1 h-8 bg-green-600 hover:bg-green-700 text-white gap-1 shadow-sm"
-                        onClick={() => setShowMarkAsPaid(true)}
-                    >
-                        <CheckCircle className="h-3.5 w-3.5" />
-                        Pagar
-                    </Button>
-                    <Button 
-                        size="sm" 
-                        variant="outline"
-                        className="flex-1 h-8 gap-1"
-                        onClick={() => setShowEdit(true)}
-                    >
-                        <Edit className="h-3.5 w-3.5" />
-                        Editar
-                    </Button>
-                    <Button 
-                        size="sm" 
-                        variant="ghost"
-                        className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => setShowDelete(true)}
-                        title="Excluir"
-                    >
-                        <Trash className="h-4 w-4" />
-                    </Button>
-                 </>
-             ) : (
-                <>
-                    {payment.payment_status !== 'cancelled' && (
-                        <Button 
-                            size="sm" 
-                            variant="outline"
-                            className="flex-1 h-8 gap-1"
-                            onClick={handleCancel}
-                        >
-                            <XCircle className="h-3.5 w-3.5" />
-                            Cancelar
-                        </Button>
-                    )}
-                     <Button 
-                        size="sm" 
-                        variant="outline"
-                        className="flex-1 h-8 gap-1"
-                        onClick={() => setShowEdit(true)}
-                    >
-                        <Edit className="h-3.5 w-3.5" />
-                        Editar
-                    </Button>
-                    <Button 
-                        size="sm" 
-                        variant="ghost"
-                        className="h-8 w-8 p-0 ml-auto text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => setShowDelete(true)}
-                        title="Excluir"
-                    >
-                        <Trash className="h-4 w-4" />
-                    </Button>
-                </>
-             )}
+          {payment.payment_status === 'pending' ? (
+            <>
+              <Button
+                size="sm"
+                className="flex-1 h-8 bg-green-600 hover:bg-green-700 text-white gap-1 shadow-sm"
+                onClick={() => setShowMarkAsPaid(true)}
+              >
+                <CheckCircle className="h-3.5 w-3.5" />
+                Pagar
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 h-8 gap-1"
+                onClick={() => setShowEdit(true)}
+              >
+                <Edit className="h-3.5 w-3.5" />
+                Editar
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => setShowDelete(true)}
+                title="Excluir"
+              >
+                <Trash className="h-4 w-4" />
+              </Button>
+            </>
+          ) : (
+            <>
+              {payment.payment_status !== 'cancelled' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 h-8 gap-1"
+                  onClick={handleCancel}
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  Cancelar
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 h-8 gap-1"
+                onClick={() => setShowEdit(true)}
+              >
+                <Edit className="h-3.5 w-3.5" />
+                Editar
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0 ml-auto text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => setShowDelete(true)}
+                title="Excluir"
+              >
+                <Trash className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </CardFooter>
       </Card>
 
@@ -256,12 +257,14 @@ export const PersonnelPaymentCard = ({ payment }: PersonnelPaymentCardProps) => 
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir este pagamento? Esta ação não pode ser desfeita.
-              <div className="mt-3 space-y-1 text-sm bg-muted p-3 rounded">
-                <div><strong>Pessoa:</strong> {payment.personnel?.name || 'N/A'}</div>
-                <div><strong>Valor:</strong> {formatCurrency(Number(payment.amount))}</div>
-                <div><strong>Vencimento:</strong> {format(dueDate, 'dd/MM/yyyy', { locale: ptBR })}</div>
+            <AlertDialogDescription asChild>
+              <div className="text-sm text-muted-foreground">
+                <p>Tem certeza que deseja excluir este pagamento? Esta ação não pode ser desfeita.</p>
+                <div className="mt-3 space-y-1 text-sm bg-muted p-3 rounded text-foreground">
+                  <div><strong>Pessoa:</strong> {payment.personnel?.name || 'N/A'}</div>
+                  <div><strong>Valor:</strong> {formatCurrency(Number(payment.amount))}</div>
+                  <div><strong>Vencimento:</strong> {format(dueDate, 'dd/MM/yyyy', { locale: ptBR })}</div>
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -46,14 +46,10 @@ export const usePayrollActions = (
       return;
     }
 
-    const confirmation = window.confirm(
-      `Confirma o registro de pagamento de ${formatCurrency(totalAmount)}?`
-    );
-
-    if (!confirmation) return;
+    // Removal of native browser confirmation to use UI dialogs instead
 
     try {
-        const { data, error } = await supabase
+      const { data, error } = await supabase
         .from('payroll_closings')
         .insert([{
           event_id: selectedEventId,
@@ -69,6 +65,8 @@ export const usePayrollActions = (
       if (error) throw error;
 
       await queryClient.invalidateQueries({ queryKey: payrollKeys.event(selectedEventId) });
+      await queryClient.invalidateQueries({ queryKey: ['event-payment-status'], refetchType: 'active' });
+
 
       // Obter nome do evento para notificação
       const { data: eventData } = await supabase
@@ -81,7 +79,7 @@ export const usePayrollActions = (
         title: "Sucesso",
         description: "Pagamento registrado com sucesso",
       });
-      
+
       // Enviar notificação
       if (eventData && activeTeam?.id) {
         await notificationService.notifyPaymentReceived(
@@ -90,7 +88,7 @@ export const usePayrollActions = (
           activeTeam.id
         );
       }
-      
+
       // Invalidar cache para forçar atualização nos dashboards
       invalidateCache();
     } catch (error) {
@@ -132,11 +130,7 @@ export const usePayrollActions = (
       return;
     }
 
-    const confirmation = window.confirm(
-      `Confirma o registro de pagamento parcial de ${formatCurrency(amount)}?`
-    );
-
-    if (!confirmation) return;
+    // Removal of native browser confirmation to use UI dialogs instead
 
     try {
       const { data, error } = await supabase
@@ -155,19 +149,9 @@ export const usePayrollActions = (
       if (error) throw error;
 
       await queryClient.invalidateQueries({ queryKey: payrollKeys.event(selectedEventId) });
+      await queryClient.invalidateQueries({ queryKey: ['event-payment-status'], refetchType: 'active' });
 
-      // Obter nome do evento para notificação
-      const { data: eventData } = await supabase
-        .from('events')
-        .select('name')
-        .eq('id', selectedEventId)
-        .single();
 
-      toast({
-        title: "Sucesso",
-        description: "Pagamento parcial registrado com sucesso",
-      });
-      
       // Enviar notificação
       if (eventData && activeTeam?.id) {
         await notificationService.notifyPaymentReceived(
@@ -176,7 +160,7 @@ export const usePayrollActions = (
           activeTeam.id
         );
       }
-      
+
       // Invalidar cache para forçar atualização nos dashboards
       invalidateCache();
     } catch (error) {
@@ -220,12 +204,13 @@ export const usePayrollActions = (
       }
 
       await queryClient.invalidateQueries({ queryKey: payrollKeys.event(selectedEventId) });
+      await queryClient.invalidateQueries({ queryKey: ['event-payment-status'], refetchType: 'active' });
 
       toast({
         title: "Sucesso",
         description: `Pagamento de ${personName} foi cancelado com sucesso`,
       });
-      
+
       // Invalidar cache para forçar atualização nos dashboards
       invalidateCache();
     } catch (error: any) {

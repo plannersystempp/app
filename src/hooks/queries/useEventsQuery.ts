@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { useToast } from '@/hooks/use-toast';
 import { useBroadcastInvalidation } from './useBroadcastInvalidation';
+import { invalidateCache } from '@/components/payroll/eventStatusCache';
 import type { Event } from '@/contexts/EnhancedDataContext';
 
 // Query keys for consistent caching
@@ -113,7 +114,7 @@ export const useCreateEventMutation = () => {
       if (context?.previousEvents && activeTeam) {
         queryClient.setQueryData(eventKeys.list(activeTeam.id), context.previousEvents);
       }
-      
+
       toast({
         title: "Erro",
         description: "Falha ao criar evento",
@@ -122,14 +123,17 @@ export const useCreateEventMutation = () => {
     },
     onSuccess: (data) => {
       // ✅ FASE 2: Invalidar imediatamente + refetch ativo
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: eventKeys.all,
         refetchType: 'active'
       });
-      
+
+      // ✅ Invalida cache de folha de pagamento
+      invalidateCache();
+
       // ✅ FASE 3: Notificar outras abas
       broadcast(eventKeys.all);
-      
+
       toast({
         title: "Sucesso",
         description: "Evento criado com sucesso!",
@@ -137,7 +141,7 @@ export const useCreateEventMutation = () => {
     },
     onSettled: () => {
       // Invalidar queries inativas (para próxima montagem)
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: eventKeys.all,
         refetchType: 'none'
       });
@@ -197,7 +201,7 @@ export const useUpdateEventMutation = () => {
       if (context?.previousEvents && activeTeam) {
         queryClient.setQueryData(eventKeys.list(activeTeam.id), context.previousEvents);
       }
-      
+
       toast({
         title: "Erro",
         description: "Falha ao atualizar evento",
@@ -206,28 +210,31 @@ export const useUpdateEventMutation = () => {
     },
     onSuccess: () => {
       // ✅ FASE 2: Invalidar imediatamente + refetch ativo
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: eventKeys.all,
         refetchType: 'active'
       });
-      
+
       // Também invalidar alocações pois podem depender dos horários do evento
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: ['allocations'],
         refetchType: 'active'
       });
-      
+
+      // ✅ Invalida cache de folha de pagamento
+      invalidateCache();
+
       // ✅ FASE 3: Notificar outras abas
       broadcast(eventKeys.all);
       broadcast(['allocations']);
-      
+
       toast({
         title: "Sucesso",
         description: "Evento atualizado com sucesso!",
       });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: eventKeys.all,
         refetchType: 'none'
       });
@@ -272,7 +279,7 @@ export const useDeleteEventMutation = () => {
       if (context?.previousEvents && activeTeam) {
         queryClient.setQueryData(eventKeys.list(activeTeam.id), context.previousEvents);
       }
-      
+
       toast({
         title: "Erro",
         description: "Falha ao excluir evento",
@@ -281,21 +288,24 @@ export const useDeleteEventMutation = () => {
     },
     onSuccess: () => {
       // ✅ FASE 2: Invalidar imediatamente + refetch ativo
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: eventKeys.all,
         refetchType: 'active'
       });
-      
+
+      // ✅ Invalida cache de folha de pagamento
+      invalidateCache();
+
       // ✅ FASE 3: Notificar outras abas
       broadcast(eventKeys.all);
-      
+
       toast({
         title: "Sucesso",
         description: "Evento excluído com sucesso!",
       });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: eventKeys.all,
         refetchType: 'none'
       });

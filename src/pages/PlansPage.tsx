@@ -1,30 +1,51 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { company } from '@/config/company';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check, Zap, Star, Crown, Loader2, ArrowRight, Shield, Clock, MessageCircle, Phone, AlertCircle } from 'lucide-react';
+import { Check, Zap, Star, Crown, Loader2, ArrowRight, Shield, Clock, MessageCircle, Phone, AlertCircle, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTeam } from '@/contexts/TeamContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useStripeCheckoutEnhanced } from '@/hooks/useStripeCheckoutEnhanced';
 import { toast } from '@/hooks/use-toast';
 import { SubscriptionPlan } from '@/types/subscription';
 import { usePlans } from '@/hooks/usePlans';
+import { useUserSubscription } from '@/hooks/useUserSubscription';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
-interface Plan extends SubscriptionPlan {}
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Separator } from '@/components/ui/separator';
+interface Plan extends SubscriptionPlan { }
 
 export default function PlansPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { activeTeam } = useTeam();
   const isSuperAdmin = user?.role === 'superadmin';
+
+  // ✅ TAREFA 4: Fetch current subscription to show active-plan badge
+  const { subscription: currentSub, isLoading: subLoading } = useUserSubscription(activeTeam?.id);
+  const currentPlanId = (currentSub as any)?.plan_id as string | undefined;
+
+  // Plan selector state for the improved AlertDialog (replaces window.confirm)
+  const [pendingSelection, setPendingSelection] = useState<{ planId: string; planName: string; displayName: string } | null>(null);
 
   // SEO: Update document metadata
   useEffect(() => {
     // Update page title
     document.title = 'Planos e Preços - PlannerSystem | Gestão de Eventos e Equipes';
-    
+
     // Update or create meta tags
     const updateMetaTag = (name: string, content: string, isProperty = false) => {
       const attr = isProperty ? 'property' : 'name';
@@ -63,10 +84,10 @@ export default function PlansPage() {
     };
   }, []);
 
-  const { plans, isLoading, error } = usePlans({ 
-    includeInactive: false, 
-    orderBy: 'price', 
-    orderDirection: 'asc' 
+  const { plans, isLoading, error } = usePlans({
+    includeInactive: false,
+    orderBy: 'price',
+    orderDirection: 'asc'
   });
 
   const getPlanIcon = (planName: string) => {
@@ -78,10 +99,9 @@ export default function PlansPage() {
 
   const { createCheckout, isLoading: isCreatingCheckout, error: checkoutError, resetError } = useStripeCheckoutEnhanced();
 
-  const handleSelectPlan = async (planId: string, planName: string) => {
-    // Resetar erro anterior
+  const handleSelectPlan = async (planId: string, planName: string, displayName: string) => {
     resetError();
-    
+
     if (!user) {
       navigate('/auth', { state: { redirectTo: '/plans', planId } });
       return;
@@ -96,8 +116,27 @@ export default function PlansPage() {
       return;
     }
 
+    // If it's already the current plan, do nothing
+    if (planId === currentPlanId) {
+      toast({ title: 'Este é o seu plano atual', description: 'Você já está neste plano.' });
+      return;
+    }
+
+    // If it's trial, go to old flow
+    if (planName === 'trial') {
+      navigate(`/app/upgrade?plan=${planId}`);
+      return;
+    }
+
+    // ✅ TAREFA 4: Open AlertDialog instead of window.confirm()
+    setPendingSelection({ planId, planName, displayName });
+  };
+
+  const handleConfirmCheckout = async () => {
+    if (!pendingSelection || !user) return;
+    const { planId } = pendingSelection;
+
     try {
-      // Buscar team_id do usuário
       const { data: membership, error } = await supabase
         .from('team_members')
         .select('team_id, role, status, teams(name)')
@@ -115,30 +154,13 @@ export default function PlansPage() {
         return;
       }
 
-      // Se for trial, redirecionar para a antiga lógica
-      if (planName === 'trial') {
-        navigate(`/app/upgrade?plan=${planId}`);
-        return;
-      }
-
-      // Confirmar com usuário
-      if (!window.confirm(
-        `Você será redirecionado para o checkout do plano "${planName}". Deseja continuar?`
-      )) {
-        return;
-      }
-
-      // Criar checkout session
-      await createCheckout({
-        planId,
-        teamId: membership.team_id
-      });
-      
+      await createCheckout({ planId, teamId: membership.team_id });
+      setPendingSelection(null);
     } catch (error) {
       console.error('Erro ao selecionar plano:', error);
-      // O erro já será tratado pelo hook useStripeCheckoutEnhanced
     }
   };
+
 
   // Estado de erro
   if (error) {
@@ -152,8 +174,8 @@ export default function PlansPage() {
                 {error.message || 'Erro ao carregar planos. Por favor, tente novamente.'}
               </AlertDescription>
             </Alert>
-            <Button 
-              onClick={() => window.location.reload()} 
+            <Button
+              onClick={() => window.location.reload()}
               variant="outline"
               size="lg"
             >
@@ -265,13 +287,12 @@ export default function PlansPage() {
         {/* Pricing Cards - Grid para 4 Planos com altura flexível */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 max-w-7xl mx-auto mb-8 sm:mb-12 items-start">
           {plans?.map((plan, index) => (
-            <Card 
+            <Card
               key={plan.id}
-              className={`relative flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group h-fit ${
-                plan.is_popular 
-                  ? 'border-primary shadow-lg scale-100 xl:scale-105 z-10 bg-gradient-to-br from-primary/5 to-primary/10' 
-                  : 'border-border hover:border-primary/50 bg-card/50 backdrop-blur-sm'
-              }`}
+              className={`relative flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group h-fit ${plan.is_popular
+                ? 'border-primary shadow-lg scale-100 xl:scale-105 z-10 bg-gradient-to-br from-primary/5 to-primary/10'
+                : 'border-border hover:border-primary/50 bg-card/50 backdrop-blur-sm'
+                }`}
             >
               {plan.is_popular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-20">
@@ -283,11 +304,10 @@ export default function PlansPage() {
 
               <CardHeader className="space-y-2 sm:space-y-3 pb-2 sm:pb-3">
                 <div className="flex items-center justify-between">
-                  <div className={`p-1.5 sm:p-2 rounded-lg ${
-                    plan.is_popular 
-                      ? 'bg-primary/10 ring-1 ring-primary/20' 
-                      : 'bg-muted/50 group-hover:bg-primary/10'
-                  } transition-all duration-300`}>
+                  <div className={`p-1.5 sm:p-2 rounded-lg ${plan.is_popular
+                    ? 'bg-primary/10 ring-1 ring-primary/20'
+                    : 'bg-muted/50 group-hover:bg-primary/10'
+                    } transition-all duration-300`}>
                     {getPlanIcon(plan.name)}
                   </div>
                   {plan.name === 'trial' && (
@@ -377,13 +397,12 @@ export default function PlansPage() {
               <CardFooter className="pt-3 px-3 sm:px-4 lg:px-6">
                 <Button
                   size="sm"
-                  className={`w-full h-8 sm:h-10 text-xs sm:text-sm font-semibold transition-all duration-300 ${
-                    plan.is_popular 
-                      ? 'bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl' 
-                      : 'hover:bg-primary/90 hover:shadow-lg'
-                  }`}
+                  className={`w-full h-8 sm:h-10 text-xs sm:text-sm font-semibold transition-all duration-300 ${plan.is_popular
+                    ? 'bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl'
+                    : 'hover:bg-primary/90 hover:shadow-lg'
+                    }`}
                   variant={plan.is_popular ? 'default' : 'outline'}
-                  onClick={() => handleSelectPlan(plan.id, plan.name)}
+                  onClick={() => handleSelectPlan(plan.id, plan.name, plan.display_name)}
                   disabled={isCreatingCheckout || isSuperAdmin}
                 >
                   {isCreatingCheckout ? (
@@ -393,15 +412,24 @@ export default function PlansPage() {
                     </>
                   ) : (
                     <>
-                      {plan.name === 'trial' ? (
+                      {plan.id === currentPlanId ? (
                         <>
-                          <Zap className="mr-1 h-2.5 w-2.5" />
-                          Começar Grátis
+                          <Check className="mr-1 h-3 w-3" />
+                          Plano Atual
                         </>
                       ) : (
                         <>
-                          <Crown className="mr-1 h-2.5 w-2.5" />
-                          Assinar
+                          {plan.name === 'trial' ? (
+                            <>
+                              <Zap className="mr-1 h-2.5 w-2.5" />
+                              Começar Grátis
+                            </>
+                          ) : (
+                            <>
+                              <Crown className="mr-1 h-2.5 w-2.5" />
+                              {currentPlanId ? 'Mudar de Plano' : 'Assinar'}
+                            </>
+                          )}
                         </>
                       )}
                     </>
@@ -484,7 +512,7 @@ export default function PlansPage() {
                 </CardDescription>
               </CardHeader>
               <CardFooter className="flex flex-col sm:flex-row gap-3 justify-center pt-0">
-                <Button 
+                <Button
                   size="sm"
                   className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl transition-all duration-300"
                   onClick={() => window.location.href = `mailto:${company.contact.email}`}
@@ -492,7 +520,7 @@ export default function PlansPage() {
                   <Star className="mr-2 h-3 w-3" />
                   Falar com Vendas
                 </Button>
-                <Button 
+                <Button
                   size="sm"
                   variant="outline"
                   className="hover:bg-primary/5 hover:border-primary/50 transition-all duration-300"
@@ -506,6 +534,63 @@ export default function PlansPage() {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={!!pendingSelection} onOpenChange={(open) => !open && setPendingSelection(null)}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Assinatura</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 pt-2">
+                <p>Você selecionou o plano <span className="font-bold text-foreground">{pendingSelection?.displayName}</span>.</p>
+
+                <div className="rounded-lg bg-muted/50 p-4 border space-y-2">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Plano selecionado:</span>
+                    <span className="font-medium">{pendingSelection?.displayName}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Ação:</span>
+                    <Badge variant="secondary" className="font-normal">
+                      {currentPlanId ? (pendingSelection?.planId === currentPlanId ? 'Permanecer' : 'Alterar Assinatura') : 'Nova Assinatura'}
+                    </Badge>
+                  </div>
+                  <Separator />
+                  <p className="text-[10px] text-muted-foreground leading-tight">
+                    Ao confirmar, você será redirecionado para o Checkout Seguro do Stripe para finalizar o pagamento.
+                  </p>
+                </div>
+
+                <Alert className="bg-blue-50 border-blue-200 text-blue-800 py-2">
+                  <Shield className="h-3.5 w-3.5" />
+                  <AlertDescription className="text-[11px]">
+                    Pagamento processado com segurança via Stripe.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleConfirmCheckout(); }}
+              className="bg-primary hover:bg-primary/90"
+              disabled={isCreatingCheckout}
+            >
+              {isCreatingCheckout ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Carregando...
+                </>
+              ) : (
+                <>
+                  <ArrowRight className="mr-2 h-4 w-4" />
+                  Ir para Pagamento
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

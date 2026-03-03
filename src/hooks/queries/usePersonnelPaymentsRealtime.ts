@@ -24,22 +24,20 @@ export const usePersonnelPaymentsRealtime = () => {
         },
         (payload) => {
           logger.realtime.change(payload.eventType as any, { id: (payload.new as any)?.id });
-          
-          // ⚡ FASE 2 OTIMIZADO: Invalidar queries em vez de setQueryData
+
+          // ⚡ Invalidar queries em vez de setQueryData
           logger.cache.invalidate('personnelPaymentsKeys.all');
-          
-          queryClient.invalidateQueries({ 
+
+          queryClient.invalidateQueries({
             queryKey: personnelPaymentsKeys.all,
-            refetchType: 'active' // Refetch queries ativas imediatamente
+            refetchType: 'active'
           });
 
-          // Também invalidar queries inativas para próxima montagem
-          queryClient.invalidateQueries({ 
-            queryKey: personnelPaymentsKeys.all,
-            refetchType: 'none' // Apenas marcar como stale sem refetch
+          // ✅ TAREFA 2: Also invalidate team-pending-payments so PendingPaymentsDashboard syncs
+          queryClient.invalidateQueries({
+            queryKey: ['team-pending-payments'],
+            refetchType: 'active'
           });
-          
-
         }
       )
       .subscribe();

@@ -17,6 +17,7 @@ import { PersonnelForm } from '@/components/personnel/PersonnelForm';
 import { Assignment, Division, Personnel } from '@/contexts/EnhancedDataContext';
 import { useUrlState } from '@/hooks/useUrlState';
 import { useToast } from '@/hooks/use-toast';
+import { getEventFullDateRange } from '@/utils/dateUtils';
 
 import {
   DndContext,
@@ -49,20 +50,20 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   const { userRole } = useTeam();
   const { toast } = useToast();
   // Usar workLogs direto do React Query para ter atualizações em tempo real
-  const { data: workLogs = [] } = useWorkLogsQuery(); 
-  
-  const { 
-    assignments, 
-    events, 
-    divisions, 
-    personnel, 
+  const { data: workLogs = [] } = useWorkLogsQuery();
+
+  const {
+    assignments,
+    events,
+    divisions,
+    personnel,
     // workLogs, // Remover do EnhancedData para evitar dados obsoletos
-    deleteAssignment, 
-    updateAssignment, 
+    deleteAssignment,
+    updateAssignment,
     updateDivision,
     reorderAssignments
   } = useEnhancedData();
-  
+
   // Persist allocation form state in sessionStorage
   const allocationFormKey = `plannersystem-allocation-form-open-${eventId}`;
   const getPersistedFormState = () => {
@@ -73,7 +74,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
       return false;
     }
   };
-  
+
   const [showAllocationForm, setShowAllocationForm] = useState(getPersistedFormState);
   const [selectedAssignment, setSelectedAssignment] = useState<string | null>(null);
   const [assignmentToEdit, setAssignmentToEdit] = useState<Assignment | null>(null);
@@ -83,7 +84,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   const [showCreateDivision, setShowCreateDivision] = useState(false);
   const [personnelToEdit, setPersonnelToEdit] = useState<Personnel | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // DnD State
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [activeDragType, setActiveDragType] = useState<'division' | 'assignment' | null>(null);
@@ -97,7 +98,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   // Initialize expanded divisions from URL
   useEffect(() => {
     if (hasInitializedDivisions) return;
-    
+
     const isMobile = window.innerWidth < 768;
 
     if (isMobile) {
@@ -127,7 +128,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   }, [showAllocationForm, allocationFormKey]);
 
   const eventAssignments = assignments.filter(a => a.event_id === eventId);
-  
+
   // Sort divisions by order_index if available, otherwise by creation/name
   const eventDivisions = useMemo(() => {
     return divisions
@@ -146,7 +147,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   const { coordDivisions, otherDivisions } = useMemo(() => {
     const coords: typeof eventDivisions = [];
     const others: typeof eventDivisions = [];
-    
+
     eventDivisions.forEach(div => {
       const name = div.name.toLowerCase();
       if (name.includes('coord') || name.includes('direção') || name.includes('produção') || name.includes('liderança') || name.includes('gerência')) {
@@ -172,7 +173,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
       const person = personnel.find(p => p.id === assignment.personnel_id);
       const personName = person?.name?.toLowerCase() || '';
       const functionName = assignment.function_name?.toLowerCase() || '';
-      
+
       return personName.includes(searchLower) || functionName.includes(searchLower);
     });
   }, [eventAssignments, searchTerm, personnel]);
@@ -205,28 +206,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
 
   // Date Logic
   const availableDays = useMemo(() => {
-    if (!currentEvent || !currentEvent.start_date || !currentEvent.end_date) {
-      return [];
-    }
-
-    const dates = [];
-    const [startYear, startMonth, startDay] = currentEvent.start_date.split('-').map(Number);
-    const [endYear, endMonth, endDay] = currentEvent.end_date.split('-').map(Number);
-
-    const startDate = new Date(Date.UTC(startYear, startMonth - 1, startDay));
-    const endDate = new Date(Date.UTC(endYear, endMonth - 1, endDay));
-    const currentDate = new Date(startDate);
-
-    while (currentDate <= endDate) {
-      const year = currentDate.getUTCFullYear();
-      const month = String(currentDate.getUTCMonth() + 1).padStart(2, '0');
-      const day = String(currentDate.getUTCDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      dates.push(dateStr);
-      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-    }
-    
-    return dates;
+    return getEventFullDateRange(currentEvent);
   }, [currentEvent]);
 
   const selectedAssignmentData = assignments.find(a => a.id === selectedAssignment);
@@ -306,15 +286,15 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const activeData = active.data.current;
-    
+
     // Add haptic feedback if available
     if (window.navigator && window.navigator.vibrate) {
       window.navigator.vibrate(50);
     }
-    
+
     setActiveDragId(active.id as string);
     setActiveDragType(activeData?.type || null);
-    
+
     if (activeData?.type === 'division') {
       setActiveDragItem(activeData.division);
     } else if (activeData?.type === 'assignment') {
@@ -324,7 +304,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-    
+
     setActiveDragId(null);
     setActiveDragType(null);
     setActiveDragItem(null);
@@ -337,58 +317,58 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
         // Verificar se estamos reordenando dentro do grupo de Coordenação ou Outros
         const isCoordActive = coordDivisions.some(d => d.id === active.id);
         const isCoordOver = coordDivisions.some(d => d.id === over.id);
-        
+
         const isOtherActive = otherDivisions.some(d => d.id === active.id);
         const isOtherOver = otherDivisions.some(d => d.id === over.id);
 
         let targetList = null;
 
         if (isCoordActive && isCoordOver) {
-            targetList = coordDivisions;
+          targetList = coordDivisions;
         } else if (isOtherActive && isOtherOver) {
-            targetList = otherDivisions;
+          targetList = otherDivisions;
         }
 
         if (targetList) {
-            const oldIndex = targetList.findIndex(d => d.id === active.id);
-            const newIndex = targetList.findIndex(d => d.id === over.id);
-            
-            if (oldIndex !== -1 && newIndex !== -1) {
-              const newOrder = arrayMove(targetList, oldIndex, newIndex);
-              
-              // Recalcular índices baseados na ordem visual atual do targetList
-              const currentIndices = targetList.map(d => d.order_index || 0).sort((a, b) => a - b);
-              
-              // Se os índices forem todos 0 ou iguais, precisamos criar uma sequência
-              // Pegar o menor índice possível ou começar do 0
-              const baseIndex = currentIndices[0] || 0;
-              
-              const updates = newOrder.map((division, idx) => ({
-                  id: division.id,
-                  // Garantir que a ordem seja sequencial
-                  order_index: baseIndex + idx
-              }));
+          const oldIndex = targetList.findIndex(d => d.id === active.id);
+          const newIndex = targetList.findIndex(d => d.id === over.id);
 
-              try {
-                // Atualizar um por um para garantir
-                await Promise.all(updates.map(update => updateDivision({
-                  id: update.id,
-                  order_index: update.order_index,
-                })));
-                
-                toast({
-                    title: "Ordem atualizada",
-                    description: "A nova ordem foi salva."
-                });
-              } catch (error) {
-                console.error("Failed to reorder", error);
-                toast({
-                    title: "Erro",
-                    variant: "destructive",
-                    description: "Falha ao salvar a ordem."
-                });
-              }
+          if (oldIndex !== -1 && newIndex !== -1) {
+            const newOrder = arrayMove(targetList, oldIndex, newIndex);
+
+            // Recalcular índices baseados na ordem visual atual do targetList
+            const currentIndices = targetList.map(d => d.order_index || 0).sort((a, b) => a - b);
+
+            // Se os índices forem todos 0 ou iguais, precisamos criar uma sequência
+            // Pegar o menor índice possível ou começar do 0
+            const baseIndex = currentIndices[0] || 0;
+
+            const updates = newOrder.map((division, idx) => ({
+              id: division.id,
+              // Garantir que a ordem seja sequencial
+              order_index: baseIndex + idx
+            }));
+
+            try {
+              // Atualizar um por um para garantir
+              await Promise.all(updates.map(update => updateDivision({
+                id: update.id,
+                order_index: update.order_index,
+              })));
+
+              toast({
+                title: "Ordem atualizada",
+                description: "A nova ordem foi salva."
+              });
+            } catch (error) {
+              console.error("Failed to reorder", error);
+              toast({
+                title: "Erro",
+                variant: "destructive",
+                description: "Falha ao salvar a ordem."
+              });
             }
+          }
         }
       }
     }
@@ -397,7 +377,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
     if (active.data.current?.type === 'assignment') {
       const assignment = active.data.current.assignment;
       const overData = over.data.current;
-      
+
       let newDivisionId = null;
 
       if (overData?.type === 'division') {
@@ -509,9 +489,9 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h3 className="text-lg font-semibold">Alocações de Pessoal</h3>
           <div className="w-full sm:w-auto flex justify-end gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => setShowCreateDivision(true)} 
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateDivision(true)}
               className="hidden sm:flex"
             >
               <FolderPlus className="w-4 h-4 mr-2" />
@@ -521,20 +501,20 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
               <Plus className="w-4 h-4 mr-2" />
               Adicionar Alocação
             </Button>
-            
+
             {/* Mobile Buttons */}
             <div className="flex flex-col gap-3 sm:hidden fixed bottom-32 right-4 z-50 items-end">
-              <Button 
-                onClick={() => setShowCreateDivision(true)} 
-                size="icon" 
+              <Button
+                onClick={() => setShowCreateDivision(true)}
+                size="icon"
                 variant="outline"
                 className="w-12 h-12 rounded-full shadow-lg bg-background text-foreground border-2"
               >
                 <FolderPlus className="w-6 h-6" />
               </Button>
-              <Button 
-                onClick={() => handleAddAllocation()} 
-                size="icon" 
+              <Button
+                onClick={() => handleAddAllocation()}
+                size="icon"
                 className="w-12 h-12 rounded-full shadow-lg bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <Plus className="w-6 h-6" />
@@ -587,14 +567,14 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">Alocações sem divisão</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {searchTerm ? filteredAssignments.length : eventAssignments.length} pessoa(s) {searchTerm ? 'encontrada(s)' : 'alocada(s) sem divisão específica'}
-                      </p>
-                    </div>
-                  <Button 
-                    variant="outline" 
+                  <div>
+                    <h4 className="font-medium">Alocações sem divisão</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {searchTerm ? filteredAssignments.length : eventAssignments.length} pessoa(s) {searchTerm ? 'encontrada(s)' : 'alocada(s) sem divisão específica'}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
                     onClick={() => handleAddAllocation()}
                   >
                     <Plus className="w-4 h-4 mr-2" />
@@ -603,7 +583,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
                 </div>
               </CardContent>
             </Card>
-            
+
             {/* Lista das alocações sem divisão - formato tabela responsivo */}
             <AllocationListView
               assignments={filteredAssignments}
@@ -617,7 +597,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
           <div className="space-y-8">
             {/* Seção de Coordenação (Destaque) */}
             {coordDivisions.length > 0 && (
-              <SortableContext 
+              <SortableContext
                 items={coordDivisions.map(d => d.id)}
                 strategy={rectSortingStrategy}
               >
@@ -633,7 +613,7 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
 
             {/* Demais Divisões (Grid de 3 colunas) */}
             {otherDivisions.length > 0 && (
-              <SortableContext 
+              <SortableContext
                 items={otherDivisions.map(d => d.id)}
                 strategy={rectSortingStrategy}
               >
@@ -653,32 +633,32 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ eventId })
 
         <DragOverlay dropAnimation={dropAnimation} style={{ zIndex: 9999 }}>
           {activeDragType === 'division' && activeDragItem ? (
-             <div className="opacity-90 rotate-2 cursor-grabbing">
-                <DivisionCard
-                  division={activeDragItem}
-                  assignments={sortedAssignmentsByDivision.get(activeDragItem.id) || []}
-                  availableDays={availableDays}
-                  isExpanded={expandedDivisions.includes(activeDragItem.id)}
-                  onToggle={() => {}}
-                  onLaunchHours={() => {}}
-                  onAddAllocation={() => {}}
-                  onEditAssignment={() => {}}
-                  onEditDivision={() => {}}
-                  onEditPerson={() => {}}
-                />
-             </div>
+            <div className="opacity-90 rotate-2 cursor-grabbing">
+              <DivisionCard
+                division={activeDragItem}
+                assignments={sortedAssignmentsByDivision.get(activeDragItem.id) || []}
+                availableDays={availableDays}
+                isExpanded={expandedDivisions.includes(activeDragItem.id)}
+                onToggle={() => { }}
+                onLaunchHours={() => { }}
+                onAddAllocation={() => { }}
+                onEditAssignment={() => { }}
+                onEditDivision={() => { }}
+                onEditPerson={() => { }}
+              />
+            </div>
           ) : activeDragType === 'assignment' && activeDragItem ? (
-             <div className="opacity-90 rotate-2 cursor-grabbing w-[300px]">
-                <DraggableAllocationCard
-                  assignment={activeDragItem}
-                  person={personnel.find(p => p.id === activeDragItem.personnel_id)}
-                  workLogs={workLogs}
-                  onLaunchHours={() => {}}
-                  onEditAssignment={() => {}}
-                  onDeleteAssignment={() => {}}
-                  onEditPerson={() => {}}
-                />
-             </div>
+            <div className="opacity-90 rotate-2 cursor-grabbing w-[300px]">
+              <DraggableAllocationCard
+                assignment={activeDragItem}
+                person={personnel.find(p => p.id === activeDragItem.personnel_id)}
+                workLogs={workLogs}
+                onLaunchHours={() => { }}
+                onEditAssignment={() => { }}
+                onDeleteAssignment={() => { }}
+                onEditPerson={() => { }}
+              />
+            </div>
           ) : null}
         </DragOverlay>
 

@@ -34,7 +34,7 @@ interface ErrorReport {
 export const useErrorReporting = () => {
   const { user } = useAuth();
   const { activeTeam } = useTeam();
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const consoleLogsRef = useRef<Array<{ type: string; message: string; timestamp: string }>>([]);
   const networkErrorsRef = useRef<Array<{ url: string; status: number; timestamp: string }>>([]);
@@ -50,7 +50,7 @@ export const useErrorReporting = () => {
       if (savedNetwork) {
         networkErrorsRef.current = JSON.parse(savedNetwork).slice(-50);
       }
-    } catch {}
+    } catch { }
 
     const originalError = console.error;
     const originalWarn = console.warn;
@@ -69,7 +69,7 @@ export const useErrorReporting = () => {
       }
       try {
         localStorage.setItem('error_console_logs', JSON.stringify(consoleLogsRef.current));
-      } catch {}
+      } catch { }
       originalError.apply(console, args);
     };
 
@@ -84,7 +84,7 @@ export const useErrorReporting = () => {
       }
       try {
         localStorage.setItem('error_console_logs', JSON.stringify(consoleLogsRef.current));
-      } catch {}
+      } catch { }
       originalWarn.apply(console, args);
     };
 
@@ -109,7 +109,7 @@ export const useErrorReporting = () => {
             timestamp: new Date().toISOString()
           });
           if (networkErrorsRef.current.length > 50) networkErrorsRef.current.shift();
-          try { localStorage.setItem('error_network_errors', JSON.stringify(networkErrorsRef.current)); } catch {}
+          try { localStorage.setItem('error_network_errors', JSON.stringify(networkErrorsRef.current)); } catch { }
         }
         return response;
       } catch (err) {
@@ -121,20 +121,20 @@ export const useErrorReporting = () => {
             if (networkErrorsRef.current.length > 50) networkErrorsRef.current.shift();
             localStorage.setItem('error_network_errors', JSON.stringify(networkErrorsRef.current));
           }
-        } catch {}
+        } catch { }
         throw err;
       }
     };
 
     let currentXhrUrl: string | null = null;
     let currentXhrMethod: string | null = null;
-    XMLHttpRequest.prototype.open = function(method: string, url: string, async?: boolean, user?: string, password?: string) {
+    XMLHttpRequest.prototype.open = function (method: string, url: string, async?: boolean, user?: string, password?: string) {
       currentXhrUrl = url;
       currentXhrMethod = method;
       return originalXhrOpen.apply(this, [method, url, async as any, user as any, password as any]);
     } as any;
 
-    XMLHttpRequest.prototype.send = function(body?: Document | XMLHttpRequestBodyInit | null) {
+    XMLHttpRequest.prototype.send = function (body?: Document | XMLHttpRequestBodyInit | null) {
       this.addEventListener('loadend', () => {
         try {
           const status = (this as any).status;
@@ -143,7 +143,7 @@ export const useErrorReporting = () => {
             if (networkErrorsRef.current.length > 50) networkErrorsRef.current.shift();
             localStorage.setItem('error_network_errors', JSON.stringify(networkErrorsRef.current));
           }
-        } catch {}
+        } catch { }
       });
       return originalXhrSend.apply(this, [body as any]);
     } as any;
@@ -223,6 +223,16 @@ export const useErrorReporting = () => {
   }, []);
 
   const submitErrorReport = useCallback(async (report: ErrorReport) => {
+    // ✅ TAREFA 5: Offline Check
+    if (!navigator.onLine) {
+      toast({
+        title: 'Sem conexão com a internet',
+        description: 'Verifique sua conexão e tente enviar seu reporte novamente.',
+        variant: 'destructive'
+      });
+      return null;
+    }
+
     if (!user) {
       toast({
         title: 'Erro',
@@ -241,7 +251,7 @@ export const useErrorReporting = () => {
       if (report.screenshot) {
         const fileExt = report.screenshot.name.split('.').pop();
         const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-        
+
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('error-screenshots')
           .upload(fileName, report.screenshot, {
@@ -267,6 +277,8 @@ export const useErrorReporting = () => {
       const { data, error } = await supabase
         .from('error_reports')
         .insert({
+          user_id: user.id, // 🔥 Ensure user context
+          team_id: activeTeam?.id || null, // 🔥 ✅ TAREFA 5: Ensure team context
           what_trying_to_do: report.whatTryingToDo,
           what_happened: report.whatHappened,
           steps_to_reproduce: report.stepsToReproduce || null,
