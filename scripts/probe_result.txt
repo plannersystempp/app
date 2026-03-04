@@ -1,0 +1,4 @@
+Team: FGA Soluções (5a4a57c2-431c-46e0-95c4-14cde1b4a9a9)
+
+=== RPC TEST ===
+RPC STILL FAILING: {"code":"42883","details":null,"hint":"No operator matches the given name and argument types. You might need to add explicit type casts.","message":"operator does not exist: date = text"}

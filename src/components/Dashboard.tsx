@@ -167,9 +167,25 @@ const Dashboard = () => {
         // Usar cache para reduzir queries redundantes
         const eventsWithStatus = await getCachedEventStatus(activeTeam.id);
 
-        // Filter events that have allocations but no pending payments
+        // LOG DETALHADO PARA DEPURAÇÃO (Conforme solicitado pelo usuário)
+        const pendingEvents = eventsWithStatus.filter(e => e.has_pending_payments);
+        if (pendingEvents.length > 0) {
+          logger.query.info('EVENTOS_PENDENTES_DASHBOARD', {
+            count: pendingEvents.length,
+            events: pendingEvents.map(e => ({
+              id: e.event_id,
+              name: e.event_name,
+              status: e.event_status,
+              allocated: e.allocated_count,
+              paid: e.paid_count,
+              hasPending: e.has_pending_payments
+            }))
+          });
+        }
+
+        // Filter events that have no pending payments (regardless of allocation count)
         const completedEventIds = eventsWithStatus
-          .filter(e => e.allocated_count > 0 && !e.has_pending_payments)
+          .filter(e => !e.has_pending_payments)
           .map(e => e.event_id);
 
         setEventsWithCompletePayments(completedEventIds);
