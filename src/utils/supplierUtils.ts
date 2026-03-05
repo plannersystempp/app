@@ -159,3 +159,21 @@ export const applyPhoneMask = (value: string): string => {
   
   return masked.slice(0, 15); // Limitar ao tamanho máximo
 };
+
+// Calcula o total pago de fornecedores considerando apenas status 'paid'
+export const calcularTotalPagoFornecedores = (custos: Array<{
+  payment_status?: string | null;
+  paid_amount?: string | number | null;
+}>): number => {
+  if (!custos || !Array.isArray(custos)) return 0;
+  
+  return custos
+    .filter(custo => {
+      const status = String(custo.payment_status || '').toLowerCase();
+      return status === 'paid';
+    })
+    .reduce((total, custo) => {
+      const paidAmount = Number(custo.paid_amount) || 0;
+      return total + paidAmount;
+    }, 0);
+};

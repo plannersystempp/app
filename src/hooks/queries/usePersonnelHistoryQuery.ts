@@ -1,7 +1,245 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useTeam } from '@/contexts/TeamContext';
-import { calculateWorkedDays } from '@/components/payroll/payrollCalculations';
+import { calculateWorkedDays, calculateTotalPay } from '@/components/payroll/payrollCalculations';
+import * as PayrollCalc from '@/components/payroll/payrollCalculations';
+
+interface PendingAllocationEvent {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  payment_due_date?: string | null;
+}
+
+interface PendingAllocationRow {
+  id: string;
+  event_id: string;
+  work_days: string[] | null;
+  event_specific_cache: number | null;
+  function_name: string | null;
+  events: PendingAllocationEvent;
+}
+
+interface EventAllocationEvent {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+}
+
+interface EventAllocationRow {
+    id: string;
+    event_id: string;
+    work_days: string[] | null;
+    function_name: string | null;
+    event_specific_cache: number | null;
+    events: EventAllocationEvent;
+  }
+
+interface PersonnelDirectPaymentRow {
+  amount: number;
+  related_events: unknown;
+}
+
+interface PersonnelFunctionRow {
+  function_id: string | null;
+  custom_cache: number | null;
+  custom_overtime: number | null;
+  functions?: {
+    id?: string;
+    name?: string;
+  } | null;
+}
+
+const PENDING_TOLERANCE = 1.0;
+
+const parseRelatedEventIds = (relatedEvents: unknown): string[] => {
+  if (!relatedEvents) return [];
+  if (Array.isArray(relatedEvents)) {
+    return relatedEvents.filter((value): value is string => typeof value === 'string' && value.length > 0);
+  }
+  if (typeof relatedEvents === 'string') {
+    try {
+      const parsed = JSON.parse(relatedEvents) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed.filter((value): value is string => typeof value === 'string' && value.length > 0);
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const getAllocatedPaymentAmountForEvent = (payment: PersonnelDirectPaymentRow, eventId: string): number => {
+  const relatedEvents = parseRelatedEventIds(payment.related_events);
+  if (relatedEvents.length === 0) return 0;
+  if (!relatedEvents.includes(eventId)) return 0;
+  return Number(payment.amount) / relatedEvents.length;
+};
+
+const calculatePendingPaymentsByEvent = async (
+  teamId: string,
+  personnelId: string
+): Promise<PendingPayment[]> => {
+  const { data: allocations, error: allocError } = await supabase
+    .from('personnel_allocations')
+    .select(`
+      id,
+      event_id,
+      work_days,
+      function_name,
+      event_specific_cache,
+      events!inner (
+        id,
+        name,
+        start_date,
+        end_date,
+        payment_due_date,
+        status,
+        team_id
+      )
+    `)
+    .eq('personnel_id', personnelId)
+    .eq('events.team_id', teamId)
+    .in('events.status', ['concluido', 'concluido_pagamento_pendente']);
+
+  if (allocError) throw allocError;
+
+  const typedAllocations = (allocations ?? []) as unknown as PendingAllocationRow[];
+  if (typedAllocations.length === 0) return [];
+
+  const { data: personnel, error: personnelError } = await supabase
+    .from('personnel')
+    .select('id, name, type, event_cache, monthly_salary, overtime_rate')
+    .eq('id', personnelId)
+    .single();
+
+  if (personnelError) throw personnelError;
+
+  const { data: personnelFunctions, error: personnelFunctionsError } = await supabase
+    .from('personnel_functions')
+    .select(`
+      function_id,
+      custom_cache,
+      custom_overtime,
+      functions:function_id(id, name)
+    `)
+    .eq('personnel_id', personnelId)
+    .eq('team_id', teamId);
+
+  if (personnelFunctionsError) throw personnelFunctionsError;
+
+  const allocationsByEvent = typedAllocations.reduce<Map<string, PendingAllocationRow[]>>((map, allocation) => {
+    const current = map.get(allocation.event_id) ?? [];
+    current.push(allocation);
+    map.set(allocation.event_id, current);
+    return map;
+  }, new Map<string, PendingAllocationRow[]>());
+
+  const pendingData = await Promise.all(
+    Array.from(allocationsByEvent.entries()).map(async ([eventId, eventAllocations]) => {
+      const event = eventAllocations[0].events;
+
+      const [closingsResult, paymentsResult, workLogsResult] = await Promise.all([
+        supabase
+          .from('payroll_closings')
+          .select('total_amount_paid')
+          .eq('event_id', eventId)
+          .eq('personnel_id', personnelId),
+        supabase
+          .from('personnel_payments')
+          .select('amount, related_events')
+          .eq('team_id', teamId)
+          .eq('personnel_id', personnelId)
+          .eq('payment_status', 'paid')
+          .contains('related_events', [eventId]),
+        supabase
+          .from('work_records')
+          .select('id, employee_id, event_id, work_date, hours_worked, overtime_hours, attendance_status')
+          .eq('event_id', eventId)
+          .eq('employee_id', personnelId),
+      ]);
+
+      if (closingsResult.error) throw closingsResult.error;
+      if (paymentsResult.error) throw paymentsResult.error;
+      if (workLogsResult.error) throw workLogsResult.error;
+
+      const totalPaidClosings =
+        closingsResult.data?.reduce((sum, item) => sum + Number(item.total_amount_paid), 0) ?? 0;
+      const totalPaidPayments =
+        ((paymentsResult.data ?? []) as unknown as PersonnelDirectPaymentRow[]).reduce(
+          (sum, payment) => sum + getAllocatedPaymentAmountForEvent(payment, eventId),
+          0
+        );
+      const totalPaid = totalPaidClosings + totalPaidPayments;
+
+      // Preparar dados para o calculador oficial (SSOT)
+      const allocationsForCalc = eventAllocations.map((allocation) => ({
+        id: allocation.id,
+        personnel_id: personnelId,
+        event_id: eventId,
+        work_days: allocation.work_days || [],
+        event_specific_cache: allocation.event_specific_cache,
+        function_name: allocation.function_name
+      })) as PayrollCalc.AllocationData[];
+
+      const parsedFunctions = ((personnelFunctions ?? []) as unknown as PersonnelFunctionRow[])
+        .map((item) => ({
+          id: item.function_id || item.functions?.id,
+          name: item.functions?.name || '',
+          custom_cache: item.custom_cache ? Number(item.custom_cache) : undefined,
+          custom_overtime: item.custom_overtime ? Number(item.custom_overtime) : undefined
+        }))
+        .filter((item) => !!item.id || !!item.name);
+
+      const personForCalc = {
+        id: personnelId,
+        name: personnel?.name || '',
+        type: (personnel?.type || 'freelancer') as 'fixo' | 'freelancer',
+        event_cache: personnel?.event_cache,
+        monthly_salary: personnel?.monthly_salary,
+        overtime_rate: personnel?.overtime_rate,
+        functions: parsedFunctions
+      } as PayrollCalc.PersonnelData;
+
+      const workLogsForCalc = (workLogsResult.data || []).map(log => ({
+        id: log.id,
+        employee_id: log.employee_id,
+        event_id: log.event_id,
+        hours_worked: log.hours_worked,
+        overtime_hours: log.overtime_hours,
+        attendance_status: log.attendance_status as 'present' | 'absent' | 'pending' | undefined,
+        work_date: log.work_date
+      })) as PayrollCalc.WorkLogData[];
+
+      // Usar o cálculo oficial da folha
+      const totalAmount = calculateTotalPay(
+        allocationsForCalc,
+        personForCalc,
+        workLogsForCalc
+      );
+
+      const pendingAmount = Math.max(0, totalAmount - totalPaid);
+
+      if (pendingAmount <= PENDING_TOLERANCE) return null;
+
+      return {
+        eventId,
+        eventName: event.name,
+        startDate: event.start_date,
+        endDate: event.end_date,
+        paymentDueDate: event.payment_due_date ?? undefined,
+        pendingAmount,
+      };
+    })
+  );
+
+  return pendingData.filter((item): item is PendingPayment => item !== null);
+};
 
 // Types
 export interface PaymentHistoryItem {
@@ -100,91 +338,7 @@ export const usePendingPayments = (personnelId: string) => {
   
   return useQuery({
     queryKey: personnelHistoryKeys.pending(personnelId),
-    queryFn: async (): Promise<PendingPayment[]> => {
-      // Buscar alocações em eventos concluídos com dados completos
-      const { data: allocations, error: allocError } = await supabase
-        .from('personnel_allocations')
-        .select(`
-          id,
-          event_id,
-          work_days,
-          event_specific_cache,
-          events!inner (
-            id,
-            name,
-            start_date,
-            end_date,
-            payment_due_date,
-            status
-          )
-        `)
-        .eq('personnel_id', personnelId)
-        .eq('team_id', activeTeam!.id)
-        .in('events.status', ['concluido', 'concluido_pagamento_pendente']);
-
-      if (allocError) throw allocError;
-
-      // Para cada evento, calcular o valor pendente
-      const pendingData = await Promise.all(
-        allocations.map(async (alloc) => {
-          const event = alloc.events as any;
-          
-          // Buscar fechamentos (pagamentos realizados)
-          const { data: closings } = await supabase
-            .from('payroll_closings')
-            .select('total_amount_paid')
-            .eq('event_id', event.id)
-            .eq('personnel_id', personnelId);
-
-          const totalPaid = closings?.reduce((sum, c) => sum + Number(c.total_amount_paid), 0) || 0;
-
-          // Buscar dados do pessoal para calcular cache
-          const { data: personnel } = await supabase
-            .from('personnel')
-            .select('event_cache')
-            .eq('id', personnelId)
-            .single();
-
-          // Buscar registros de trabalho para considerar faltas
-          const { data: workLogs } = await supabase
-            .from('work_records')
-            .select('work_date, attendance_status')
-            .eq('event_id', event.id)
-            .eq('employee_id', personnelId);
-
-          const cacheRate = alloc.event_specific_cache || personnel?.event_cache || 0;
-          
-          // Usar a função oficial de cálculo para descontar faltas
-          const allocationData = [{
-            id: alloc.id,
-            personnel_id: personnelId,
-            event_id: event.id,
-            work_days: alloc.work_days || [],
-            event_specific_cache: alloc.event_specific_cache
-          }];
-          
-          const daysWorked = calculateWorkedDays(allocationData, (workLogs || []) as any[]);
-          const totalAmount = Number(cacheRate) * daysWorked;
-
-          const pendingAmount = totalAmount - totalPaid;
-
-          // Usar tolerância de R$ 1,00 para evitar pendências por centavos
-          // Se totalAmount for 0 (devido a faltas) e totalPaid 0, pendingAmount será 0 e retornará null (correto)
-          if (pendingAmount <= 1.0) return null;
-
-          return {
-            eventId: event.id,
-            eventName: event.name,
-            startDate: event.start_date,
-            endDate: event.end_date,
-            paymentDueDate: event.payment_due_date,
-            pendingAmount,
-          };
-        })
-      );
-
-      return pendingData.filter(item => item !== null) as PendingPayment[];
-    },
+    queryFn: async (): Promise<PendingPayment[]> => calculatePendingPaymentsByEvent(activeTeam!.id, personnelId),
     enabled: !!personnelId && !!activeTeam?.id,
   });
 };
@@ -196,6 +350,7 @@ export const useEventsHistory = (personnelId: string) => {
   return useQuery({
     queryKey: personnelHistoryKeys.events(personnelId),
     queryFn: async (): Promise<EventHistoryItem[]> => {
+      // 1. Buscar alocações baseadas nos eventos do time (não na coluna team_id da alocação)
       const { data, error } = await supabase
         .from('personnel_allocations')
         .select(`
@@ -209,55 +364,143 @@ export const useEventsHistory = (personnelId: string) => {
             name,
             start_date,
             end_date,
-            status
+            status,
+            team_id
           )
         `)
         .eq('personnel_id', personnelId)
-        .eq('team_id', activeTeam!.id)
+        .eq('events.team_id', activeTeam!.id)
         .order('events(start_date)', { ascending: false });
 
       if (error) throw error;
 
-      // Buscar dados do pessoal uma vez
+      // 2. Buscar dados completos do pessoal para cálculo correto
       const { data: personnel } = await supabase
         .from('personnel')
-        .select('event_cache')
+        .select('id, name, type, event_cache, monthly_salary, overtime_rate')
         .eq('id', personnelId)
         .single();
 
-      // Para cada evento, buscar pagamentos
+      const { data: personnelFunctions, error: personnelFunctionsError } = await supabase
+        .from('personnel_functions')
+        .select(`
+          function_id,
+          custom_cache,
+          custom_overtime,
+          functions:function_id(id, name)
+        `)
+        .eq('personnel_id', personnelId)
+        .eq('team_id', activeTeam!.id);
+
+      if (personnelFunctionsError) throw personnelFunctionsError;
+
+      const typedData = (data ?? []) as unknown as EventAllocationRow[];
+      const allocationsByEvent = typedData.reduce<Map<string, EventAllocationRow[]>>((map, allocation) => {
+        const current = map.get(allocation.event_id) ?? [];
+        current.push(allocation);
+        map.set(allocation.event_id, current);
+        return map;
+      }, new Map<string, EventAllocationRow[]>());
+
       const eventsData = await Promise.all(
-        data.map(async (item) => {
-          const event = item.events as any;
+        Array.from(allocationsByEvent.entries()).map(async ([eventId, eventAllocations]) => {
+          const event = eventAllocations[0].events;
           
-          const { data: closings } = await supabase
-            .from('payroll_closings')
-            .select('total_amount_paid')
-            .eq('event_id', event.id)
-            .eq('personnel_id', personnelId);
+          const [closingsResult, paymentsResult] = await Promise.all([
+            supabase
+              .from('payroll_closings')
+              .select('total_amount_paid')
+              .eq('event_id', eventId)
+              .eq('personnel_id', personnelId),
+            supabase
+              .from('personnel_payments')
+              .select('amount, related_events')
+              .eq('team_id', activeTeam!.id)
+              .eq('personnel_id', personnelId)
+              .eq('payment_status', 'paid')
+              .contains('related_events', [eventId]),
+          ]);
 
-          const totalPaid = closings?.reduce((sum, c) => sum + Number(c.total_amount_paid), 0) || 0;
+          if (closingsResult.error) throw closingsResult.error;
+          if (paymentsResult.error) throw paymentsResult.error;
 
-          // Buscar registros de trabalho para considerar faltas
+          const totalPaidClosings =
+            closingsResult.data?.reduce((sum, c) => sum + Number(c.total_amount_paid), 0) || 0;
+          const totalPaidPayments =
+            ((paymentsResult.data ?? []) as unknown as PersonnelDirectPaymentRow[]).reduce(
+              (sum, payment) => sum + getAllocatedPaymentAmountForEvent(payment, eventId),
+              0
+            );
+          const totalPaid = totalPaidClosings + totalPaidPayments;
+
+          // 3. Buscar registros de trabalho completos para cálculo de horas e faltas
           const { data: workLogs } = await supabase
             .from('work_records')
-            .select('work_date, attendance_status')
-            .eq('event_id', event.id)
+            .select('id, employee_id, event_id, work_date, hours_worked, overtime_hours, attendance_status')
+            .eq('event_id', eventId)
             .eq('employee_id', personnelId);
 
-          // Calcular valor total baseado em cache
-          const cacheRate = item.event_specific_cache || personnel?.event_cache || 0;
-          
-          const allocationData = [{
-            id: item.id,
+          // Preparar dados para o calculador oficial (SSOT)
+          const allocationsForCalc = eventAllocations.map((allocation) => ({
+            id: allocation.id,
             personnel_id: personnelId,
-            event_id: event.id,
-            work_days: item.work_days || [],
-            event_specific_cache: item.event_specific_cache
-          }];
+            event_id: eventId,
+            work_days: allocation.work_days || [],
+            event_specific_cache: allocation.event_specific_cache,
+            function_name: allocation.function_name
+          })) as PayrollCalc.AllocationData[];
 
-          const daysWorked = calculateWorkedDays(allocationData, (workLogs || []) as any[]);
-          const totalAmount = Number(cacheRate) * daysWorked;
+          const parsedFunctions = ((personnelFunctions ?? []) as unknown as PersonnelFunctionRow[])
+            .map((item) => ({
+              id: item.function_id || item.functions?.id,
+              name: item.functions?.name || '',
+              custom_cache: item.custom_cache ? Number(item.custom_cache) : undefined,
+              custom_overtime: item.custom_overtime ? Number(item.custom_overtime) : undefined
+            }))
+            .filter((item) => !!item.id || !!item.name);
+
+          const personForCalc = {
+            id: personnelId,
+            name: personnel?.name || '',
+            type: (personnel?.type || 'freelancer') as 'fixo' | 'freelancer',
+            event_cache: personnel?.event_cache,
+            monthly_salary: personnel?.monthly_salary,
+            overtime_rate: personnel?.overtime_rate,
+            functions: parsedFunctions
+          } as PayrollCalc.PersonnelData;
+
+          const workLogsForCalc = (workLogs || []).map(log => ({
+            id: log.id,
+            employee_id: log.employee_id,
+            event_id: log.event_id,
+            hours_worked: log.hours_worked,
+            overtime_hours: log.overtime_hours,
+            attendance_status: log.attendance_status as 'present' | 'absent' | 'pending' | undefined,
+            work_date: log.work_date
+          })) as PayrollCalc.WorkLogData[];
+
+          // Usar o cálculo oficial da folha
+          const totalAmount = calculateTotalPay(
+            allocationsForCalc,
+            personForCalc,
+            workLogsForCalc
+            // Sem overtimeConfig por enquanto (assume default)
+          );
+
+          // Recalcular dias trabalhados para exibição usando a mesma lógica
+          const daysWorked = calculateWorkedDays(allocationsForCalc, workLogsForCalc);
+
+          // Coletar nomes de função e dias brutos para exibição
+          const workDays = Array.from(
+            new Set(eventAllocations.flatMap((allocation) => allocation.work_days || []))
+          );
+          const functionNames = Array.from(
+            new Set(
+              eventAllocations
+                .map((allocation) => allocation.function_name?.trim() || '')
+                .filter((name) => name.length > 0)
+            )
+          );
 
           return {
             id: event.id,
@@ -265,11 +508,11 @@ export const useEventsHistory = (personnelId: string) => {
             startDate: event.start_date,
             endDate: event.end_date,
             status: event.status,
-            workDays: item.work_days || [],
-            functionName: item.function_name,
+            workDays,
+            functionName: functionNames.join(', '),
             totalPaid,
             totalAmount,
-            isPaid: totalPaid >= totalAmount - 1.0, // tolerância de 1 real
+            isPaid: totalPaid >= totalAmount - PENDING_TOLERANCE,
           };
         })
       );
@@ -301,69 +544,19 @@ export const usePersonnelStats = (personnelId: string) => {
         .eq('personnel_id', personnelId)
         .eq('team_id', activeTeam!.id);
 
-      const totalPaidAllTime = closings?.reduce((sum, c) => sum + Number(c.total_amount_paid), 0) || 0;
-
-      // Total pendente - buscar eventos concluídos
-      const { data: allocations } = await supabase
-        .from('personnel_allocations')
-        .select(`
-          id,
-          event_id,
-          work_days,
-          event_specific_cache,
-          events!inner (
-            status
-          )
-        `)
+      const { data: directPaid } = await supabase
+        .from('personnel_payments')
+        .select('amount')
         .eq('personnel_id', personnelId)
         .eq('team_id', activeTeam!.id)
-        .in('events.status', ['concluido', 'concluido_pagamento_pendente']);
+        .eq('payment_status', 'paid');
 
-      // Buscar dados do pessoal
-      const { data: personnel } = await supabase
-        .from('personnel')
-        .select('event_cache')
-        .eq('id', personnelId)
-        .single();
+      const totalPaidAllTime =
+        (closings?.reduce((sum, c) => sum + Number(c.total_amount_paid), 0) || 0) +
+        (directPaid?.reduce((sum, payment) => sum + Number(payment.amount), 0) || 0);
 
-      let totalPending = 0;
-      if (allocations) {
-        for (const alloc of allocations) {
-          const { data: paid } = await supabase
-            .from('payroll_closings')
-            .select('total_amount_paid')
-            .eq('event_id', alloc.event_id)
-            .eq('personnel_id', personnelId);
-
-          const totalPaidEvent = paid?.reduce((sum, c) => sum + Number(c.total_amount_paid), 0) || 0;
-          
-          // Buscar registros de trabalho para considerar faltas
-          const { data: workLogs } = await supabase
-            .from('work_records')
-            .select('work_date, attendance_status')
-            .eq('event_id', alloc.event_id)
-            .eq('employee_id', personnelId);
-
-          const cacheRate = alloc.event_specific_cache || personnel?.event_cache || 0;
-          
-          const allocationData = [{
-            id: alloc.id, // ID da alocação
-            personnel_id: personnelId,
-            event_id: alloc.event_id,
-            work_days: alloc.work_days || [],
-            event_specific_cache: alloc.event_specific_cache
-          }];
-
-          const daysWorked = calculateWorkedDays(allocationData, (workLogs || []) as any[]);
-          const totalAmountEvent = Number(cacheRate) * daysWorked;
-          
-          const pending = totalAmountEvent - totalPaidEvent;
-          // Usar tolerância de R$ 1,00 para evitar pendências por centavos
-          if (pending > 1.0) {
-            totalPending += pending;
-          }
-        }
-      }
+      const pendingPayments = await calculatePendingPaymentsByEvent(activeTeam!.id, personnelId);
+      const totalPending = pendingPayments.reduce((sum, pending) => sum + pending.pendingAmount, 0);
 
       return {
         totalEvents: totalEvents || 0,

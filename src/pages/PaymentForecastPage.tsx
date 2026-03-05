@@ -114,7 +114,7 @@ export const PaymentForecastPage: React.FC = () => {
               </div>
 
               {/* Seção de Eventos */}
-              {eventos.length > 0 && (
+              {eventos.length > 0 ? (
                 <div className="overflow-x-auto -mx-4 px-4 scrollbar-thin">
                   <Table className="min-w-[400px]">
                     <TableHeader className="bg-muted/50">
@@ -148,10 +148,14 @@ export const PaymentForecastPage: React.FC = () => {
                     </TableBody>
                   </Table>
                 </div>
+              ) : (
+                <div className="px-4 py-3 text-center text-sm text-muted-foreground border-b">
+                  Nenhum evento com pagamento previsto para este período.
+                </div>
               )}
 
               {/* Seção de Pagamentos Avulsos */}
-              {avulsos.length > 0 && (
+              {avulsos.length > 0 ? (
                 <div className="overflow-x-auto -mx-4 px-4 scrollbar-thin">
                   <Table className="min-w-[400px]">
                     <TableHeader className="bg-muted/50">
@@ -195,6 +199,17 @@ export const PaymentForecastPage: React.FC = () => {
                       </TableRow>
                     </TableBody>
                   </Table>
+                </div>
+              ) : (
+                <div className="px-4 py-3 text-center text-sm text-muted-foreground border-b">
+                  Nenhum pagamento avulso previsto para este período.
+                </div>
+              )}
+
+              {/* Mensagem quando não há nenhum pagamento na semana */}
+              {eventos.length === 0 && avulsos.length === 0 && (
+                <div className="px-4 py-8 text-center">
+                  <p className="text-sm text-muted-foreground">Nenhum pagamento previsto para este período.</p>
                 </div>
               )}
             </CardContent>

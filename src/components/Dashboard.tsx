@@ -22,6 +22,7 @@ import { getCachedEventStatus } from './payroll/eventStatusCache';
 import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
 import { useQuery } from '@tanstack/react-query';
 import { formatCurrency } from '@/utils/formatters';
+import { calcularTotalPagoFornecedores } from '@/utils/supplierUtils';
 import { useEventsInProgress } from '@/hooks/dashboard/useEventsInProgress';
 import { useUpcomingPayments } from '@/hooks/dashboard/useUpcomingPayments';
 import { usePersonnelPaymentsQuery } from '@/hooks/queries/usePersonnelPaymentsQuery';
@@ -582,9 +583,7 @@ const Dashboard = () => {
               </div>
               <div className="text-center">
                 <div className="text-lg font-bold text-green-600">
-                  {formatCurrency(filteredSupplierCosts
-                    .filter(c => c.payment_status === 'paid')
-                    .reduce((sum, c) => sum + (Number(c.paid_amount) || 0), 0))}
+                  {formatCurrency(calcularTotalPagoFornecedores(filteredSupplierCosts))}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   <span className="hidden sm:inline">Total Pago</span>

@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, Calendar, Users, Database, MoreVertical, Edit, Trash2, XCircle } from 'lucide-react';
+import { Plus, Search, Calendar, Users, MoreVertical, Edit, Trash2, XCircle } from 'lucide-react';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { NoTeamSelected } from '@/components/shared/NoTeamSelected';
@@ -23,16 +23,21 @@ import { useCheckSubscriptionLimits } from '@/hooks/useCheckSubscriptionLimits';
 import { UpgradePrompt } from '@/components/subscriptions/UpgradePrompt';
 import { useMyEventPermissions } from '@/hooks/useEventPermissions';
 import { Lock } from 'lucide-react';
+import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
+import { useDeleteEventMutation, useEventsQuery } from '@/hooks/queries/useEventsQuery';
 
 export const ManageEvents: React.FC = () => {
-  const { events, assignments, personnel, deleteEvent } = useEnhancedData();
+  const { assignments } = useEnhancedData();
   const { activeTeam, userRole } = useTeam();
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const { data: events = [], isLoading: eventsLoading, isError: eventsIsError } = useEventsQuery();
+  const deleteEventMutation = useDeleteEventMutation();
   
   // Buscar permissões do coordenador
-  const { data: myPermissions = [], isLoading: permissionsLoading } = useMyEventPermissions();
+  const { data: myPermissions = [] } = useMyEventPermissions();
   const [searchTerm, setSearchTerm] = useState('');
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
@@ -127,6 +132,24 @@ export const ManageEvents: React.FC = () => {
       <NoTeamSelected
         title="Gestão de Eventos"
         description="Selecione uma equipe para começar a gerenciar eventos."
+      />
+    );
+  }
+
+  if (eventsLoading) {
+    return (
+      <div className="py-10">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (eventsIsError) {
+    return (
+      <EmptyState
+        icon={<Calendar className="w-12 h-12" />}
+        title="Falha ao carregar eventos"
+        description="Não foi possível carregar a listagem de eventos. Tente novamente em instantes."
       />
     );
   }
@@ -253,8 +276,6 @@ export const ManageEvents: React.FC = () => {
   };
 
   const handleFormSuccess = async () => {
-    console.log('Event form submitted successfully, refreshing data...');
-    // Data will auto-refresh via EnhancedDataContext
     setShowForm(false);
     setEditingEvent(null);
     setSearchTerm(''); // Clear search filter to ensure new event is visible
@@ -270,7 +291,7 @@ export const ManageEvents: React.FC = () => {
       return;
     }
     try {
-      await deleteEvent(eventId);
+      await deleteEventMutation.mutateAsync(eventId);
       toast({
         title: "Sucesso",
         description: `Evento "${eventName}" excluído com sucesso!`,

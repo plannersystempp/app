@@ -205,9 +205,14 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ events, person
                 dy={10}
               />
               <YAxis 
-                tickFormatter={(val) => `R$${val/1000}k`}
+                domain={[0, 'auto']}
+                tickFormatter={(val) => {
+                  if (val >= 1000000) return `R$${(val/1000000).toFixed(1)}M`;
+                  if (val >= 1000) return `R$${(val/1000).toFixed(0)}k`;
+                  return `R$${val}`;
+                }}
                 tick={{ fontSize: 10, fill: '#888888' }}
-                width={35}
+                width={40}
                 axisLine={false}
                 tickLine={false}
               />

@@ -296,19 +296,21 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
                         )}
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setConfirmCancelId(payment.id)}
-                      disabled={loading}
-                      className={`${isMobile
-                        ? 'h-6 w-full justify-center'
-                        : 'h-6 w-6 p-0'
-                        } text-destructive hover:text-destructive flex-shrink-0`}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      {isMobile && <span className="ml-2 text-xs">Cancelar</span>}
-                    </Button>
+                    {isAdmin && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setConfirmCancelId(payment.id)}
+                        disabled={loading}
+                        className={`${isMobile
+                          ? 'h-6 w-full justify-center'
+                          : 'h-6 w-6 p-0'
+                          } text-destructive hover:text-destructive flex-shrink-0`}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        {isMobile && <span className="ml-2 text-xs">Cancelar</span>}
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>

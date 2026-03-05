@@ -112,10 +112,13 @@ export const calcSupplierPaymentsReportTotals = (rows: Array<{ totalAmount: numb
   let countPending = 0;
   for (const r of rows) {
     totalAmount += r.totalAmount;
-    paidAmount += r.paidAmount;
-    pendingAmount += r.pendingAmount;
-    if (r.statusLabel === 'Pago') countPaid += 1;
-    else countPending += 1;
+    if (r.statusLabel === 'Pago') {
+      paidAmount += r.paidAmount;
+      countPaid += 1;
+    } else {
+      pendingAmount += r.pendingAmount;
+      countPending += 1;
+    }
   }
   return {
     totalAmount,

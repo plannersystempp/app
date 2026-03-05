@@ -1,6 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { useCreateEventMutation, useUpdateEventMutation } from '@/hooks/queries/useEventsQuery';
@@ -8,11 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useCheckSubscriptionLimits } from '@/hooks/useCheckSubscriptionLimits';
 import { UpgradePrompt } from '@/components/subscriptions/UpgradePrompt';
+import { eventSchema, type EventSchemaType } from '@/schemas/eventSchema';
 import type { Event } from '@/contexts/EnhancedDataContext';
 
 interface EventFormProps {
@@ -21,20 +24,7 @@ interface EventFormProps {
   onSuccess: () => void;
 }
 
-interface EventFormData {
-  name: string;
-  description: string;
-  location: string;
-  client_contact_phone: string;
-  start_date: string;
-  end_date: string;
-  setup_start_date: string;
-  setup_end_date: string;
-  payment_due_date: string;
-  default_entry_time: string;
-  default_exit_time: string;
-  status: 'planejado' | 'em_andamento' | 'concluido' | 'cancelado' | 'concluido_pagamento_pendente';
-}
+interface EventFormData extends EventSchemaType {}
 
 export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess }) => {
   const createEvent = useCreateEventMutation();
@@ -45,7 +35,10 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
   const checkLimits = useCheckSubscriptionLimits();
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
   const [limitCheckResult, setLimitCheckResult] = useState<any>(null);
-  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<EventFormData>({
+  const [dateValidationErrors, setDateValidationErrors] = useState<{end_date?: string; setup_end_date?: string}>({});
+  const [inlineAlerts, setInlineAlerts] = useState<{type: 'warning' | 'error', message: string}[]>([]);
+  const { register, handleSubmit, setValue, watch, trigger, formState: { errors, isSubmitting, isValid } } = useForm<EventFormData>({
+    resolver: zodResolver(eventSchema),
     defaultValues: event || {
       name: '',
       description: '',
@@ -59,49 +52,96 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
       default_entry_time: '',
       default_exit_time: '',
       status: 'planejado'
-    }
+    },
+    mode: 'onChange'
   });
 
   const watchedStatus = watch('status');
   const watchedStartDate = watch('start_date');
   const watchedEndDate = watch('end_date');
+  const watchedSetupStartDate = watch('setup_start_date');
+  const watchedSetupEndDate = watch('setup_end_date');
+
+  // Validação em tempo real das datas
+  useEffect(() => {
+    validateDates();
+  }, [watchedStartDate, watchedEndDate, watchedSetupStartDate, watchedSetupEndDate]);
+
+  const addInlineAlert = (type: 'warning' | 'error', message: string) => {
+    setInlineAlerts(prev => [...prev, { type, message }]);
+    // Remove o alerta após 3 segundos
+    setTimeout(() => {
+      setInlineAlerts(prev => prev.filter(alert => alert.message !== message));
+    }, 3000);
+  };
+
+  const validateDates = () => {
+    const newErrors: {end_date?: string; setup_end_date?: string} = {};
+    
+    // Validação de datas do evento
+    if (watchedStartDate && watchedEndDate) {
+      const startDate = new Date(watchedStartDate);
+      const endDate = new Date(watchedEndDate);
+      if (endDate < startDate) {
+        newErrors.end_date = "Data de fim deve ser após a data de início";
+      }
+    }
+    
+    // Validação de datas de montagem
+    if (watchedSetupStartDate && watchedSetupEndDate) {
+      const setupStartDate = new Date(watchedSetupStartDate);
+      const setupEndDate = new Date(watchedSetupEndDate);
+      if (setupEndDate < setupStartDate) {
+        newErrors.setup_end_date = "Fim da montagem deve ser após o início da montagem";
+      }
+    }
+    
+    setDateValidationErrors(newErrors);
+    trigger(['end_date', 'setup_end_date']);
+  };
 
   const handleStartDateChange = (date: string) => {
     setValue('start_date', date);
     // Se a data de fim já estiver definida e for anterior à nova data de início, limpe-a
     if (watchedEndDate && new Date(watchedEndDate) < new Date(date)) {
       setValue('end_date', '');
-      toast({
-        title: "Aviso",
-        description: "A data de fim foi reiniciada pois era anterior à nova data de início.",
-      });
+      addInlineAlert('warning', "A data de fim foi reiniciada pois era anterior à nova data de início.");
     }
+    validateDates();
   };
 
   const handleEndDateChange = (date: string) => {
     // Validação: Não permite selecionar uma data de fim anterior à data de início
     if (watchedStartDate && new Date(date) < new Date(watchedStartDate)) {
-      toast({
-        title: "Data Inválida",
-        description: "A data de fim não pode ser anterior à data de início.",
-        variant: "destructive",
-      });
+      addInlineAlert('error', "A data de fim não pode ser anterior à data de início.");
       return; // Impede a atualização do estado
     }
     setValue('end_date', date);
+    validateDates();
+  };
+
+  const handleSetupStartDateChange = (date: string) => {
+    setValue('setup_start_date', date);
+    // Se a data de fim de montagem já estiver definida e for anterior à nova data de início, limpe-a
+    if (watchedSetupEndDate && new Date(watchedSetupEndDate) < new Date(date)) {
+      setValue('setup_end_date', '');
+      addInlineAlert('warning', "A data de fim de montagem foi reiniciada pois era anterior à nova data de início.");
+    }
+    validateDates();
+  };
+
+  const handleSetupEndDateChange = (date: string) => {
+    // Validação: Não permite selecionar uma data de fim de montagem anterior à data de início de montagem
+    if (watchedSetupStartDate && new Date(date) < new Date(watchedSetupStartDate)) {
+      addInlineAlert('error', "A data de fim de montagem não pode ser anterior à data de início de montagem.");
+      return; // Impede a atualização do estado
+    }
+    setValue('setup_end_date', date);
+    validateDates();
   };
 
   const onSubmit = async (data: EventFormData) => {
     try {
-      // Validação de campos obrigatórios
-      if (!data.name.trim() || !data.start_date || !data.end_date) {
-        toast({
-          title: "Campos obrigatórios",
-          description: "Por favor, preencha todos os campos obrigatórios",
-          variant: "destructive"
-        });
-        return;
-      }
 
       // Verificar limites apenas ao criar novo evento
       if (!event && activeTeam) {
@@ -161,6 +201,16 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
           Formulário para {event ? 'editar evento existente' : 'criar novo evento'}
         </DialogDescription>
       </DialogHeader>
+
+        {inlineAlerts.length > 0 && (
+          <div className="space-y-2 mb-4">
+            {inlineAlerts.map((alert, index) => (
+              <Alert key={index} variant={alert.type === 'error' ? 'destructive' : 'default'}>
+                <AlertDescription>{alert.message}</AlertDescription>
+              </Alert>
+            ))}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
@@ -231,9 +281,12 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
                 onChange={(e) => handleEndDateChange(e.target.value)}
                 min={watchedStartDate}
                 disabled={isSubmitting}
+                className={dateValidationErrors.end_date ? 'border-red-500 focus:ring-red-500' : ''}
               />
-              {errors.end_date && (
-                <p className="text-sm text-destructive">{errors.end_date.message}</p>
+              {(errors.end_date || dateValidationErrors.end_date) && (
+                <p className="text-sm text-destructive">
+                  {errors.end_date?.message || dateValidationErrors.end_date}
+                </p>
               )}
             </div>
           </div>
@@ -245,6 +298,7 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
                 id="setup_start_date"
                 type="date"
                 {...register('setup_start_date')}
+                onChange={(e) => handleSetupStartDateChange(e.target.value)}
                 disabled={isSubmitting}
               />
             </div>
@@ -255,8 +309,16 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
                 id="setup_end_date"
                 type="date"
                 {...register('setup_end_date')}
+                onChange={(e) => handleSetupEndDateChange(e.target.value)}
+                min={watchedSetupStartDate}
                 disabled={isSubmitting}
+                className={dateValidationErrors.setup_end_date ? 'border-red-500 focus:ring-red-500' : ''}
               />
+              {(errors.setup_end_date || dateValidationErrors.setup_end_date) && (
+                <p className="text-sm text-destructive">
+                  {errors.setup_end_date?.message || dateValidationErrors.setup_end_date}
+                </p>
+              )}
             </div>
           </div>
 
@@ -315,7 +377,7 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
             <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting} className="min-h-[44px]">
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting} className="min-h-[44px]">
+            <Button type="submit" disabled={isSubmitting || !isValid} className="min-h-[44px]">
               {isSubmitting ? 'Salvando...' : (event ? 'Salvar Alterações' : 'Criar Evento')}
             </Button>
           </div>

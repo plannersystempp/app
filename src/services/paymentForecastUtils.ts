@@ -35,6 +35,8 @@ export const getWeekRangeForDate = (dateStr: string): { start: string; end: stri
 // Agrupa itens por semana de vencimento
 export const groupItemsByWeek = (items: ForecastItem[]): WeekForecast[] => {
   const map = new Map<string, WeekForecast>();
+  
+  // Primeiro, agrupa os itens existentes
   for (const item of items) {
     const { start, end } = getWeekRangeForDate(item.dueDate);
     const key = `${start}_${end}`;
@@ -45,5 +47,49 @@ export const groupItemsByWeek = (items: ForecastItem[]): WeekForecast[] => {
     wk.items.push(item);
     wk.totalAmount += item.amount;
   }
-  return Array.from(map.values()).sort((a, b) => (a.weekStart < b.weekStart ? -1 : a.weekStart > b.weekStart ? 1 : 0));
+  
+  // Se não houver itens, retorna array vazio
+  if (items.length === 0) {
+    return [];
+  }
+  
+  // Se houver itens, garante que todas as semanas do intervalo sejam incluídas
+  const sortedWeeks = Array.from(map.values()).sort((a, b) => 
+    a.weekStart < b.weekStart ? -1 : a.weekStart > b.weekStart ? 1 : 0
+  );
+  
+  if (sortedWeeks.length === 0) {
+    return [];
+  }
+  
+  // Cria semanas vazias para preencher o intervalo completo
+  const startDate = new Date(`${sortedWeeks[0].weekStart}T12:00:00`);
+  const endDate = new Date(`${sortedWeeks[sortedWeeks.length - 1].weekEnd}T12:00:00`);
+  
+  const completeWeeks: WeekForecast[] = [];
+  const currentDate = new Date(startDate);
+  
+  while (currentDate <= endDate) {
+    const { start, end } = getWeekRangeForDate(
+      `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`
+    );
+    
+    const existingWeek = sortedWeeks.find(w => w.weekStart === start && w.weekEnd === end);
+    
+    if (existingWeek) {
+      completeWeeks.push(existingWeek);
+    } else {
+      completeWeeks.push({
+        weekStart: start,
+        weekEnd: end,
+        items: [],
+        totalAmount: 0
+      });
+    }
+    
+    // Avança para a próxima semana
+    currentDate.setDate(currentDate.getDate() + 7);
+  }
+  
+  return completeWeeks;
 };

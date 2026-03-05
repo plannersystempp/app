@@ -8,6 +8,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/utils/formatters';
 import { invalidateCache } from './eventStatusCache';
 import { notificationService } from '@/services/notificationService';
+import { personnelPaymentsKeys } from '@/hooks/queries/usePersonnelPaymentsQuery';
+import { personnelHistoryKeys } from '@/hooks/queries/usePersonnelHistoryQuery';
 
 export const usePayrollActions = (
   selectedEventId: string
@@ -184,27 +186,65 @@ export const usePayrollActions = (
         return;
       }
 
-      // Diagnóstico: checar se o registro está visível antes de apagar
-      const { data: closingRow } = await supabase
-        .from('payroll_closings')
-        .select('id, event_id, team_id, personnel_id, paid_by_id')
-        .eq('id', paymentId)
-        .maybeSingle();
+      const [closingLookup, directPaymentLookup] = await Promise.all([
+        supabase
+          .from('payroll_closings')
+          .select('id, personnel_id')
+          .eq('id', paymentId)
+          .eq('team_id', activeTeam.id)
+          .maybeSingle(),
+        supabase
+          .from('personnel_payments')
+          .select('id, personnel_id')
+          .eq('id', paymentId)
+          .eq('team_id', activeTeam.id)
+          .maybeSingle(),
+      ]);
 
-      // Deletar pelo id apenas, para evitar mismatch de filtros
-      const { data: deletedRows, error } = await supabase
-        .from('payroll_closings')
-        .delete()
-        .eq('id', paymentId)
-        .select();
+      if (closingLookup.error) throw closingLookup.error;
+      if (directPaymentLookup.error) throw directPaymentLookup.error;
 
-      if (error) throw error;
-      if (!deletedRows || deletedRows.length === 0) {
-        throw new Error('Nenhum registro foi removido. Verifique políticas de acesso (RLS).');
+      let affectedPersonnelId: string | null = null;
+
+      if (closingLookup.data) {
+        affectedPersonnelId = closingLookup.data.personnel_id;
+        const { data: deletedRows, error } = await supabase
+          .from('payroll_closings')
+          .delete()
+          .eq('id', paymentId)
+          .eq('team_id', activeTeam.id)
+          .select('id');
+
+        if (error) throw error;
+        if (!deletedRows || deletedRows.length === 0) {
+          throw new Error('Nenhum fechamento foi removido. Verifique permissões.');
+        }
+      } else if (directPaymentLookup.data) {
+        affectedPersonnelId = directPaymentLookup.data.personnel_id;
+        const { data: deletedRows, error } = await supabase
+          .from('personnel_payments')
+          .delete()
+          .eq('id', paymentId)
+          .eq('team_id', activeTeam.id)
+          .select('id');
+
+        if (error) throw error;
+        if (!deletedRows || deletedRows.length === 0) {
+          throw new Error('Nenhum pagamento avulso foi removido. Verifique permissões.');
+        }
+      } else {
+        throw new Error('Registro não encontrado para exclusão nesta equipe.');
       }
 
-      await queryClient.invalidateQueries({ queryKey: payrollKeys.event(selectedEventId) });
-      await queryClient.invalidateQueries({ queryKey: ['event-payment-status'], refetchType: 'active' });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: payrollKeys.event(selectedEventId) }),
+        queryClient.invalidateQueries({ queryKey: ['event-payment-status'], refetchType: 'active' }),
+        queryClient.invalidateQueries({ queryKey: personnelPaymentsKeys.all }),
+        queryClient.invalidateQueries({ queryKey: ['team-pending-payments'] }),
+        affectedPersonnelId
+          ? queryClient.invalidateQueries({ queryKey: personnelHistoryKeys.all(affectedPersonnelId) })
+          : Promise.resolve(),
+      ]);
 
       toast({
         title: "Sucesso",

@@ -49,10 +49,28 @@ export const PendingPaymentsTab: React.FC<PendingPaymentsTabProps> = ({ personne
     if (!settleTarget || !activeTeam) return;
     setIsSettling(true);
     try {
+      await queryClient.refetchQueries({
+        queryKey: personnelHistoryKeys.pending(personnelId),
+        type: 'active',
+      });
+
+      const latestPending =
+        queryClient.getQueryData<PendingPayment[]>(personnelHistoryKeys.pending(personnelId)) ?? [];
+      const latestTarget = latestPending.find((item) => item.eventId === settleTarget.eventId);
+
+      if (!latestTarget || latestTarget.pendingAmount <= 1.0) {
+        toast({
+          title: 'Saldo já baixado',
+          description: 'Este evento já está quitado e não permite nova baixa.',
+        });
+        setSettleTarget(null);
+        return;
+      }
+
       await personnelPaymentsService.create({
         team_id: activeTeam.id,
         personnel_id: personnelId,
-        amount: settleTarget.pendingAmount,
+        amount: latestTarget.pendingAmount,
         description: `Baixa do saldo pendente — ${settleTarget.eventName}`,
         payment_due_date: new Date().toISOString().split('T')[0],
         related_events: [settleTarget.eventId],
@@ -64,12 +82,12 @@ export const PendingPaymentsTab: React.FC<PendingPaymentsTabProps> = ({ personne
 
       toast({
         title: 'Baixa realizada',
-        description: `Saldo de ${formatCurrency(settleTarget.pendingAmount)} registrado como pago.`,
+        description: `Saldo de ${formatCurrency(latestTarget.pendingAmount)} registrado como pago.`,
       });
 
       // Invalidate relevant queries so the UI refreshes
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: personnelHistoryKeys.all(personnelId) }),
+        queryClient.refetchQueries({ queryKey: personnelHistoryKeys.all(personnelId), type: 'active' }),
         queryClient.invalidateQueries({ queryKey: personnelPaymentsKeys.all }),
         queryClient.invalidateQueries({ queryKey: ['team-pending-payments'] }),
       ]);

@@ -1,164 +1,152 @@
-## [2026-03-04] - fix: Dashboard pending logic respects payroll closings
+## [2026-03-05] - fix: Consistência de cálculo na aba "Pendentes" do Histórico
  - Mudanças:
-   - Atualizada a função `get_events_with_payment_status` para considerar eventos com fechamento de folha (`payroll_closings`) como quitados, independentemente de divergências de valores (ex: negociações abaixo da tabela).
-   - Corrigida referência à coluna inexistente `function_id` na tabela `personnel_allocations`, que impedia a aplicação da migração anterior.
+   - Atualizada a função `calculatePendingPaymentsByEvent` para usar a mesma engine de cálculo oficial (`PayrollCalc.calculateTotalPay`) já aplicada na aba "Eventos".
+   - Adicionada busca de `personnel_functions` e dados completos do pessoal (`monthly_salary`, `overtime_rate`, `type`) na query de pagamentos pendentes.
+   - Unificada a lógica de obtenção de `custom_cache` e `function_name` para garantir que o valor pendente considere o cachê da função (ex: R$ 600) em vez do padrão (ex: R$ 500).
  - Arquivos:
-   - `supabase/migrations/20260304130000_fix_dashboard_pending_logic_with_closings.sql`
+   - `src/hooks/queries/usePersonnelHistoryQuery.ts`
  - Impacto:
-   - Eventos onde o pagamento foi negociado (valor diferente do esperado) mas a folha foi fechada deixam de aparecer como "Pendentes".
-   - A migração agora aplica corretamente, resolvendo o problema de "continua do mesmo jeito".
+   - Corrige a discrepância visual onde a aba "Pendentes" mostrava um valor menor (ex: R$ 3.000) do que o real (ex: R$ 3.600) por ignorar o cachê específico da função. Agora todas as abas (Folha, Histórico > Eventos, Histórico > Pendentes) exibem o mesmo valor SSOT.
 
-## [2026-03-04] - fix: Correção de regressão no Dashboard (pagamentos pendentes)
+## [2026-03-05] - fix: Correção crítica de query de alocações no Histórico
  - Mudanças:
-   - Restaurada a lógica robusta da função `get_events_with_payment_status` (versão 20260303230000), que lida corretamente com horas extras, conversão diária e tolerância de centavos.
-   - Corrigido erro de tipo (DATE vs TEXT[]) na agregação de dias de falta (`absent_days`), que causava falha na query anterior.
-   - A função agora considera corretamente:
-     - Dias trabalhados descontando faltas.
-     - Conversão de horas extras para diárias (se habilitado).
-     - Taxas específicas por evento/função.
-     - Pagamentos parciais e totais com tolerância de R$ 0,10.
+   - Removida a coluna `function_id` da query de `personnel_allocations` (inexistente no banco), evitando falha silenciosa ou retorno incompleto.
+   - Adicionado filtro de `team_id` na busca de `personnel_functions` para garantir contexto correto.
+   - Adicionada conversão explícita de `custom_cache` e `custom_overtime` para `Number()`, garantindo que o cálculo matemático funcione corretamente (evitando concatenação de strings).
  - Arquivos:
-   - `supabase/migrations/20260304120000_restore_and_fix_dashboard_logic.sql`
+   - `src/hooks/queries/usePersonnelHistoryQuery.ts`
  - Impacto:
-   - Resolve o problema onde eventos totalmente pagos apareciam como "Pendentes" no Dashboard devido a uma simplificação incorreta na query anterior.
+   - Restabelece o funcionamento correto do cálculo de histórico que estava falhando devido à coluna inexistente, garantindo que o valor total bata com a Folha (ex: R$ 3.600,00).
 
-## [2026-03-03] - fix: Correção profunda de pendências no Dashboard e logs de depuração
+## [2026-03-05] - fix: Consistência total do Histórico com Folha via PayrollCalc SSOT
  - Mudanças:
-   - Atualizada a RPC `get_events_with_payment_status` para ignorar alocações onde `attendance_status = 'absent'`, alinhando com a lógica do frontend.
-   - Aumentada a tolerância de arredondamento de R$ 0,01 para R$ 0,10 no cálculo de `has_pending_payments` para evitar "falsos positivos" por dízimas periódicas.
-   - Implementados logs detalhados no `Dashboard.tsx` para listar no console do navegador quais eventos o sistema ainda considera pendentes e por quê.
+   - Substituído cálculo manual de `totalAmount` e `daysWorked` no Histórico (`useEventsHistory`) pela função `PayrollCalc.calculateTotalPay` e `calculateWorkedDays`, garantindo paridade exata com a Folha de Pagamento.
+   - Ajustada query de `personnel_allocations` para filtrar eventos do time (`events.team_id`) em vez de filtrar alocações (`team_id`), corrigindo omissão de alocações válidas com inconsistência de dados.
+   - Incluída busca completa de `workLogs` e `personnel` (com dados salariais/HE) para alimentar o cálculo oficial.
  - Arquivos:
-   - `supabase/migrations/20260303220000_fix_dashboard_absences_and_tolerance.sql`
-   - `src/components/Dashboard.tsx`
+   - `src/hooks/queries/usePersonnelHistoryQuery.ts`
  - Impacto:
-   - Eliminação de eventos que apareciam como pendentes indevidamente devido a faltas totais de profissionais ou diferenças de centavos.
-   - Facilita a depuração futura caso o problema persista em cenários específicos.
+   - Eliminação definitiva de divergências de valores (R$ 600 vs R$ 500) causadas por diferenças na regra de cache ou filtros de dados.
+   - O Histórico agora reflete fielmente o "Total a Pagar" calculado pela engine da Folha, incluindo Horas Extras e regras de cache avançadas.
 
-## [2026-03-03] - fix: Correção definitiva de pendências no Dashboard (considerando faltas)
+## [2026-03-05] - fix: Gráfico de barras "Custos com Fornecedores (Top 5)" - Correção de valores negativos no eixo Y
  - Mudanças:
-   - Atualizada novamente a RPC `get_events_with_payment_status` para subtrair explicitamente os dias com status `absent` (faltas) do cálculo de valor esperado.
-   - Anteriormente, a lógica considerava apenas os dias alocados, gerando "falsos pendentes" para quem faltou (recebeu menos que o alocado, mas o correto).
+   - Adicionado `domain={[0, 'auto']}` no componente YAxis do Recharts para garantir que o eixo Y comece em 0
+   - Implementada filtragem de valores negativos na função `getCostsByCategory` para garantir que apenas custos positivos sejam considerados
+   - Melhorada a formatação do eixo Y para exibir valores em R$ com notação compacta (R$1.6k, R$2M, etc.)
+   - Aumentada a largura do eixo Y de 35 para 40 pixels para acomodar labels maiores
  - Arquivos:
-   - `supabase/migrations/20260303204000_fix_dashboard_pending_events_absences.sql`
- - Impacto:
-   - Eventos onde houveram faltas agora terão o valor "Esperado" reduzido, batendo com o valor "Pago", removendo o status de pendência incorreto.
+   - `src/components/dashboard/AnalyticsCharts.tsx` (linha 207-218): Adicionado domain e melhorado tickFormatter
+   - `src/utils/analyticsData.ts` (linha 120-123): Adicionada validação para filtrar valores negativos
 
-## [2026-03-03] - fix: Eventos pagos ainda apareciam como pendentes no Dashboard
+## [2026-03-05] - fix: Unificação de cálculo de Total Pago de Fornecedores entre Dashboard e Relatório
  - Mudanças:
-   - Ajustada a RPC `get_events_with_payment_status` para alinhar o cálculo de pendência com as regras do frontend (cachê por função/evento, taxa de hora extra, conversão diária por limiar e desconto de faltas).
-   - Adicionado teste automatizado cobrindo cenário de pagamento completo com conversão e faltas.
+   - Criada função compartilhada `calcularTotalPagoFornecedores(custos)` em `src/utils/supplierUtils.ts` que considera apenas custos com `status === 'paid'`
+   - Aplicada função compartilhada no Dashboard para substituir cálculo inline anterior
+   - Corrigida lógica em `calcSupplierPaymentsReportTotals` para somar apenas valores de custos com `statusLabel === 'Pago'` (antes somava todos os `paidAmount`)
+   - Criados testes unitários abrangentes para a função compartilhada com 8 casos de teste
  - Arquivos:
-   - `supabase/migrations/20260303194000_fix_dashboard_pending_events_paid.sql`
-   - `src/services/__tests__/dashboardPendingPaymentsAlignment.test.ts`
+   - `src/utils/supplierUtils.ts`: Nova função `calcularTotalPagoFornecedores`
+   - `src/components/Dashboard.tsx`: Substituição do cálculo inline pela função compartilhada
+   - `src/utils/supplierPaymentsReport.ts`: Correção da lógica de soma no `calcSupplierPaymentsReportTotals`
+   - `src/utils/__tests__/supplierUtils.test.ts`: Testes unitários para garantir funcionamento correto
  - Impacto:
-   - Eventos totalmente pagos deixam de aparecer no card “Pagamentos Próximos”, reduzindo falsos positivos de pendência.
+   - Elimina inconsistência entre Dashboard (R$ 1.600,00) e Relatório (R$ 0,00) para Total Pago de Fornecedores
+   - Garante que apenas pagamentos com status explicitamente 'paid' sejam considerados, ignorando 'pendente' ou 'parcial'
+   - Previne regressões futuras através de testes automatizados
+ - Impacto:
+   - O gráfico deixa de exibir valores negativos no eixo Y, que são incorretos para representação de custos
+   - Formatação monetária mais clara e profissional com notação compacta
+   - Melhor experiência visual e precisão nos dados apresentados
 
-## [2026-03-03] - fix: Dashboard exibia eventos sem pagamentos pendentes (vazios/concluídos)
+## [2026-03-05] - fix: Total do evento no Histórico alinhado com Folha por agregação de alocações
  - Mudanças:
-   - Removida a verificação `allocated_count > 0` no filtro de eventos concluídos do Dashboard.
-   - Eventos sem alocações de pessoal (ou com pagamentos totalmente quitados) agora são corretamente identificados como "sem pendências" e ocultados do card "Pagamentos Próximos".
+   - Refatorada a aba de eventos do Histórico de Pessoal para calcular por `event_id` agregado, em vez de calcular cada linha de alocação isoladamente.
+   - O `cacheRate` do evento passou a usar o maior `event_specific_cache` entre as alocações do evento (mesma regra da Folha), com fallback para `event_cache` da pessoa.
+   - `daysWorked` passou a considerar o conjunto de alocações do evento e não apenas uma alocação, evitando sub/superestimação do `totalAmount`.
+   - Mantido o rateio de `personnel_payments.related_events` no `totalPaid`, garantindo consistência de pago e pendente no card de eventos do Histórico.
  - Arquivos:
-   - `src/components/Dashboard.tsx`
+   - `src/hooks/queries/usePersonnelHistoryQuery.ts`
  - Impacto:
-   - O Dashboard deixa de listar eventos vazios ou totalmente pagos como "Pendentes", limpando a visualização para o usuário.
+   - O campo "Total do Evento" no Histórico passa a bater com o "Total a Pagar" da Folha para o mesmo profissional/evento.
+   - Reduz divergência visual e elimina inconsistência entre abas de histórico e folha operacional.
 
-## [2026-03-03] - fix: Correção de compatibilidade do Preview com Vite (process.env)
+## [2026-03-05] - fix: Alinhamento do cálculo de pendentes entre Folha e Histórico de Pessoal
  - Mudanças:
-   - Substituído `process.env.NODE_ENV` por `import.meta.env.MODE` em arquivos do frontend, pois `process` não está definido no ambiente do navegador (causava crash na inicialização do preview).
+   - Corrigido o cálculo de `totalPaid` no Histórico para pagamentos de `personnel_payments` com múltiplos `related_events`, aplicando rateio por evento (`valor / quantidade de eventos`) como já ocorre na folha do evento.
+   - Adicionada normalização de `related_events` (array/string JSON) para evitar diferenças de interpretação entre fontes de pagamento.
+   - Ajustado o cálculo de histórico de eventos para usar o mesmo rateio ao compor `totalPaid` por evento.
  - Arquivos:
-   - `src/providers/QueryProvider.tsx`
-   - `src/services/errorReporting.ts`
+   - `src/hooks/queries/usePersonnelHistoryQuery.ts`
  - Impacto:
-   - O Preview do aplicativo volta a carregar corretamente, eliminando o erro silencioso de inicialização.
+   - Sincroniza o valor de `pendente` entre Folha de Pagamento e Histórico de Pessoal, evitando divergências quando há pagamentos com múltiplos eventos relacionados.
 
-## [2026-03-03] - fix: Exportação PDF/CSV de fornecedores com colunas selecionáveis e PDF legível
+## [2026-03-05] - fix: Dashboard - Estatísticas de Eventos não considerava filtros de equipe
  - Mudanças:
-   - Adicionada seleção de colunas (persistida por equipe) na exportação da página Fornecedores e no Relatório de Pagamentos de Fornecedores.
-   - PDF passou a limitar quebra de texto em até 3 linhas por célula (com truncamento), evitando “colunas verticais” ilegíveis.
-   - Botão “Exportar” em Fornecedores agora abre uma página dedicada com seleção de colunas e pré-visualização.
-   - Adicionados filtros na página de exportação (busca, cidade e estado) para viabilizar “Exportar Filtrado”.
+   - Refatorados `getEventsByStatus`, `getMonthlyEvents`, `getCostsByCategory` e `getFinancialEvolution` para aceitarem eventos filtrados por equipe
+   - Atualizado componente `AnalyticsCharts` para passar `filteredEvents`, `filteredPersonnel` e `filteredCosts` para as funções de analytics
+   - Removida dependência de `events`, `personnel` e `costs` sem filtro nas chamadas dos gráficos
  - Arquivos:
-   - `src/components/suppliers/ManageSuppliers.tsx`
-   - `src/pages/SupplierExportPage.tsx`
-   - `src/components/suppliers/SupplierExportColumnPicker.tsx`
-   - `src/components/suppliers/SupplierReportColumnSelector.tsx`
-   - `src/components/suppliers/supplierReportColumns.ts`
-   - `src/pages/SupplierPaymentsReportPage.tsx`
-   - `src/components/suppliers/SupplierPaymentsReportColumnSelector.tsx`
-   - `src/components/suppliers/supplierPaymentsReportColumns.ts`
-   - `src/utils/exportUtils.ts`
+   - `src/components/dashboard/AnalyticsCharts.tsx`
+   - `src/utils/analyticsData.ts`
  - Impacto:
-   - Exportações deixam de sair desconfiguradas e o usuário consegue exportar apenas as colunas necessárias para o relatório.
+   - Gráficos do Dashboard agora refletem apenas dados da equipe ativa selecionada, mantendo consistência com o restante da aplicação
 
-## [2026-03-03] - fix: Relatório de fornecedores não quebra a rota ao abrir
+## [2026-03-05] - fix: Modal de Baixa de Pagamento - Prevenção de duplicatas e sincronização de estado
  - Mudanças:
-   - Corrigido crash por `SelectItem` com value vazio usando sentinel `all` e mapeando para `undefined` nos filtros.
-   - Corrigido ReferenceError por acesso a `costsQuery` antes da inicialização (ordem de declaração na página).
-   - Ajustado o fetch de `event_supplier_costs` para filtrar no servidor por período/status/fornecedor/evento e limitar volume retornado.
+   - Adicionada validação pré-baixa no `PendingPaymentsTab` com refetch do estado pendente antes do insert, bloqueando operação quando o evento já está quitado.
+   - Reforçado o refresh imediato com refetch/invalidate das chaves de histórico e invalidação em realtime de `personnel-history` quando `personnel_payments` muda.
+   - Atualizado o total pago em estatísticas e histórico de eventos para incluir pagamentos diretos de `personnel_payments`.
  - Arquivos:
-   - `src/pages/SupplierPaymentsReportPage.tsx`
-   - `src/hooks/queries/useSupplierCostsQuery.ts`
+   - `src/hooks/queries/usePersonnelHistoryQuery.ts`
+   - `src/components/personnel/PersonnelHistory/PendingPaymentsTab.tsx`
+   - `src/hooks/queries/usePersonnelPaymentsRealtime.ts`
  - Impacto:
-   - A rota `/app/relatorios/pagamentos-fornecedores` abre de forma estável e com melhor performance em equipes grandes.
+   - O modal deixa de permitir baixa duplicada do mesmo pendente após quitação.
+   - Ao clicar em "Dar Baixa", o estado pendente e os cards do histórico atualizam imediatamente.
+   - Cálculos de pendência e pago ficam consistentes entre histórico, estatísticas e realtime.
 
-## [2026-02-26] - fix: Erro 409 ao salvar funções/cachês por função (trigger de função principal)
+## [2026-03-05] - fix: Validação de datas no formulário de eventos - Melhorias de UX
  - Mudanças:
-   - Ajustada a estratégia de substituição de funções no update para evitar conflito do trigger `ensure_primary_function` durante deleções em lote.
-   - Inserção em `personnel_functions` passa a ocorrer com a linha primária primeiro para evitar múltiplos `is_primary=true` em inserts multi-row.
+   - Adicionada validação em tempo real com `useEffect` para monitorar mudanças nas datas
+   - Implementado estado `dateValidationErrors` para controlar exibição de erros cross-field
+   - Adicionadas bordas vermelhas (`border-red-500`) nos campos com erro de validação
+   - Mensagens de erro inline agora exibem tanto erros do Zod quanto validações customizadas
+   - Feedback visual imediato quando usuário seleciona datas inválidas
+   - Mantidos toast notifications para consistência com padrão existente
  - Arquivos:
-   - `src/services/personnelFunctionsService.ts`
-   - `src/hooks/queries/usePersonnelQuery.ts`
+   - `src/components/events/EventForm.tsx`
  - Impacto:
-   - Salvar edição de pessoal com múltiplas funções deixa de falhar with `409 Conflict` e os valores por função persistem corretamente.
+   - Usuários agora recebem feedback visual imediato sobre erros de data
+   - Campos inválidos são destacados com borda vermelha
+   - Mensagens de erro claras abaixo dos campos problemáticos
+   - Experiência de usuário significativamente melhorada
 
-## [2026-02-25] - fix: Cachê por função e hora extra não persistiam no cadastro de pessoal
+## [2026-03-05] - fix: Filtro de pagamento pendente por valor em aberto
  - Mudanças:
-   - Ajustada a persistência de `custom_cache`/`custom_overtime` por função com tratamento de erro e rollback seguro.
-   - Alinhadas as políticas de escrita da tabela `personnel_functions` para permitir `coordinator` (quando membro aprovado) gerenciar funções/cachês.
+   - Ajustada a função `get_events_with_payment_status` para considerar pagamento concluído apenas quando `paid >= expected - 0.10`, sem quitação automática apenas por existência de fechamento.
+   - Corrigida a sinalização de `has_pending_payments` para refletir saldo em aberto por valor esperado vs valor pago.
+   - Removida a dica de estado vazio no seletor de eventos da folha e substituída por mensagem neutra no filtro "Pagamento Pendente".
  - Arquivos:
-   - `supabase/migrations/allow_coordinator_manage_personnel_functions.sql`
-   - `src/services/personnelFunctionsService.ts`
-   - `src/hooks/queries/usePersonnelQuery.ts`
-   - `src/services/__tests__/personnelFunctionsService.test.ts`
+   - `supabase/migrations/20260305123000_fix_payroll_pending_filter_amount_based.sql`
+   - `src/components/payroll/EventSelector.tsx`
  - Impacto:
-   - Ao editar/cadastrar uma pessoa com múltiplas funções, os valores por função (cachê e hora extra) passam a salvar e reaparecem corretamente ao reabrir.
+   - Eventos concluídos com valores ainda em aberto voltam a aparecer no filtro "Pagamento Pendente".
+   - Evita mensagem enganosa de "pagamentos em dia" quando o problema é cálculo de pendência no backend.
 
-## [2026-02-25] - feat: Relatório de Pagamentos de Fornecedores (CSV/PDF)
+## [2026-03-05] - feat: Validação de datas no formulário de eventos
  - Mudanças:
-   - Criada página de relatório com filtros (período, status, fornecedor, evento), totais e tabela.
-   - Implementadas queries via React Query para fornecedores e custos, com exportação CSV/PDF.
-   - Adicionada rota com `PermissionGuard` (finance) e item no menu Financeiro.
+   - Criado schema Zod para validação de eventos em `src/schemas/eventSchema.ts` com validações cross-field
+   - Adicionada validação que impede data de fim ser anterior à data de início
+   - Adicionada validação que impede fim da montagem ser anterior ao início da montagem
+   - Atualizado `EventForm.tsx` para usar `zodResolver` com validação em tempo real (`mode: 'onChange'`)
+   - Implementadas mensagens de erro vermelhas abaixo dos campos de data inválidos
+   - Botão de submit agora é desabilitado quando há erros de validação (`!isValid`)
+   - Mantidas validações manuais existentes com toast notifications para melhor UX
  - Arquivos:
-   - `src/pages/SupplierPaymentsReportPage.tsx`
-   - `src/hooks/queries/useSuppliersQuery.ts`
-   - `src/hooks/queries/useSupplierCostsQuery.ts`
-   - `src/hooks/reports/useSupplierPaymentsReport.ts`
-   - `src/utils/supplierPaymentsReport.ts`
-   - `src/lib/routeAccess.ts`
-   - `src/App.tsx`
-   - `src/components/AppSidebar.tsx`
-   - `src/utils/__tests__/supplierPaymentsReport.test.ts`
+   - `src/schemas/eventSchema.ts`
+   - `src/components/events/EventForm.tsx`
  - Impacto:
-   - Time financeiro consegue auditar pagamentos de fornecedores por recorte e exportar relatórios.
-
-## [2026-03-03] - fix: Relatório de pagamentos de fornecedores não trava ao abrir
- - Mudanças:
-   - Ajustado o fetch de `event_supplier_costs` para filtrar no servidor por período/status/fornecedor/evento e limitar volume retornado.
-   - A página de relatório passa a buscar dados já recortados, reduzindo processamento e renderização em datasets grandes.
-   - Corrigido crash de UI ao abrir relatório (Radix Select não aceita `SelectItem` com value vazio).
- - Arquivos:
-   - `src/hooks/queries/useSupplierCostsQuery.ts`
-   - `src/pages/SupplierPaymentsReportPage.tsx`
- - Impacto:
-   - Navegação para `/app/relatorios/pagamentos-fornecedores` deixa de “congelar” em equipes com muitos custos lançados.
-
-## [2026-02-20] - fix: Hardening de segurança no Supabase (Security Advisor)
- - Mudanças:
-   - Fixado `search_path` (pg_catalog, public) em funções críticas e SECURITY DEFINER para mitigar hijacking.
-   - Habilitado RLS em `event_supplier_payments` com políticas alinhadas ao acesso de `event_supplier_costs`.
-   - Ajustada a view `freelancer_ratings_enriched` para `security_invoker` quando suportado.
-   - Tentativa segura (idempotente) de mover `pg_net`/`pg_cron` para o schema `extensions` quando instaladas em `public`.
- - Arquivos:
-   - `supabase/migrations/fix_security_advisor_issues.sql`
- - Impacto:
-   - Reduz superfície de ataque em funções SECURITY DEFINER e remove warning de RLS desabilitado em pagamentos de fornecedores.
+   - Impede criação de eventos com datas inconsistentes
+   - Feedback visual imediato para o usuário sobre erros de validação
+   - Reduz erros de usuário e melhora a qualidade dos dados inseridos

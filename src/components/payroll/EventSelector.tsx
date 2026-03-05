@@ -5,9 +5,8 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Search, Calendar, ChevronRight, Clock, DollarSign, AlertTriangle, CheckCircle, MapPin } from 'lucide-react';
+import { Search, Calendar, ChevronRight, Clock, AlertTriangle, MapPin } from 'lucide-react';
 import { formatDateBR } from '@/utils/dateUtils';
-import { formatCurrency } from '@/utils/formatters';
 import type { Event } from '@/contexts/DataContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { getCachedEventStatus } from './eventStatusCache';
@@ -254,8 +253,17 @@ export const EventSelector: React.FC<EventSelectorProps> = ({
       </div>
 
       {filteredEvents.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          <p>Nenhum evento encontrado</p>
+        <div className="text-center py-12">
+          <div className="text-muted-foreground mb-2">
+            <AlertTriangle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          </div>
+          <h3 className="text-lg font-semibold mb-2">Nenhum evento encontrado</h3>
+          <p className="text-muted-foreground max-w-md mx-auto">
+            {statusFilter === 'concluido_pagamento_pendente' 
+              ? 'Nenhum evento corresponde ao filtro "Pagamento Pendente".'
+              : 'Nenhum evento corresponde aos filtros selecionados. Tente ajustar os filtros ou criar um novo evento.'
+            }
+          </p>
         </div>
       )}
     </div>

@@ -118,7 +118,10 @@ export function getCostsByCategory(costs: EventSupplierCost[]): CostDataPoint[] 
   costs.forEach((c) => {
     const cat = c.category || 'Sem Categoria';
     const amount = Number(c.total_amount) || 0;
-    categoryTotals[cat] = (categoryTotals[cat] || 0) + amount;
+    // Filtrar valores negativos para garantir que custos não sejam negativos
+    if (amount >= 0) {
+      categoryTotals[cat] = (categoryTotals[cat] || 0) + amount;
+    }
   });
 
   const sorted = Object.entries(categoryTotals)
