@@ -10,8 +10,6 @@ import { type Personnel, type Func } from '@/contexts/EnhancedDataContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { PersonnelForm } from '@/components/personnel/PersonnelForm';
 
-import { useMomentumScroll } from '@/hooks/useMomentumScroll';
-
 interface PersonnelSelectorProps {
   personnel: Personnel[];
   functions: Func[];
@@ -37,9 +35,11 @@ export const PersonnelSelector: React.FC<PersonnelSelectorProps> = ({
   const [functionFilter, setFunctionFilter] = useState<string>('');
   const { userRole } = useTeam();
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
-  
-  const listRef = React.useRef<HTMLDivElement>(null);
-  useMomentumScroll(listRef);
+
+  const filterFunction = (value: string, search: string) => {
+    const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return normalize(value).includes(normalize(search)) ? 1 : 0;
+  };
 
   const handlePersonnelChange = (personnelId: string) => {
     onPersonnelChange(personnelId);
@@ -85,12 +85,12 @@ export const PersonnelSelector: React.FC<PersonnelSelectorProps> = ({
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className="w-[700px] max-w-[calc(100vw-2rem)] p-0"
+            className="w-[700px] max-w-[calc(100vw-2rem)] p-0 pointer-events-auto"
             align="start"
           >
-            <Command>
+            <Command filter={filterFunction}>
               <CommandInput placeholder="Pesquisar por nome ou email..." className="h-10" />
-              <CommandList ref={listRef} className="max-h-[500px] md:max-h-[600px] overflow-y-auto">
+              <CommandList className="max-h-[500px] md:max-h-[600px] overflow-y-auto">
                 {isAdmin && (
                   <CommandGroup>
                     <CommandItem
