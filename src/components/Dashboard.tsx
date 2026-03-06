@@ -40,8 +40,13 @@ import { logger } from '@/utils/logger';
 import { getAverageEventsPerWeek, getAverageEventsPerMonth, getAverageEventsPerYear } from '@/utils/dashboardData';
 import { AnalyticsCharts } from '@/components/dashboard/AnalyticsCharts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { subMonths, isAfter, parseISO } from 'date-fns';
+import { subMonths, isAfter, parseISO, startOfDay, isBefore, isSameDay, isValid, getYear } from 'date-fns';
 
+
+const parseLocalDate = (dateStr: string | undefined | null) => {
+    if (!dateStr) return null;
+    return parseISO(dateStr);
+  };
 
 const Dashboard = () => {
   
@@ -213,6 +218,7 @@ const Dashboard = () => {
   // Hooks e cálculos baseados em hooks DEVEM ser chamados antes de returns condicionais
   // Data atual usada para filtrar próximos eventos
   const currentDate = new Date();
+  const todayStart = startOfDay(currentDate);
   const nowKey = currentDate.toDateString();
   // Garantir que o intervalo selecionado é válido (removendo 'todos')
   const eventsRangeSafe: DateRange = (eventsRange === 'todos' ? '30dias' : eventsRange);
@@ -274,71 +280,75 @@ const Dashboard = () => {
     supplierStatusSafe
   );
 
-  // Cálculo de pagamentos atrasados para alerta
+  // Cálculo de pagamentos atrasados para alerta e lista de nomes
   const overdueStats = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Helper para converter string YYYY-MM-DD para data local (00:00:00)
-    // Isso evita problemas de fuso horário e datas inválidas (0000-00-00)
-    const parseLocalDate = (dateStr: string | undefined | null) => {
-      if (!dateStr) return null;
-      
-      const cleanDate = dateStr.split('T')[0];
-      const parts = cleanDate.split('-');
-      
-      let dateObj: Date;
-      
-      if (parts.length === 3) {
-        const year = Number(parts[0]);
-        // Proteção contra datas inválidas/zeradas (ex: 0000-00-00)
-        if (year < 1900) return null;
-        dateObj = new Date(year, Number(parts[1]) - 1, Number(parts[2]));
-      } else {
-        dateObj = new Date(dateStr);
-      }
-      
-      // Validação final de integridade da data
-      if (isNaN(dateObj.getTime()) || dateObj.getFullYear() < 1900) return null;
-      
-      return dateObj;
-    };
-
     const overdueEvents = upcomingPayments.filter(event => {
       // Ignorar eventos concluídos ou cancelados
       if (event.status === 'concluido' || event.status === 'cancelado') return false;
 
-      const dueDate = parseLocalDate(event.payment_due_date || event.end_date);
+      const dueDate = event.payment_due_date || event.end_date;
       if (!dueDate) return false;
       
-      return dueDate < today;
+      const parsedDate = parseISO(dueDate);
+      // Incluir pagamentos que vencem hoje (<= today)
+      return isBefore(parsedDate, todayStart) || isSameDay(parsedDate, todayStart);
     });
 
     const overdueAvulsos = avulsosPending.filter(payment => {
-       const dueDate = parseLocalDate(payment.payment_due_date);
-       if (!dueDate) return false;
-       return dueDate < today;
+       if (!payment.payment_due_date) return false;
+       const parsedDate = parseISO(payment.payment_due_date);
+       return isBefore(parsedDate, todayStart) || isSameDay(parsedDate, todayStart);
     });
     
     const overdueSuppliers = filteredSupplierCosts.filter(cost => {
         if (cost.payment_status === 'paid') return false;
         
         // FILTRO SOLICITADO: Ignorar fornecedores sem data prevista definida
-        if (!cost.payment_date) return false;
+        // Reforço: garantir que não seja string vazia ou apenas espaços
+        if (!cost.payment_date || String(cost.payment_date).trim() === '') return false;
 
-        const paymentDate = parseLocalDate(cost.payment_date);
-        if (!paymentDate) return false;
+        const paymentDate = typeof cost.payment_date === 'string' ? parseISO(cost.payment_date) : cost.payment_date;
         
-        return paymentDate < today;
+        // Validação robusta de data: deve ser válida e ter ano >= 2000
+        if (!paymentDate || !isValid(paymentDate) || getYear(paymentDate) < 2000) return false;
+        
+        return isBefore(paymentDate, todayStart) || isSameDay(paymentDate, todayStart);
     });
+
+    // Coletar nomes para exibição (prioridade: Fornecedores > Eventos > Avulsos)
+    const overdueNames: string[] = [];
+    
+    overdueSuppliers.slice(0, 3).forEach(c => {
+      const pDate = typeof c.payment_date === 'string' ? parseISO(c.payment_date) : c.payment_date;
+      const dateStr = pDate && isValid(pDate) ? formatDateShort(pDate) : '';
+      overdueNames.push(`Fornecedor: ${c.supplier_name}${dateStr ? ` (${dateStr})` : ''}`);
+    });
+    if (overdueNames.length < 3) {
+      overdueEvents.slice(0, 3 - overdueNames.length).forEach(e => {
+        const pDate = e.payment_due_date || e.end_date ? parseISO(e.payment_due_date || e.end_date!) : null;
+        const dateStr = pDate && isValid(pDate) ? formatDateShort(pDate) : '';
+        overdueNames.push(`Evento: ${e.name}${dateStr ? ` (${dateStr})` : ''}`);
+      });
+    }
+    if (overdueNames.length < 3) {
+      overdueAvulsos.slice(0, 3 - overdueNames.length).forEach(a => {
+        const pDate = a.payment_due_date ? parseISO(a.payment_due_date) : null;
+        const dateStr = pDate && isValid(pDate) ? formatDateShort(pDate) : '';
+        overdueNames.push(`Avulso: ${a.personnel?.name || 'Funcionário'}${dateStr ? ` (${dateStr})` : ''}`);
+      });
+    }
+    
+    const remainingCount = (overdueSuppliers.length + overdueEvents.length + overdueAvulsos.length) - overdueNames.length;
 
     return {
       total: overdueEvents.length + overdueAvulsos.length + overdueSuppliers.length,
       eventsCount: overdueEvents.length,
       avulsosCount: overdueAvulsos.length,
-      suppliersCount: overdueSuppliers.length
+      suppliersCount: overdueSuppliers.length,
+      names: overdueNames,
+      remaining: remainingCount > 0 ? remainingCount : 0
     };
-  }, [upcomingPayments, avulsosPending, filteredSupplierCosts]);
+  }, [upcomingPayments, avulsosPending, filteredSupplierCosts, todayStart]);
   
   // CONDITIONAL RETURNS ONLY AFTER ALL HOOKS HAVE BEEN CALLED
   if (!activeTeam && !isSuperAdmin) {
@@ -417,11 +427,23 @@ const Dashboard = () => {
           <div className="flex-1">
             <AlertTitle className="text-red-800 dark:text-red-300 font-semibold">Pagamentos em Atraso</AlertTitle>
             <AlertDescription className="text-red-700 dark:text-red-400 mt-1">
-              Atenção: Existem pendências vencidas: 
-              {overdueStats.eventsCount > 0 && ` ${overdueStats.eventsCount} Evento(s).`}
-              {overdueStats.avulsosCount > 0 && ` ${overdueStats.avulsosCount} Avulso(s).`}
-              {overdueStats.suppliersCount > 0 && ` ${overdueStats.suppliersCount} Fornecedor(es).`}
-              Verifique os cards abaixo.
+              <div className="flex flex-col gap-1">
+                <span>
+                  Atenção: Existem pendências vencidas ou para hoje: 
+                  {overdueStats.eventsCount > 0 && ` ${overdueStats.eventsCount} Evento(s).`}
+                  {overdueStats.avulsosCount > 0 && ` ${overdueStats.avulsosCount} Avulso(s).`}
+                  {overdueStats.suppliersCount > 0 && ` ${overdueStats.suppliersCount} Fornecedor(es).`}
+                </span>
+                {overdueStats.names.length > 0 && (
+                  <ul className="list-disc list-inside text-xs mt-1 font-medium bg-white/50 dark:bg-black/20 p-2 rounded">
+                    {overdueStats.names.map((name, i) => (
+                      <li key={i}>{name}</li>
+                    ))}
+                    {overdueStats.remaining > 0 && <li>E mais {overdueStats.remaining} item(ns)...</li>}
+                  </ul>
+                )}
+                <span className="text-xs mt-1">Verifique os cards abaixo.</span>
+              </div>
             </AlertDescription>
           </div>
           <Button 
@@ -758,12 +780,19 @@ const Dashboard = () => {
                       currentDate
                     ).map(event => {
                     const dueDate = event.payment_due_date || event.end_date;
+                    const parsedDate = parseLocalDate(dueDate);
+                    const isOverdue = parsedDate ? parsedDate < todayStart : false;
+                    const isDueToday = parsedDate ? parsedDate.getTime() === todayStart.getTime() : false;
                     const displayDate = dueDate ? formatDateShort(dueDate) : 'Data não definida';
                     
                     return (
                       <button 
                         key={event.id} 
-                        className="w-full flex items-center justify-between p-3 border rounded-lg hover:bg-muted/40 transition-colors border-red-200 bg-red-50/30 dark:bg-muted/20 cursor-pointer"
+                        className={`w-full flex items-center justify-between p-3 border rounded-lg hover:bg-muted/40 transition-colors cursor-pointer ${
+                          isOverdue ? 'border-red-200 bg-red-50/30 dark:bg-red-900/10' : 
+                          isDueToday ? 'border-orange-200 bg-orange-50/30 dark:bg-orange-900/10' : 
+                          'bg-card'
+                        }`}
                         onClick={() => navigate(`/app/folha/${event.id}`)}
                       >
                         <div className="flex-1 min-w-0 text-left">
@@ -772,10 +801,22 @@ const Dashboard = () => {
                             {`Vence: ${displayDate}`}
                           </p>
                         </div>
-                        <Badge className="bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300 px-2 py-0.5">
-                          <AlertCircle className="h-3 w-3" />
-                          <span className="ml-1 hidden sm:inline">Pendente</span>
-                        </Badge>
+                        {isOverdue ? (
+                          <Badge variant="destructive" className="px-2 py-0.5">
+                            <AlertCircle className="h-3 w-3" />
+                            <span className="ml-1 hidden sm:inline">Atrasado</span>
+                          </Badge>
+                        ) : isDueToday ? (
+                          <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-200 border-orange-200 px-2 py-0.5">
+                            <AlertCircle className="h-3 w-3" />
+                            <span className="ml-1 hidden sm:inline">Vence Hoje</span>
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 px-2 py-0.5">
+                            <Clock className="h-3 w-3" />
+                            <span className="ml-1 hidden sm:inline">Agendado</span>
+                          </Badge>
+                        )}
                       </button>
                     );
                   })}
@@ -807,12 +848,19 @@ const Dashboard = () => {
               ) : (
                 <div className="space-y-2">
                   {avulsosPending.slice(0, 6).map((p) => {
-                    const isOverdue = p.payment_status === 'pending' && p.payment_due_date && new Date(p.payment_due_date) < new Date();
+                    const parsedDate = parseLocalDate(p.payment_due_date);
+                    const isOverdue = p.payment_status === 'pending' && parsedDate ? parsedDate < todayStart : false;
+                    const isDueToday = p.payment_status === 'pending' && parsedDate ? parsedDate.getTime() === todayStart.getTime() : false;
                     const dueLabel = p.payment_due_date ? `Vence: ${formatDateShort(p.payment_due_date)}` : 'Sem data de vencimento';
+                    
                     return (
                       <button
                         key={p.id}
-                        className={`w-full flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer bg-card ${isOverdue ? 'border-red-200' : ''}`}
+                        className={`w-full flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer ${
+                          isOverdue ? 'border-red-200 bg-red-50/30 dark:bg-red-900/10' : 
+                          isDueToday ? 'border-orange-200 bg-orange-50/30 dark:bg-orange-900/10' : 
+                          'bg-card'
+                        }`}
                         onClick={(e) => { e.stopPropagation(); navigate('/app/pagamentos-avulsos'); }}
                       >
                         <div className="flex-1 min-w-0 text-left">
@@ -821,7 +869,10 @@ const Dashboard = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           {isOverdue && (
-                            <Badge variant="destructive">Atrasado</Badge>
+                            <Badge variant="destructive" className="py-0">Atrasado</Badge>
+                          )}
+                          {isDueToday && (
+                            <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-200 border-orange-200 py-0">Vence Hoje</Badge>
                           )}
                           <span className="font-semibold">{formatCurrency(Number(p.amount) || 0)}</span>
                         </div>

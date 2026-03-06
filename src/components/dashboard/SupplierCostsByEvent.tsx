@@ -6,6 +6,7 @@ import { FilterChips } from '@/components/dashboard/FilterChips';
 import { formatDateShort } from '@/utils/dateUtils';
 import { formatCurrency } from '@/utils/formatters';
 import { GroupedEventCosts } from '@/utils/supplierCostAggregations';
+import { isBefore, isSameDay, startOfDay, parseISO, isValid, getYear } from 'date-fns';
 
 type Status = 'todos' | 'pendente' | 'pago';
 
@@ -30,9 +31,9 @@ export const SupplierCostsByEvent = ({ groups, status, onStatusChange, onNavigat
         />
       </div>
       <Accordion type="single" collapsible>
-        {groups.slice(0, 5).map(g => (
+        {groups.slice(0, 10).map(g => (
           <AccordionItem key={g.eventId} value={g.eventId}>
-            <AccordionTrigger>
+            <AccordionTrigger className={g.totals.pendingAmount > 0 ? 'text-red-700 dark:text-red-400 font-semibold' : ''}>
               <div className="flex items-center gap-3 w-full">
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm truncate">{g.name}</div>
@@ -58,22 +59,49 @@ export const SupplierCostsByEvent = ({ groups, status, onStatusChange, onNavigat
                   const total = Number(item.total_amount) || (qty * unit) || 0;
                   const paid = Number(item.paid_amount) || 0;
                   const isPaid = (item.payment_status || '').toLowerCase() === 'paid';
+                  
+                  // Lógica de status de data
+                  const today = startOfDay(new Date());
+                  const paymentDate = item.payment_date 
+                    ? (item.payment_date instanceof Date ? item.payment_date : parseISO(item.payment_date)) 
+                    : null;
+                  
+                  // Validação robusta
+                  const isValidDate = paymentDate && isValid(paymentDate) && getYear(paymentDate) >= 2000;
+                  
+                  const isOverdue = !isPaid && isValidDate ? isBefore(paymentDate!, today) : false;
+                  const isDueToday = !isPaid && isValidDate ? isSameDay(paymentDate!, today) : false;
+                  
+                  // Se for overdue ou dueToday, destacamos o card
+                  const isCritical = isOverdue || isDueToday;
+
                   return (
-                    <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg bg-card">
+                    <div key={item.id} className={`flex items-center justify-between p-3 border rounded-lg bg-card ${isCritical ? 'border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10' : ''}`}>
                       <div className="min-w-0">
                         <div className="text-sm font-medium truncate">{item.supplier_name}</div>
                         <div className="text-xs text-muted-foreground truncate">{item.description}</div>
                         <div className="text-xs text-muted-foreground">
                           {qty} × {formatCurrency(unit)} = {formatCurrency(total)}
                         </div>
+                        <div className="text-xs font-medium text-muted-foreground mt-0.5">
+                          {isValidDate ? `Vencimento: ${formatDateShort(paymentDate!)}` : 'Sem data de vencimento'}
+                        </div>
                         <div className="text-xs">
                           {isPaid ? `Pago: ${formatCurrency(paid)}` : `Pendente: ${formatCurrency(Math.max(total - paid, 0))}`}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={isPaid ? 'outline' : 'destructive'}>
-                          {isPaid ? 'Pago' : 'Pendente'}
-                        </Badge>
+                        {isPaid ? (
+                          <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">Pago</Badge>
+                        ) : isOverdue ? (
+                          <Badge variant="destructive">Atrasado</Badge>
+                        ) : isDueToday ? (
+                          <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-200 border-orange-200 border">Vence Hoje</Badge>
+                        ) : isValidDate ? (
+                          <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 border">Agendado</Badge>
+                        ) : (
+                          <Badge variant="secondary">Pendente</Badge>
+                        )}
                         <Button variant="outline" size="sm" onClick={() => onNavigate(g.eventId)}>Ir para o evento</Button>
                       </div>
                     </div>
@@ -84,8 +112,8 @@ export const SupplierCostsByEvent = ({ groups, status, onStatusChange, onNavigat
           </AccordionItem>
         ))}
       </Accordion>
-      {groups.length > 5 && (
-        <div className="mt-2 text-xs text-muted-foreground">Mostrando 5 eventos com maior pendência. Ajuste o período ou status para ver outros.</div>
+      {groups.length > 10 && (
+        <div className="mt-2 text-xs text-muted-foreground">Mostrando 10 eventos com maior pendência. Ajuste o período ou status para ver outros.</div>
       )}
     </div>
   );
