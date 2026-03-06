@@ -241,7 +241,7 @@ BEGIN
   FROM person_expected_paid pep
   JOIN public.events e ON e.id = pep.event_id
   JOIN public.personnel p ON p.id = pep.personnel_id
-  WHERE (pep.expected - pep.paid) > 0.1
+  WHERE (pep.expected - pep.paid) > 0.05
     AND (e.status = 'concluded' OR pep.paid > 0)
   ORDER BY (pep.expected - pep.paid) DESC;
 END;

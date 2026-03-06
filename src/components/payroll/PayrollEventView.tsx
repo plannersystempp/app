@@ -66,9 +66,14 @@ export const PayrollEventView: React.FC = () => {
 
     // 1. Filtro de Status
     if (paymentFilter === 'pendentes') {
-      result = result.filter(item => !item.paid);
+      result = result.filter(item => {
+        // Consider item pending if not fully paid AND pending amount is significant (> 0.05)
+        // This handles cases where pendingAmount is 0.00 but paid is false due to rounding
+        return !item.paid && (item.pendingAmount > 0.05);
+      });
     } else if (paymentFilter === 'pagos') {
-      result = result.filter(item => item.paid);
+      // Consider item paid if fully paid OR pending amount is negligible
+      result = result.filter(item => item.paid || item.pendingAmount <= 0.05);
     }
 
     // 2. Filtro de Busca (Nome)
@@ -104,13 +109,13 @@ export const PayrollEventView: React.FC = () => {
 
   const paidCount = useMemo(() =>
     categoryTab === 'staff'
-      ? payrollDetails.filter(p => p.paid).length
+      ? payrollDetails.filter(p => p.paid || p.pendingAmount <= 0.05).length
       : (supplierCosts || []).filter(c => c.payment_status === 'paid').length
     , [payrollDetails, supplierCosts, categoryTab]);
 
   const pendingCount = useMemo(() =>
     categoryTab === 'staff'
-      ? payrollDetails.filter(p => !p.paid).length
+      ? payrollDetails.filter(p => !p.paid && p.pendingAmount > 0.05).length
       : (supplierCosts || []).filter(c => c.payment_status !== 'paid').length
     , [payrollDetails, supplierCosts, categoryTab]);
 
