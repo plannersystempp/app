@@ -10,6 +10,8 @@ import { type Personnel, type Func } from '@/contexts/EnhancedDataContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { PersonnelForm } from '@/components/personnel/PersonnelForm';
 
+import { useMomentumScroll } from '@/hooks/useMomentumScroll';
+
 interface PersonnelSelectorProps {
   personnel: Personnel[];
   functions: Func[];
@@ -35,6 +37,9 @@ export const PersonnelSelector: React.FC<PersonnelSelectorProps> = ({
   const [functionFilter, setFunctionFilter] = useState<string>('');
   const { userRole } = useTeam();
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
+  
+  const listRef = React.useRef<HTMLDivElement>(null);
+  useMomentumScroll(listRef);
 
   const handlePersonnelChange = (personnelId: string) => {
     onPersonnelChange(personnelId);
@@ -85,7 +90,7 @@ export const PersonnelSelector: React.FC<PersonnelSelectorProps> = ({
           >
             <Command>
               <CommandInput placeholder="Pesquisar por nome ou email..." className="h-10" />
-              <CommandList className="max-h-[500px] md:max-h-[600px] overflow-y-auto">
+              <CommandList ref={listRef} className="max-h-[500px] md:max-h-[600px] overflow-y-auto">
                 {isAdmin && (
                   <CommandGroup>
                     <CommandItem

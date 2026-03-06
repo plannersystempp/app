@@ -11,6 +11,7 @@ export interface RawAllocation {
   team_id?: string;
   work_days: string[];
   event_specific_cache?: number | null;
+  event_specific_overtime?: number | null;
   function_name?: string;
   created_at?: string;
   events?: {
@@ -125,7 +126,7 @@ export const payrollDataService = {
     const [allocationsData, workLogsData, closingsData, paymentsData, divisionsData] = await Promise.all([
       supabase
         .from('personnel_allocations')
-        .select('id, event_id, personnel_id, division_id, team_id, work_days, event_specific_cache, function_name, created_at')
+        .select('id, event_id, personnel_id, division_id, team_id, work_days, event_specific_cache, event_specific_overtime, function_name, created_at')
         .eq('event_id', eventId),
       supabase
         .from('work_records')
@@ -203,6 +204,7 @@ export const payrollDataService = {
           event_id,
           work_days,
           event_specific_cache,
+          event_specific_overtime,
           events!inner (
             id,
             name,

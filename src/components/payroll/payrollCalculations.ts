@@ -28,6 +28,7 @@ export interface AllocationData {
   event_id: string;
   work_days: string[];
   event_specific_cache?: number | null;
+  event_specific_overtime?: number | null;
   attendance_status?: 'pending' | 'present' | 'absent';
   [key: string]: any;
 }
@@ -541,6 +542,15 @@ export function getOvertimeRate(
   allocations: AllocationData[],
   person: PersonnelData
 ): number {
+  // 0. Verifica se há taxa específica de hora extra definida para o evento (Snapshot Histórico)
+  const specificRates = allocations
+    .map(a => Number(a.event_specific_overtime ?? 0))
+    .filter(rate => rate > 0);
+
+  if (specificRates.length > 0) {
+    return Math.max(...specificRates);
+  }
+
   let explicitRate = 0;
 
   // 1. Tenta encontrar taxa específica por função
