@@ -81,7 +81,6 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         aria-modal="true"
-        aria-describedby={undefined}
         onPointerDownOutside={(e) => {
           const el = e.target as Element | null
           if (

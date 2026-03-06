@@ -83,7 +83,7 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
       const startDate = new Date(watchedStartDate);
       const endDate = new Date(watchedEndDate);
       if (endDate < startDate) {
-        newErrors.end_date = "Data de fim deve ser após a data de início";
+        newErrors.end_date = "A data de fim não pode ser anterior à data de início";
       }
     }
     
@@ -92,7 +92,7 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
       const setupStartDate = new Date(watchedSetupStartDate);
       const setupEndDate = new Date(watchedSetupEndDate);
       if (setupEndDate < setupStartDate) {
-        newErrors.setup_end_date = "Fim da montagem deve ser após o início da montagem";
+        newErrors.setup_end_date = "A data de fim de montagem não pode ser anterior à data de início de montagem";
       }
     }
     
@@ -111,11 +111,6 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
   };
 
   const handleEndDateChange = (date: string) => {
-    // Validação: Não permite selecionar uma data de fim anterior à data de início
-    if (watchedStartDate && new Date(date) < new Date(watchedStartDate)) {
-      addInlineAlert('error', "A data de fim não pode ser anterior à data de início.");
-      return; // Impede a atualização do estado
-    }
     setValue('end_date', date);
     validateDates();
   };
@@ -131,11 +126,6 @@ export const EventForm: React.FC<EventFormProps> = ({ event, onClose, onSuccess 
   };
 
   const handleSetupEndDateChange = (date: string) => {
-    // Validação: Não permite selecionar uma data de fim de montagem anterior à data de início de montagem
-    if (watchedSetupStartDate && new Date(date) < new Date(watchedSetupStartDate)) {
-      addInlineAlert('error', "A data de fim de montagem não pode ser anterior à data de início de montagem.");
-      return; // Impede a atualização do estado
-    }
     setValue('setup_end_date', date);
     validateDates();
   };

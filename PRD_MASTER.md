@@ -1,3 +1,33 @@
+## [2026-03-05] - fix: Mensagem de erro correta na validação de datas do evento
+ - Mudanças:
+   - Atualizada a mensagem de erro no schema Zod (`eventSchema.ts`) para "A data de fim não pode ser anterior à data de início" (e similar para montagem).
+   - Removido bloqueio manual no `EventForm.tsx` (`handleEndDateChange`) que impedia a atualização do estado do formulário com datas inválidas.
+     - Isso permite que o valor inválido seja processado pelo Zod, exibindo a mensagem correta em vez de "Data de fim é obrigatória".
+   - Removidos alertas inline duplicados para erros de data (deixando apenas os avisos de reinício de data).
+ - Arquivos:
+   - `src/schemas/eventSchema.ts`
+   - `src/components/events/EventForm.tsx`
+ - Impacto:
+   - Usuário vê a mensagem de erro específica ("A data de fim não pode ser anterior...") em vez de uma mensagem genérica ou confusa ("Obrigatório").
+   - UX melhorada ao permitir que o usuário veja o erro no contexto do campo preenchido.
+
+## [2026-03-05] - fix: Avisos no modal de eventos - Problema de z-index e visualização
+ - Mudanças:
+   - Ajustado z-index do ToastViewport de `z-[100]` para `z-[1100]` para sobrepor o modal (z-[1060])
+   - Reduzida opacidade do overlay do modal de `bg-black/80` para `bg-black/50` para melhor visibilidade
+   - Implementado sistema de alertas inline no formulário de eventos para substituir toasts
+   - Adicionado estado `inlineAlerts` para controlar exibição de mensagens dentro do modal
+   - Alertas aparecem no topo do formulário com auto-remoção após 3 segundos
+   - Mensagens de erro e aviso agora são exibidas diretamente no contexto do formulário
+ - Arquivos:
+   - `src/components/ui/toast.tsx`
+   - `src/components/ui/dialog.tsx`
+   - `src/components/events/EventForm.tsx`
+ - Impacto:
+   - Usuários agora veem claramente os avisos e erros de validação
+   - Feedback visual imediato dentro do contexto do formulário
+   - Eliminação do problema de mensagens "apagadas" ou escondidas pelo modal
+
 ## [2026-03-05] - fix: Consistência de cálculo na aba "Pendentes" do Histórico
  - Mudanças:
    - Atualizada a função `calculatePendingPaymentsByEvent` para usar a mesma engine de cálculo oficial (`PayrollCalc.calculateTotalPay`) já aplicada na aba "Eventos".
@@ -150,3 +180,14 @@
    - Impede criação de eventos com datas inconsistentes
    - Feedback visual imediato para o usuário sobre erros de validação
    - Reduz erros de usuário e melhora a qualidade dos dados inseridos
+
+## [2026-03-06] - fix: Erro ao registrar pagamento parcial e warning de acessibilidade
+ - Mudanças:
+   - Corrigido `ReferenceError: eventData is not defined` em `handleRegisterPartialPayment` (`usePayrollActions.ts`) adicionando a busca dos dados do evento antes da notificação.
+   - Removido `aria-describedby={undefined}` de `DialogContent` em `dialog.tsx` para permitir que a propriedade seja passada corretamente e evitar warnings de acessibilidade.
+ - Arquivos:
+   - `src/components/payroll/usePayrollActions.ts`
+   - `src/components/ui/dialog.tsx`
+ - Impacto:
+   - O registro de pagamento parcial agora funciona corretamente sem erros no console.
+   - Melhorada a conformidade com acessibilidade em modais.

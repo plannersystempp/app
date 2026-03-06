@@ -154,6 +154,13 @@ export const usePayrollActions = (
       await queryClient.invalidateQueries({ queryKey: ['event-payment-status'], refetchType: 'active' });
 
 
+      // Obter nome do evento para notificação
+      const { data: eventData } = await supabase
+        .from('events')
+        .select('name')
+        .eq('id', selectedEventId)
+        .single();
+
       // Enviar notificação
       if (eventData && activeTeam?.id) {
         await notificationService.notifyPaymentReceived(

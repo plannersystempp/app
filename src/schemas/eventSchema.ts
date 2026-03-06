@@ -62,7 +62,7 @@ export const eventSchema = z.object({
     return true;
   },
   {
-    message: "Data de fim deve ser após a data de início",
+    message: "A data de fim não pode ser anterior à data de início",
     path: ["end_date"]
   }
 ).refine(
@@ -76,7 +76,7 @@ export const eventSchema = z.object({
     return true;
   },
   {
-    message: "Fim da montagem deve ser após o início da montagem",
+    message: "A data de fim de montagem não pode ser anterior à data de início de montagem",
     path: ["setup_end_date"]
   }
 );
