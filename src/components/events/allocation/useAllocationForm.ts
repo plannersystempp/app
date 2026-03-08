@@ -77,16 +77,18 @@ export const useAllocationForm = ({
   const handleSubmit = async () => {
     if (!isFormValid()) return;
 
-    // Check if person is already allocated to this event (regardless of function)
-    const existingAllocation = assignments.find(a => 
+    // Check if person is already allocated to this event on overlapping days
+    const overlappingAllocation = assignments.find(a => 
       a.event_id === eventId && 
-      a.personnel_id === selectedPersonnel
+      a.personnel_id === selectedPersonnel &&
+      // Check for day overlap
+      a.work_days.some(day => selectedDays.includes(day))
     );
     
-    if (existingAllocation) {
+    if (overlappingAllocation) {
       toast({
-        title: "Alocação já existente",
-        description: "Esta pessoa já está alocada neste evento. Não é possível alocar a mesma pessoa mais de uma vez.",
+        title: "Conflito de dias",
+        description: "Esta pessoa já está alocada neste evento em um ou mais dias selecionados.",
         variant: "destructive"
       });
       return;

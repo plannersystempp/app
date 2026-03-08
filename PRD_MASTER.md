@@ -88,6 +88,10 @@
    - Elimina inconsistência entre Dashboard (R$ 1.600,00) e Relatório (R$ 0,00) para Total Pago de Fornecedores
    - Garante que apenas pagamentos com status explicitamente 'paid' sejam considerados, ignorando 'pendente' ou 'parcial'
    - Previne regressões futuras através de testes automatizados
+   - Impacto:
+   - O gráfico deixa de exibir valores negativos no eixo Y, que são incorretos para representação de custos
+   - Formatação monetária mais clara e profissional com notação compacta
+   - Melhor experiência visual e precisão nos dados apresentados
 
 ## [2026-03-05] - fix: Total do evento no Histórico alinhado com Folha por agregação de alocações
  - Mudanças:
@@ -203,3 +207,35 @@
  - Impacto:
    - Resolve a confusão do usuário sobre pagamentos "sem data" aparecendo como atrasados, mostrando claramente qual data o sistema está considerando.
    - Se o sistema estiver usando uma data default incorreta (ex: data do evento para pagamento), o usuário agora poderá ver isso explicitamente e corrigir se necessário.
+
+## [2026-03-06] - feat: Exportação avançada de pessoal (PDF/CSV)
+ - Mudanças:
+   - Criada nova página `PersonnelExportPage` para exportação de dados de pessoal.
+   - Adicionado seletor de colunas persistente (localStorage) para que o usuário escolha exatamente quais campos exportar.
+   - Suporte a filtros de busca (nome, função, tipo) e exportação em PDF e CSV compatível com Excel.
+ - Arquivos:
+   - `src/pages/PersonnelExportPage.tsx`
+   - `src/components/personnel/PersonnelExportColumnPicker.tsx`
+ - Impacto:
+   - Permite que o administrador gere relatórios personalizados da equipe para uso externo ou conferência.
+
+## [2026-03-06] - feat: Relatório de folha por evento personalizável
+ - Mudanças:
+   - Criada nova página `PayrollReportPage` focada em impressão e exportação.
+   - Adicionado seletor de colunas dinâmico para o relatório de folha, permitindo ocultar/exibir dados sensíveis (ex: CPF, Cachê).
+   - Layout otimizado para impressão A4 e geração de PDF limpo.
+ - Arquivos:
+   - `src/pages/PayrollReportPage.tsx`
+   - `src/components/payroll/PayrollPrintTable.tsx`
+ - Impacto:
+   - Facilita a geração de folhas de pagamento físicas ou digitais formatadas profissionalmente.
+
+## [2026-03-08] - fix: Permitir múltiplas alocações por pessoa no mesmo evento (sem conflito de dias)
+ - Mudanças:
+   - Refatorada a validação no `useAllocationForm.ts` para checar sobreposição de dias (`work_days`) em vez de bloquear qualquer existência prévia do profissional no evento.
+   - A validação agora permite que a mesma pessoa seja alocada em divisões diferentes (ex: Sala A e Sala B) desde que em dias diferentes.
+ - Arquivos:
+   - `src/components/events/allocation/useAllocationForm.ts`
+ - Impacto:
+   - Permite flexibilidade na alocação de equipes que atuam em múltiplas funções/salas ao longo de um evento multi-dia.
+   - Mantém a integridade dos dados impedindo conflitos de agenda (mesmo dia em dois lugares).
