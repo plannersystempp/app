@@ -9,6 +9,7 @@ import type { Personnel } from '@/contexts/EnhancedDataContext';
 import type { PersonnelFormData } from '@/types/personnelForm';
 import { sanitizePersonnelData } from '@/utils/dataTransform';
 import { logger } from '@/utils/logger';
+import { removeAccents } from '@/lib/utils';
 import type { PersonnelFunctionsRepository, PersonnelFunctionRow } from '@/services/personnelFunctionsService';
 import {
   buildPersonnelFunctionRows,
@@ -247,7 +248,10 @@ export const fetchPersonnelPaginated = async (
         .select('id', { count: 'exact' })
         .eq('team_id', teamId);
 
-      if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+      if (search) {
+        const cleanSearch = removeAccents(search);
+        query = query.ilike('search_text', `%${cleanSearch}%`);
+      }
       if (type && type !== 'all') query = query.eq('type', type);
       
       query = query.order('average_rating', { ascending: sortBy === 'rating_asc' });
