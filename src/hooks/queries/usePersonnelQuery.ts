@@ -306,7 +306,10 @@ export const fetchPersonnelPaginated = async (
     `, { count: 'exact' })
     .eq('team_id', teamId);
 
-  if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+  if (search) {
+    const cleanSearch = removeAccents(search);
+    query = query.ilike('search_text', `%${cleanSearch}%`);
+  }
   if (type && type !== 'all') query = query.eq('type', type);
   if (functionId && functionId !== 'all') {
      query = supabase
@@ -324,7 +327,10 @@ export const fetchPersonnelPaginated = async (
        .eq('team_id', teamId)
        .eq('personnel_functions.function_id', functionId);
        
-      if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+      if (search) {
+        const cleanSearch = removeAccents(search);
+        query = query.ilike('search_text', `%${cleanSearch}%`);
+      }
       if (type && type !== 'all') query = query.eq('type', type);
   }
 
@@ -388,7 +394,10 @@ export const fetchPersonnelForExport = async (
           .select('id', { count: 'exact' })
           .eq('team_id', teamId);
 
-        if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+        if (search) {
+          const cleanSearch = removeAccents(search);
+          query = query.ilike('search_text', `%${cleanSearch}%`);
+        }
         if (type && type !== 'all') query = query.eq('type', type);
 
         query = query.order('average_rating', { ascending: sortBy === 'rating_asc' });
@@ -451,7 +460,10 @@ export const fetchPersonnelForExport = async (
       `, { count: 'exact' })
       .eq('team_id', teamId);
 
-    if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+    if (search) {
+      const cleanSearch = removeAccents(search);
+      query = query.ilike('search_text', `%${cleanSearch}%`);
+    }
     if (type && type !== 'all') query = query.eq('type', type);
     if (functionId && functionId !== 'all') {
       query = supabase
@@ -469,7 +481,10 @@ export const fetchPersonnelForExport = async (
         .eq('team_id', teamId)
         .eq('personnel_functions.function_id', functionId);
 
-      if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+      if (search) {
+        const cleanSearch = removeAccents(search);
+        query = query.ilike('search_text', `%${cleanSearch}%`);
+      }
       if (type && type !== 'all') query = query.eq('type', type);
     }
 
