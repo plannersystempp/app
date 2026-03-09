@@ -162,6 +162,30 @@ describe('validateUniquePersonnelName', () => {
     expect(result.isValid).toBe(true);
   });
 
+  it('should allow case variation of same name when editing', () => {
+    const existing = [
+      { name: 'João Silva', id: '1' }
+    ];
+    const result = validateUniquePersonnelName('JOÃO SILVA', existing, '1');
+    expect(result.isValid).toBe(true);
+  });
+
+  it('should allow spacing variation of same name when editing', () => {
+    const existing = [
+      { name: 'João Silva', id: '1' }
+    ];
+    const result = validateUniquePersonnelName('João Silva ', existing, '1');
+    expect(result.isValid).toBe(true);
+  });
+
+  it('should reject same name if it belongs to another person', () => {
+    const existing = [
+      { name: 'João Silva', id: '2' }
+    ];
+    const result = validateUniquePersonnelName('João Silva', existing, '1');
+    expect(result.isValid).toBe(false);
+  });
+
   it('should allow unique name', () => {
     const existing = [
       { name: 'João Silva' }

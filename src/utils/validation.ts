@@ -63,7 +63,7 @@ export interface PersonnelNameValidationResult {
 
 export const validateUniquePersonnelName = (
   name: string, 
-  existingPersonnel: Array<{ name: string }>, 
+  existingPersonnel: Array<{ name: string; id?: string }>, 
   currentPersonnelId?: string
 ): PersonnelNameValidationResult => {
   const trimmedName = sanitizeInput(name.trim());
@@ -80,7 +80,7 @@ export const validateUniquePersonnelName = (
   const duplicate = existingPersonnel.find(p => 
     p.name.toLowerCase().trim() === trimmedName.toLowerCase() && 
     // If editing, exclude the current personnel from duplicate check
-    (!currentPersonnelId || p.name !== name)
+    (!currentPersonnelId || p.id !== currentPersonnelId)
   );
   
   if (duplicate) {

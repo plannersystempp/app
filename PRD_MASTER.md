@@ -239,3 +239,13 @@
  - Impacto:
    - Permite flexibilidade na alocação de equipes que atuam em múltiplas funções/salas ao longo de um evento multi-dia.
    - Mantém a integridade dos dados impedindo conflitos de agenda (mesmo dia em dois lugares).
+
+## [2026-03-09] - fix: Correção na validação de nome duplicado ao editar pessoa
+ - Mudanças:
+   - Atualizada a função `validateUniquePersonnelName` em `src/utils/validation.ts` para usar comparação de ID (`p.id !== currentPersonnelId`) em vez de comparação de nome (`p.name !== name`).
+   - Isso elimina falsos positivos de "Nome duplicado" quando o usuário edita o próprio nome (ex: apenas mudando caixa ou espaços).
+ - Arquivos:
+   - `src/utils/validation.ts`
+ - Impacto:
+   - Permite que administradores corrijam nomes de pessoas sem serem bloqueados pela validação de duplicidade incorreta.
+   - Mantém a proteção contra criação de homônimos reais (outras pessoas com o mesmo nome).
