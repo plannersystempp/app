@@ -105,15 +105,21 @@ export const PaymentForecastPrintTable: React.FC<PaymentForecastPrintTableProps>
                       {eventosSorted.map((item, idx) => (
                         <tr key={`evento_${item.id}`} className={idx % 2 === 0 ? 'payroll-row-even' : 'payroll-row-odd'}>
                           <td className="payroll-td">
-                            <div className="payroll-person-name">{item.name}</div>
+                            <div className="payroll-person-name line-clamp-3 whitespace-normal break-words" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.name}</div>
                           </td>
-                          <td className="payroll-td">{item.location || '—'}</td>
+                          <td className="payroll-td">
+                            <div className="line-clamp-3 whitespace-normal break-words" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                              {item.location || '—'}
+                            </div>
+                          </td>
                           <td className="payroll-td text-center">{formatDateShort(item.dueDate)}</td>
                           <td className="payroll-td text-right payroll-value">
                             {formatCurrency(item.amount)}
                           </td>
                           <td className="payroll-td" style={{ fontSize: '11px' }}>
-                            {item.notes || '—'}
+                            <div className="line-clamp-3 whitespace-normal break-words" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                              {item.notes || '—'}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -149,15 +155,21 @@ export const PaymentForecastPrintTable: React.FC<PaymentForecastPrintTableProps>
                       {avulsosSorted.map((item, idx) => (
                         <tr key={`avulso_${item.id}`} className={idx % 2 === 0 ? 'payroll-row-even' : 'payroll-row-odd'}>
                           <td className="payroll-td">
-                            <div className="payroll-person-name">{item.name}</div>
+                            <div className="payroll-person-name line-clamp-3 whitespace-normal break-words" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.name}</div>
                           </td>
-                          <td className="payroll-td">{item.personnelName || '—'}</td>
+                          <td className="payroll-td">
+                            <div className="line-clamp-3 whitespace-normal break-words" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                              {item.personnelName || '—'}
+                            </div>
+                          </td>
                           <td className="payroll-td text-center">{formatDateShort(item.dueDate)}</td>
                           <td className="payroll-td text-right payroll-value">
                             {formatCurrency(item.amount)}
                           </td>
                           <td className="payroll-td" style={{ fontSize: '11px' }}>
-                            {item.notes || '—'}
+                            <div className="line-clamp-3 whitespace-normal break-words" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                              {item.notes || '—'}
+                            </div>
                           </td>
                         </tr>
                       ))}

@@ -21,3 +21,17 @@
  - Impacto:
    - A busca por "Andre" agora retorna corretamente "André", "Andre", "Andrè", etc.
    - Melhora significativa na UX, pois o usuário não precisa se preocupar com a acentuação exata ao buscar pessoas.
+
+## [2026-03-11] - feat: Limitação de linhas nos relatórios de pessoal
+ - Mudanças:
+   - Adicionado `line-clamp-3` (máximo de 3 linhas) com `whitespace-normal` e `break-words` nas células dos relatórios de impressão (`PayrollPrintTable`, `PersonnelPaymentsPrintTable`, `PaymentForecastPrintTable`).
+   - Atualizado CSS global (`index.css`) e específico da página (`PayrollReportPage.tsx`) para permitir quebra de linha (`white-space: normal`) em vez de forçar linha única (`nowrap`).
+ - Arquivos:
+   - `src/components/payroll/PayrollPrintTable.tsx`
+   - `src/components/personnel-payments/PersonnelPaymentsPrintTable.tsx`
+   - `src/components/payment-forecast/PaymentForecastPrintTable.tsx`
+   - `src/pages/PayrollReportPage.tsx`
+   - `src/index.css`
+ - Impacto:
+   - Resolve o problema de sobreposição de informações em células com muito texto nos relatórios.
+   - Garante que nomes longos, descrições e observações sejam exibidos corretamente, limitados a 3 linhas para manter o layout da tabela.

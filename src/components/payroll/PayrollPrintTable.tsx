@@ -167,7 +167,11 @@ export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, 
             {detalhesOrdenados.map((item, index) => (
               <tr key={index} className={index % 2 === 0 ? 'payroll-row-even' : 'payroll-row-odd'}>
                 {columns.map(colId => (
-                  <td key={colId} className={cellClassName(colId)}>{renderCell(colId, item)}</td>
+                  <td key={colId} className={cellClassName(colId)}>
+                    <div className="line-clamp-3 whitespace-normal break-words" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {renderCell(colId, item)}
+                    </div>
+                  </td>
                 ))}
               </tr>
             ))}

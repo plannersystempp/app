@@ -411,10 +411,10 @@
     page-break-after: avoid;
   }
 
-  /* Evitar quebra de linhas nos valores numéricos (menos na coluna de nome) */
+  /* Permitir quebra de linhas para evitar sobreposição, controlado por line-clamp no componente */
   .payroll-table th:not(:first-child),
   .payroll-table td:not(:first-child) {
-    white-space: nowrap;
+    white-space: normal;
   }
 
   /* Permitir quebra de linhas apenas para nome/tipo */

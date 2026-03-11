@@ -99,10 +99,10 @@ export const PersonnelPaymentsPrintTable: React.FC<PersonnelPaymentsPrintTablePr
             {pagamentosOrdenados.map((payment, index) => (
               <tr key={payment.id} className={index % 2 === 0 ? 'payroll-row-even' : 'payroll-row-odd'}>
                 <td className="payroll-td">
-                  <div className="payroll-person-name">{payment.personnelName}</div>
+                  <div className="payroll-person-name line-clamp-3 whitespace-normal break-words" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{payment.personnelName}</div>
                 </td>
                 <td className="payroll-td">
-                  <div style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div className="line-clamp-3 whitespace-normal break-words" style={{ maxWidth: '200px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                     {payment.description}
                   </div>
                 </td>

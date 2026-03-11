@@ -208,7 +208,7 @@ export const PayrollReportPage: React.FC = () => {
             padding: 14px 12px;
             font-size: 13px;
             line-height: 1.7;
-            white-space: nowrap;
+            white-space: normal;
             color: #1e293b;
           }
           
