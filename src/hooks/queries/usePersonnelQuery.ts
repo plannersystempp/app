@@ -11,6 +11,7 @@ import { sanitizePersonnelData } from '@/utils/dataTransform';
 import { logger } from '@/utils/logger';
 import { removeAccents } from '@/lib/utils';
 import type { PersonnelFunctionsRepository, PersonnelFunctionRow } from '@/services/personnelFunctionsService';
+import { payrollKeys } from './usePayrollQuery';
 import {
   buildPersonnelFunctionRows,
   insertPersonnelFunctions,
@@ -55,6 +56,96 @@ const createSupabasePersonnelFunctionsRepository = (): PersonnelFunctionsReposit
       return { error };
     },
   };
+};
+
+const parseRelatedEvents = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const freezeHistoricalRatesBeforePersonnelUpdate = async ({
+  personnelId,
+  teamId,
+  oldCache,
+  oldOvertime
+}: {
+  personnelId: string;
+  teamId: string;
+  oldCache: number;
+  oldOvertime: number;
+}) => {
+  const effectiveCache = Number(oldCache || 0);
+  const effectiveOvertime = Math.max(Number(oldOvertime || 0), effectiveCache / 12);
+  if (effectiveCache <= 0 && effectiveOvertime <= 0) return;
+
+  const { data: allocations, error: allocationsError } = await supabase
+    .from('personnel_allocations')
+    .select('id, event_id, event_specific_cache, event_specific_overtime, events!inner(status, team_id)')
+    .eq('personnel_id', personnelId)
+    .eq('events.team_id', teamId);
+
+  if (allocationsError) throw allocationsError;
+  if (!allocations || allocations.length === 0) return;
+
+  const settledStatus = new Set(['concluido', 'concluded', 'concluido_pagamento_pendente']);
+  const concludedAllocations = allocations.filter(a => settledStatus.has(String((a as any).events?.status || '').toLowerCase()));
+  if (concludedAllocations.length === 0) return;
+
+  const eventIds = [...new Set(concludedAllocations.map(a => a.event_id))];
+
+  const [closingsResult, paymentsResult] = await Promise.all([
+    supabase
+      .from('payroll_closings')
+      .select('event_id')
+      .eq('team_id', teamId)
+      .eq('personnel_id', personnelId)
+      .in('event_id', eventIds),
+    supabase
+      .from('personnel_payments')
+      .select('amount, related_events')
+      .eq('team_id', teamId)
+      .eq('personnel_id', personnelId)
+      .eq('payment_status', 'paid')
+  ]);
+
+  if (closingsResult.error) throw closingsResult.error;
+  if (paymentsResult.error) throw paymentsResult.error;
+
+  const paidEventIds = new Set<string>((closingsResult.data || []).map(c => c.event_id));
+  for (const payment of paymentsResult.data || []) {
+    for (const eventId of parseRelatedEvents((payment as any).related_events)) {
+      if (eventIds.includes(eventId)) paidEventIds.add(eventId);
+    }
+  }
+
+  const updates = concludedAllocations
+    .filter(a => paidEventIds.has(a.event_id))
+    .filter(a => Number(a.event_specific_cache || 0) <= 0 || Number(a.event_specific_overtime || 0) <= 0)
+    .map(a => ({
+      id: a.id,
+      event_specific_cache: Number(a.event_specific_cache || 0) > 0 ? Number(a.event_specific_cache) : effectiveCache,
+      event_specific_overtime: Number(a.event_specific_overtime || 0) > 0 ? Number(a.event_specific_overtime) : effectiveOvertime
+    }));
+
+  for (const update of updates) {
+    const { error } = await supabase
+      .from('personnel_allocations')
+      .update({
+        event_specific_cache: Number(update.event_specific_cache.toFixed(4)),
+        event_specific_overtime: Number(update.event_specific_overtime.toFixed(4))
+      })
+      .eq('id', update.id);
+
+    if (error) throw error;
+  }
 };
 
 // Query keys for consistent caching (SIMPLIFIED)
@@ -750,6 +841,33 @@ export const useUpdatePersonnelMutation = () => {
       // Usar utilitário centralizado de sanitização
       const dataToUpdate = sanitizePersonnelData(restData);
 
+      const { data: currentPersonnel, error: currentPersonnelError } = await supabase
+        .from('personnel')
+        .select('event_cache, overtime_rate')
+        .eq('id', id)
+        .eq('team_id', activeTeam!.id)
+        .single();
+
+      if (currentPersonnelError) throw currentPersonnelError;
+
+      const currentCache = Number(currentPersonnel.event_cache || 0);
+      const currentOvertime = Number(currentPersonnel.overtime_rate || 0);
+      const nextCache =
+        dataToUpdate.event_cache !== undefined ? Number(dataToUpdate.event_cache || 0) : currentCache;
+      const nextOvertime =
+        dataToUpdate.overtime_rate !== undefined ? Number(dataToUpdate.overtime_rate || 0) : currentOvertime;
+
+      const ratesChanged = nextCache !== currentCache || nextOvertime !== currentOvertime;
+
+      if (ratesChanged) {
+        await freezeHistoricalRatesBeforePersonnelUpdate({
+          personnelId: id,
+          teamId: activeTeam!.id,
+          oldCache: currentCache,
+          oldOvertime: currentOvertime
+        });
+      }
+
       // Update personnel record
       const { data, error } = await supabase
         .from('personnel')
@@ -835,6 +953,22 @@ export const useUpdatePersonnelMutation = () => {
       // ✅ FASE 2: Invalidar imediatamente + refetch ativo
       queryClient.invalidateQueries({ 
         queryKey: personnelKeys.all,
+        refetchType: 'active'
+      });
+      queryClient.invalidateQueries({
+        queryKey: payrollKeys.all,
+        refetchType: 'active'
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['event-payment-status'],
+        refetchType: 'active'
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['team-pending-payments'],
+        refetchType: 'active'
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['personnel-history'],
         refetchType: 'active'
       });
       

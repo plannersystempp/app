@@ -1,3 +1,46 @@
+## [2026-03-14] - fix: Blindagem ao alterar taxa de pessoal para não reabrir eventos quitados
+ - Mudanças:
+   - Adicionada proteção no fluxo de atualização de pessoal (`useUpdatePersonnelMutation`) para congelar automaticamente `event_specific_cache` e `event_specific_overtime` em alocações históricas concluídas e já pagas antes de aplicar mudança em `event_cache`/`overtime_rate`.
+   - A proteção usa os valores antigos do cadastro (`old rates`) para impedir retroação de taxa em eventos já quitados.
+   - Adicionada migration `20260314133000_protect_historical_rates_on_personnel_update.sql` com trigger `BEFORE UPDATE` em `personnel` para congelar snapshots históricos também no nível de banco.
+   - Incluída invalidação adicional de queries de folha/status/pendências/histórico após atualização de pessoal para refletir o estado protegido imediatamente na interface.
+ - Arquivos:
+   - `src/hooks/queries/usePersonnelQuery.ts`
+   - `supabase/migrations/20260314133000_protect_historical_rates_on_personnel_update.sql`
+ - Impacto:
+   - Qualquer alteração de diária/hora extra por usuário no app deixa de impactar retroativamente eventos concluídos já pagos.
+   - Evita recorrência de pendências indevidas no dashboard e no histórico de pagamentos.
+
+## [2026-03-14] - fix: Correção de pendências históricas do Luiz por retroação de taxa
+ - Mudanças:
+   - Diagnosticadas pendências históricas no histórico do profissional Luiz Henrique de Oliveira Rodrigues causadas por alteração posterior de diária/HE no cadastro mestre.
+   - Aplicada correção de snapshot por evento concluído, preenchendo `event_specific_cache` e `event_specific_overtime` nas alocações de:
+     - `PRÊMIO SIND TALKS`
+     - `Jornada Transição Energética`
+     - `Congresso de Diabetes 2025`
+     - `Torneio Robótica 2025`
+     - `ANCLIVEPA 4 SALAS`
+   - Registrada migration de ajuste para rastreabilidade (`20260314121000_fix_luiz_historical_pending.sql`).
+ - Arquivos:
+   - `supabase/migrations/20260314121000_fix_luiz_historical_pending.sql`
+ - Impacto:
+   - Remove pendências indevidas no histórico/dashboards para eventos já quitados do Luiz.
+   - Mantém consistência histórica mesmo com mudanças futuras de taxa no cadastro global.
+
+## [2026-03-14] - fix: Congelamento automático de taxa ao quitar pagamento integral da folha
+ - Mudanças:
+   - Atualizada a ação de pagamento integral em `usePayrollActions.ts` para receber snapshot de taxas do card e, após registrar o `payroll_closings`, persistir `event_specific_cache` e `event_specific_overtime` em `personnel_allocations` do evento/profissional.
+   - Incluído rollback do fechamento recém-criado caso a persistência do snapshot falhe, evitando estado inconsistente entre pagamento e congelamento.
+   - Expandida a invalidação de cache/queries para refletir imediatamente a baixa e o congelamento no evento, status de pagamento, pendências da equipe e histórico do profissional.
+   - Atualizadas assinaturas de callback em `PayrollDetailsCard.tsx` e `PayrollList.tsx` para enviar o snapshot de taxa diária e hora extra no fluxo de quitação integral.
+ - Arquivos:
+   - `src/components/payroll/usePayrollActions.ts`
+   - `src/components/payroll/PayrollDetailsCard.tsx`
+   - `src/components/payroll/PayrollList.tsx`
+ - Impacto:
+   - Ao dar baixa integral, os valores do evento ficam congelados e não sofrem retroação quando a diária/hora extra do cadastro for alterada no futuro.
+   - Pendências reais continuam aparecendo no dashboard/histórico, mas casos já quitados deixam de reaparecer por recálculo com taxa atual.
+
 ## [2026-03-09] - fix: Correção na validação de nome duplicado ao editar pessoa
  - Mudanças:
    - Atualizada a função `validateUniquePersonnelName` em `src/utils/validation.ts` para usar comparação de ID (`p.id !== currentPersonnelId`) em vez de comparação de nome (`p.name !== name`).

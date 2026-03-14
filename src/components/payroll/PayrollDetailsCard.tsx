@@ -28,7 +28,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 interface PayrollDetailsCardProps {
   detail: PayrollDetails;
-  onRegisterPayment: (personnelId: string, totalAmount: number, notes?: string) => void;
+  onRegisterPayment: (
+    personnelId: string,
+    totalAmount: number,
+    notes?: string,
+    snapshot?: { cacheRate?: number; overtimeRate?: number }
+  ) => void;
   onRegisterPartialPayment: (personnelId: string, amount: number, notes: string) => void;
   onCancelPayment: (paymentId: string, personnelName: string) => void;
   loading: boolean;
@@ -413,7 +418,15 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
           personName={detail.personName}
           amount={detail.pendingAmount > 0 ? detail.pendingAmount : detail.totalPay}
           onConfirm={(notes) => {
-            onRegisterPayment(detail.personnelId, detail.pendingAmount > 0 ? detail.pendingAmount : detail.totalPay, notes);
+            onRegisterPayment(
+              detail.personnelId,
+              detail.pendingAmount > 0 ? detail.pendingAmount : detail.totalPay,
+              notes,
+              {
+                cacheRate: cacheDailyRate,
+                overtimeRate: detail.overtimeRate
+              }
+            );
             setShowFullPaymentDialog(false);
           }}
           loading={loading}

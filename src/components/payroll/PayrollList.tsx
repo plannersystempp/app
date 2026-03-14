@@ -8,7 +8,12 @@ interface PayrollListProps {
   payrollDetails: PayrollDetails[];
   loading: boolean;
   pixKeys: Record<string, string>;
-  onRegisterPayment: (personnelId: string, totalAmount: number, notes?: string) => void;
+  onRegisterPayment: (
+    personnelId: string,
+    totalAmount: number,
+    notes?: string,
+    snapshot?: { cacheRate?: number; overtimeRate?: number }
+  ) => void;
   onRegisterPartialPayment: (personnelId: string, amount: number, notes: string) => void;
   onCancelPayment: (paymentId: string, personnelName: string) => void;
 }

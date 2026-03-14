@@ -11,6 +11,11 @@ import { notificationService } from '@/services/notificationService';
 import { personnelPaymentsKeys } from '@/hooks/queries/usePersonnelPaymentsQuery';
 import { personnelHistoryKeys } from '@/hooks/queries/usePersonnelHistoryQuery';
 
+type FullPaymentSnapshot = {
+  cacheRate?: number;
+  overtimeRate?: number;
+};
+
 export const usePayrollActions = (
   selectedEventId: string
 ) => {
@@ -19,7 +24,12 @@ export const usePayrollActions = (
   const { activeTeam } = useTeam();
   const { toast } = useToast();
 
-  const handleRegisterPayment = async (personnelId: string, totalAmount: number, notes?: string) => {
+  const handleRegisterPayment = async (
+    personnelId: string,
+    totalAmount: number,
+    notes?: string,
+    snapshot?: FullPaymentSnapshot
+  ) => {
     if (!user || !activeTeam) return;
 
     // VALIDAÇÃO: Verificar se a pessoa está alocada no evento
@@ -66,8 +76,40 @@ export const usePayrollActions = (
 
       if (error) throw error;
 
-      await queryClient.invalidateQueries({ queryKey: payrollKeys.event(selectedEventId) });
-      await queryClient.invalidateQueries({ queryKey: ['event-payment-status'], refetchType: 'active' });
+      const freezePayload: Record<string, number> = {};
+      const cacheRate = Number(snapshot?.cacheRate || 0);
+      const overtimeRate = Number(snapshot?.overtimeRate || 0);
+
+      if (cacheRate > 0) {
+        freezePayload.event_specific_cache = Number(cacheRate.toFixed(4));
+      }
+      if (overtimeRate > 0) {
+        freezePayload.event_specific_overtime = Number(overtimeRate.toFixed(4));
+      }
+
+      if (Object.keys(freezePayload).length > 0) {
+        const { error: freezeError } = await supabase
+          .from('personnel_allocations')
+          .update(freezePayload as any)
+          .eq('event_id', selectedEventId)
+          .eq('personnel_id', personnelId);
+
+        if (freezeError) {
+          await supabase
+            .from('payroll_closings')
+            .delete()
+            .eq('id', data.id)
+            .eq('team_id', activeTeam.id);
+          throw freezeError;
+        }
+      }
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: payrollKeys.event(selectedEventId) }),
+        queryClient.invalidateQueries({ queryKey: ['event-payment-status'], refetchType: 'active' }),
+        queryClient.invalidateQueries({ queryKey: ['team-pending-payments'] }),
+        queryClient.invalidateQueries({ queryKey: personnelHistoryKeys.all(personnelId) }),
+      ]);
 
 
       // Obter nome do evento para notificação
