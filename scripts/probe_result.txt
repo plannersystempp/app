@@ -1,4 +1,10 @@
 Team: FGA Soluções (5a4a57c2-431c-46e0-95c4-14cde1b4a9a9)
 
 === RPC TEST ===
-RPC STILL FAILING: {"code":"42883","details":null,"hint":"No operator matches the given name and argument types. You might need to add explicit type casts.","message":"operator does not exist: date = text"}
+RPC SUCCESS! Returned 6 events:
+  "Evento Regressão QA 05/03": alloc=1 paid=0 pending=true status=planejado
+  "Evento Teste QA": alloc=1 paid=1 pending=false status=concluido
+  "Evento Teste QA Bug#1": alloc=1 paid=1 pending=false status=concluido
+  "Evento Dashboard Teste": alloc=1 paid=1 pending=false status=concluido
+  "Evento Teste": alloc=3 paid=3 pending=false status=concluido
+  "Semana 1 - Janeiro 2026": alloc=3 paid=3 pending=false status=concluido

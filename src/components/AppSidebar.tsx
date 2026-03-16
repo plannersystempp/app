@@ -145,9 +145,9 @@ export const AppSidebar = () => {
       <SidebarHeader className="p-4">
         <Link to="/app" className="block">
           <div className="flex items-center gap-2">
-            <img 
-              src="/icons/plannersystem-logo.svg" 
-              alt="PlannerSystem Logo" 
+            <img
+              src="/icons/plannersystem-logo.svg"
+              alt="PlannerSystem Logo"
               className="w-8 h-8 object-contain"
             />
             <div className="grid flex-1 text-left text-sm leading-tight">

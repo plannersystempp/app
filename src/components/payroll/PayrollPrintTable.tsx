@@ -63,6 +63,11 @@ export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, 
 
   const columns = visibleColumns && visibleColumns.length ? visibleColumns : getDefaultVisiblePayrollReportColumns();
 
+  const containsPersonalData = columns.some(colId => ['cpf', 'rg', 'birthDate', 'mothersName'].includes(colId));
+  const footerNotice = containsPersonalData
+    ? 'Uso interno — este relatório pode conter dados pessoais e sensíveis.'
+    : 'Uso interno — este relatório pode conter informações sensíveis.';
+
   const headerClassName = (colId: PayrollReportColumnId) => {
     if (colId === 'dailyCache' || colId === 'overtimePay' || colId === 'totalPay') return 'payroll-th text-right';
     if (colId === 'workDays' || colId === 'workDaysCount' || colId === 'overtimeHours') return 'payroll-th text-center';
@@ -136,8 +141,10 @@ export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, 
     <div className="payroll-report-page print-section p-8 max-w-[210mm] mx-auto">
       {/* Cabeçalho Completo */}
       <div className="mb-6">
-        <h2 className="payroll-report-subtitle text-center">Relatório de Folha de Pagamento</h2>
         <div className="payroll-report-info">
+          <div className="flex justify-center mb-2">
+            <img src="/icons/logo_plannersystem.png" alt="PlannerSystem" className="h-6 w-auto opacity-80" />
+          </div>
           <div style={{fontSize: '18px', fontWeight: 'bold', color: '#1e40af', marginBottom: '8px', textAlign: 'center'}}>
             {teamName}
           </div>
@@ -187,9 +194,8 @@ export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, 
         </table>
       </div>
 
-      {/* Observações e Detalhes Adicionais */}
-      <div className="mt-3 text-xs text-muted-foreground">
-        <p>Este relatório contém: dados do evento, dias trabalhados por profissional, horas extras, valores de cachê e totais.</p>
+      <div className="mt-6 text-[10px] text-right text-muted-foreground opacity-60">
+        {footerNotice} • by PlannerSystem
       </div>
     </div>
   );

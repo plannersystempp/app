@@ -43,7 +43,7 @@ describe('PayrollPrintTable - ordenação alfabética', () => {
       <PayrollPrintTable teamName="Equipe Y" event={{ name: 'Teste' }} details={details as any} showPartialPaid />
     );
 
-    // Deve aparecer em ordem: Ana Paula, Álvaro Lima, Bruno Souza
+    // Deve aparecer em ordem: Álvaro Lima, Ana Paula, Bruno Souza
     const idxAna = html.indexOf('Ana Paula');
     const idxAlvaro = html.indexOf('Álvaro Lima');
     const idxBruno = html.indexOf('Bruno Souza');
@@ -51,7 +51,7 @@ describe('PayrollPrintTable - ordenação alfabética', () => {
     expect(idxAna).toBeGreaterThanOrEqual(0);
     expect(idxAlvaro).toBeGreaterThanOrEqual(0);
     expect(idxBruno).toBeGreaterThanOrEqual(0);
-    expect(idxAna).toBeLessThan(idxAlvaro);
-    expect(idxAlvaro).toBeLessThan(idxBruno);
+    expect(idxAlvaro).toBeLessThan(idxAna);
+    expect(idxAna).toBeLessThan(idxBruno);
   });
 });

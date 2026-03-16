@@ -53,7 +53,7 @@ interface PersonnelFunctionRow {
   } | null;
 }
 
-const PENDING_TOLERANCE = 1.0;
+const PENDING_TOLERANCE = 0;
 
 const parseRelatedEventIds = (relatedEvents: unknown): string[] => {
   if (!relatedEvents) return [];
@@ -223,7 +223,9 @@ const calculatePendingPaymentsByEvent = async (
         workLogsForCalc
       );
 
-      const pendingAmount = Math.max(0, totalAmount - totalPaid);
+      const totalAmountCents = Math.round((totalAmount + Number.EPSILON) * 100);
+      const totalPaidCents = Math.round((totalPaid + Number.EPSILON) * 100);
+      const pendingAmount = Math.max(0, totalAmountCents - totalPaidCents) / 100;
 
       if (pendingAmount <= PENDING_TOLERANCE) return null;
 
@@ -502,6 +504,9 @@ export const useEventsHistory = (personnelId: string) => {
             )
           );
 
+          const totalPaidCents = Math.round((totalPaid + Number.EPSILON) * 100);
+          const totalAmountCents = Math.round((totalAmount + Number.EPSILON) * 100);
+
           return {
             id: event.id,
             name: event.name,
@@ -512,7 +517,7 @@ export const useEventsHistory = (personnelId: string) => {
             functionName: functionNames.join(', '),
             totalPaid,
             totalAmount,
-            isPaid: totalPaid >= totalAmount - PENDING_TOLERANCE,
+            isPaid: totalPaidCents >= totalAmountCents - (PENDING_TOLERANCE * 100),
           };
         })
       );

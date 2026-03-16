@@ -1,3 +1,28 @@
+## [2026-03-16] - fix: Remoção da opção de administrador legal no cadastro
+ - Mudanças:
+   - Removida a opção "Sou o administrador legal" do fluxo de cadastro quando o usuário escolhe cadastrar uma empresa.
+   - Ajustada a validação do formulário para não bloquear o envio por confirmação administrativa.
+ - Arquivos:
+   - `src/components/LoginScreen.tsx`
+ - Impacto:
+   - Simplifica o cadastro de empresa e reduz fricção no formulário.
+
+## [2026-03-16] - fix: Ajuste de cabeçalho/rodapé e branding no relatório de folha
+ - Mudanças:
+   - Removido o texto "Relatório de Folha de Pagamento" do topo do relatório por evento.
+   - Adicionado rodapé discreto com aviso de uso interno/dados sensíveis (dinâmico conforme colunas) e assinatura "by PlannerSystem".
+   - Incluído logo PNG do PlannerSystem no cabeçalho do relatório e normalizadas referências de logo para o PNG em telas principais.
+ - Arquivos:
+   - `src/components/payroll/PayrollPrintTable.tsx`
+   - `src/components/payroll/PayrollReport.tsx`
+   - `src/components/payroll/__tests__/PayrollPrintTable.render.test.tsx`
+   - `src/components/payroll/__tests__/PayrollPrintTable.sort.test.tsx`
+   - `src/components/LoginScreen.tsx`
+   - `src/components/AppSidebar.tsx`
+ - Impacto:
+   - Reduz poluição visual do relatório e adiciona aviso de confidencialidade quando há dados pessoais.
+   - Mantém padronização de branding e melhora compatibilidade com verificações automatizadas de UI.
+
 ## [2026-03-16] - feat: Cachê diferente por função/divisão no mesmo evento
  - Mudanças:
    - Liberada criação/edição de múltiplas alocações da mesma pessoa no mesmo evento, mantendo a regra de não sobrepor dias.
@@ -44,6 +69,18 @@
  - Impacto:
    - Qualquer alteração de diária/hora extra por usuário no app deixa de impactar retroativamente eventos concluídos já pagos.
    - Evita recorrência de pendências indevidas no dashboard e no histórico de pagamentos.
+
+## [2026-03-16] - fix: Backfill de snapshots para eventos já quitados com baixa integral
+ - Mudanças:
+   - Adicionada migration de backfill que preenche `event_specific_cache` e `event_specific_overtime` automaticamente para eventos já pagos via `payroll_closings` quando o snapshot estava vazio.
+   - O snapshot é derivado do valor efetivamente pago e do divisor (dias + HE/12, respeitando conversão de HE por equipe), garantindo que mudanças/ajustes de arredondamento no cadastro não reabram pendências de centavos em eventos antigos.
+   - Adicionada migration complementar que recalcula `event_specific_overtime` para bater exatamente com o valor quitado quando já existe `event_specific_cache` (ex.: casos de 1 centavo por arredondamento de taxa).
+ - Arquivos:
+   - `supabase/migrations/20260316110000_backfill_snapshots_from_payroll_closings.sql`
+   - `supabase/migrations/20260316114000_backfill_overtime_to_match_paid_when_closed.sql`
+ - Impacto:
+   - Remove pendências indevidas por arredondamento/alteração de taxa em eventos já fechados.
+   - Consolida a regra: após baixa integral, a folha do evento fica fechada e não é afetada por mudanças futuras.
 
 ## [2026-03-14] - fix: Correção de pendências históricas do Luiz por retroação de taxa
  - Mudanças:

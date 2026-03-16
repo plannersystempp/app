@@ -31,7 +31,6 @@ export const LoginScreen: React.FC = () => {
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [companyCnpj, setCompanyCnpj] = useState('');
-  const [confirmAdmin, setConfirmAdmin] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [signupMessage, setSignupMessage] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -103,10 +102,10 @@ export const LoginScreen: React.FC = () => {
       }
 
       if (isCreatingCompany) {
-        if (!companyName.trim() || !companyCnpj.trim() || !confirmAdmin) {
+        if (!companyName.trim() || !companyCnpj.trim()) {
           toast({
             title: "Erro",
-            description: "Por favor, preencha todos os campos e confirme que é o administrador legal",
+            description: "Por favor, preencha todos os campos",
             variant: "destructive"
           });
           return;
@@ -311,7 +310,7 @@ export const LoginScreen: React.FC = () => {
       <div className="hidden lg:flex flex-col justify-between bg-slate-900 p-10 xl:p-16 2xl:p-24 text-white relative h-full min-h-screen">
         <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop')] bg-cover bg-center opacity-20 mix-blend-overlay"></div>
         <div className="z-10 flex items-center gap-3">
-          <img src="/icons/logo_plannersystempng.png" alt="Logo" className="h-6 w-auto opacity-90 brightness-0 invert" />
+          <img src="/icons/logo_plannersystem.png" alt="Logo" className="h-6 w-auto opacity-90 brightness-0 invert" />
         </div>
         <div className="z-10 max-w-xl 2xl:max-w-2xl">
           <h1 className="text-4xl xl:text-5xl 2xl:text-6xl font-bold leading-tight mb-6">
@@ -445,16 +444,6 @@ export const LoginScreen: React.FC = () => {
                               className="h-11"
                               required
                             />
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id="confirmAdmin"
-                              checked={confirmAdmin}
-                              onCheckedChange={(checked) => setConfirmAdmin(checked as boolean)}
-                            />
-                            <Label htmlFor="confirmAdmin" className="text-xs font-normal text-muted-foreground">
-                              Sou o administrador legal
-                            </Label>
                           </div>
                         </div>
                       ) : (

@@ -35,11 +35,12 @@ describe('PayrollPrintTable', () => {
       <PayrollPrintTable teamName="Equipe X" event={event} details={details} showPartialPaid />
     );
 
-    expect(html).toContain('Relatório de Folha de Pagamento');
+    expect(html).toContain('by PlannerSystem');
+    expect(html).toContain('Uso interno');
     expect(html).toContain('Evento:');
     expect(html).toContain('Local:');
     expect(html).toContain('H. Extras (h)');
-    expect(html).toContain('Cachê diário (R$)');
+    expect(html).toContain('Cachê dia (R$)');
     expect(html).toContain('Total (R$)');
     expect(html).toContain('João Silva');
   });

@@ -49,7 +49,6 @@ export const PayrollReport: React.FC<PayrollReportProps> = ({ data }) => {
     <div className="space-y-6 print:space-y-4">
       {/* Cabeçalho */}
       <div className="text-center border-b pb-4">
-        <h1 className="text-2xl font-bold">Relatório de Folha de Pagamento</h1>
         <div className="mt-2 text-muted-foreground">
           <h2 className="text-lg font-semibold">{eventInfo.eventName}</h2>
           <p>
@@ -155,9 +154,8 @@ export const PayrollReport: React.FC<PayrollReportProps> = ({ data }) => {
       </div>
 
       {/* Observações */}
-      <div className="mt-8 text-xs text-muted-foreground print:mt-4">
-        <p>* Este relatório foi gerado automaticamente pelo sistema PlannerSystem.</p>
-        <p>* Valores calculados com base nas alocações e registros de horas do evento.</p>
+      <div className="mt-8 text-[10px] text-muted-foreground print:mt-4 text-right opacity-60">
+        Uso interno — este relatório pode conter dados pessoais e sensíveis • by PlannerSystem
       </div>
     </div>
   );

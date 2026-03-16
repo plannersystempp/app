@@ -513,7 +513,9 @@ export function calculatePendingAmount(
   totalPay: number,
   totalPaid: number
 ): number {
-  return Math.max(0, totalPay - totalPaid);
+  const totalPayCents = Math.round((totalPay + Number.EPSILON) * 100);
+  const totalPaidCents = Math.round((totalPaid + Number.EPSILON) * 100);
+  return Math.max(0, totalPayCents - totalPaidCents) / 100;
 }
 
 /**
