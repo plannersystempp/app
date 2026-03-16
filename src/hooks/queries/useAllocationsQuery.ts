@@ -49,15 +49,22 @@ export const useCreateAllocationMutation = () => {
     mutationFn: async (allocationData: Omit<Assignment, 'id' | 'created_at' | 'team_id'>) => {
       if (!activeTeam) throw new Error('No active team');
 
-      // Verificar se a pessoa já está alocada neste evento
       const { data: existingAllocations } = await supabase
         .from('personnel_allocations')
-        .select('id')
+        .select('id, work_days')
         .eq('event_id', allocationData.event_id)
         .eq('personnel_id', allocationData.personnel_id);
 
-      if (existingAllocations && existingAllocations.length > 0) {
-        throw new Error('Esta pessoa já está alocada neste evento');
+      const newDays = new Set((allocationData.work_days || []).filter(d => typeof d === 'string' && !!d.trim()));
+      if (newDays.size > 0 && existingAllocations && existingAllocations.length > 0) {
+        for (const existing of existingAllocations) {
+          const existingDays = new Set(((existing as { work_days?: string[] | null }).work_days || []).filter(d => typeof d === 'string' && !!d.trim()));
+          for (const day of newDays) {
+            if (existingDays.has(day)) {
+              throw new Error('Conflito de dias: já existe alocação para esta pessoa nos dias selecionados');
+            }
+          }
+        }
       }
 
       const { data, error } = await supabase

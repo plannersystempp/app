@@ -16,6 +16,12 @@ export interface PersonnelData {
   event_cache?: number;
   monthly_salary?: number;
   overtime_rate?: number;
+  functions?: Array<{
+    id: string;
+    name: string;
+    custom_cache?: number | null;
+    custom_overtime?: number | null;
+  }>;
   [key: string]: any;
 }
 
@@ -29,8 +35,77 @@ export interface AllocationData {
   work_days: string[];
   event_specific_cache?: number | null;
   event_specific_overtime?: number | null;
+  function_id?: string;
+  function_name?: string;
   attendance_status?: 'pending' | 'present' | 'absent';
   [key: string]: any;
+}
+
+export function getDailyCacheRateForAllocation(allocation: AllocationData, person: PersonnelData): number {
+  const allocationSpecific = allocation.event_specific_cache ?? 0;
+  if (allocationSpecific > 0) return allocationSpecific;
+
+  if (person.functions) {
+    if (allocation.function_id) {
+      const func = person.functions.find(f => f.id === allocation.function_id);
+      const rate = func?.custom_cache ?? 0;
+      if (rate > 0) return rate;
+    }
+
+    if (allocation.function_name) {
+      const func = person.functions.find(f => f.name === allocation.function_name);
+      const rate = func?.custom_cache ?? 0;
+      if (rate > 0) return rate;
+    }
+  }
+
+  return person.event_cache || 0;
+}
+
+export function getAllocationForDate(allocations: AllocationData[], date: string): AllocationData | undefined {
+  if (!date) return undefined;
+  return allocations.find(a => (a.work_days || []).includes(date));
+}
+
+export function getDailyCacheRateForDate(allocations: AllocationData[], person: PersonnelData, date: string): number {
+  const allocation = getAllocationForDate(allocations, date);
+  if (!allocation) return person.event_cache || 0;
+  return getDailyCacheRateForAllocation(allocation, person);
+}
+
+export function getDailyCacheRatesByDate(
+  allocations: AllocationData[],
+  person: PersonnelData,
+  dates: string[]
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const date of dates) {
+    if (typeof date !== 'string' || !date.trim()) continue;
+    out[date] = getDailyCacheRateForDate(allocations, person, date);
+  }
+  return out;
+}
+
+export function calculateCacheRateSummary(
+  allocations: AllocationData[],
+  person: PersonnelData,
+  workLogs: WorkLogData[] = []
+): { min: number; max: number; avg: number; isVariable: boolean } {
+  const workedDaysList = calculateWorkedDaysList(allocations, workLogs);
+  if (workedDaysList.length === 0) {
+    return { min: 0, max: 0, avg: 0, isVariable: false };
+  }
+
+  const rates = workedDaysList.map(day => getDailyCacheRateForDate(allocations, person, day));
+  const min = Math.min(...rates);
+  const max = Math.max(...rates);
+  const avg = rates.reduce((sum, r) => sum + r, 0) / rates.length;
+  return {
+    min,
+    max,
+    avg,
+    isVariable: Math.abs(max - min) > 0.000001,
+  };
 }
 
 /**
@@ -169,42 +244,11 @@ export function getDailyCacheRate(
   allocations: AllocationData[],
   person: PersonnelData
 ): number {
-  // 1. Verifica todas as alocações e usa o maior cachê específico definido para o evento (> 0)
-  const specificRates = allocations
-    .map(a => (a.event_specific_cache ?? 0))
-    .filter(rate => rate > 0);
+  const workedDays = calculateWorkedDaysList(allocations, []);
+  if (workedDays.length === 0) return person.event_cache || 0;
 
-  if (specificRates.length > 0) {
-    return Math.max(...specificRates);
-  }
-
-  // 2. Verifica se há cachê específico por função
-  if (person.functions && allocations.length > 0) {
-    const functionCaches = allocations
-      .map(alloc => {
-        // Tenta encontrar por ID primeiro
-        if (alloc.function_id) {
-          const func = person.functions?.find(f => f.id === alloc.function_id);
-          if (func?.custom_cache) return func.custom_cache;
-        }
-        
-        // Se não tiver ID ou não achar, tenta por nome
-        if (alloc.function_name) {
-          const func = person.functions?.find(f => f.name === alloc.function_name);
-          if (func?.custom_cache) return func.custom_cache;
-        }
-        
-        return 0;
-      })
-      .filter(rate => rate > 0);
-    
-    if (functionCaches.length > 0) {
-      return Math.max(...functionCaches);
-    }
-  }
-
-  // 3. Caso contrário, usa o cachê padrão da pessoa
-  return person.event_cache || 0;
+  const summary = calculateCacheRateSummary(allocations, person, []);
+  return summary.isVariable ? summary.avg : summary.min;
 }
 
 /**
@@ -229,10 +273,11 @@ export function calculateCachePay(
   person: PersonnelData,
   workLogs: WorkLogData[] = []
 ): number {
-  const workedDays = calculateWorkedDays(allocations, workLogs);
-  const dailyRate = getDailyCacheRate(allocations, person);
-  
-  return workedDays * dailyRate;
+  const workedDaysList = calculateWorkedDaysList(allocations, workLogs);
+  return workedDaysList.reduce(
+    (sum, day) => sum + getDailyCacheRateForDate(allocations, person, day),
+    0
+  );
 }
 
 /**
@@ -285,6 +330,7 @@ export interface OvertimeConfig {
   threshold: number;        // Limiar de horas para conversão (ex: 8)
   convertEnabled: boolean;  // Se a conversão está ativa
   dailyCache: number;       // Valor do cachê diário
+  dailyCacheByDate?: Record<string, number>;
   overtimeRate: number;     // Taxa de hora extra (para horas restantes)
 }
 
@@ -343,18 +389,23 @@ export const calculateOvertimePayWithDailyConversion = (
   let totalCachesUsed = 0;
   let totalRemainingHours = 0;
   let totalDisplayHours = 0;
+  const appliedCacheByDay: Record<string, number> = {};
 
   // Cobertura de um cachê diário sobre horas extras: até 8h no dia
   // Regra não cumulativa: no máximo 1 cachê por dia
   const OVERTIME_CACHE_COVERAGE_PER_DAY = 8;
 
   // Processar cada dia individualmente
-  dailyHours.forEach((hoursInDay) => {
+  dailyHours.forEach((hoursInDay, date) => {
     totalDisplayHours += hoursInDay;
 
     if (hoursInDay >= config.threshold) {
       // Regra: atingiu/ultrapassou o limiar no dia → 1 cachê diário (não cumulativo)
       totalCachesUsed += 1;
+
+      const dailyCacheForDay = config.dailyCacheByDate?.[date];
+      const cacheToApply = (dailyCacheForDay ?? config.dailyCache) || 0;
+      appliedCacheByDay[date] = cacheToApply;
 
       // Esse cachê cobre até 8h de HE no dia; acima disso, paga-se hora a hora
       const remainingForDay = Math.max(0, hoursInDay - OVERTIME_CACHE_COVERAGE_PER_DAY);
@@ -365,7 +416,14 @@ export const calculateOvertimePayWithDailyConversion = (
     }
   });
 
-  const cachePayment = totalCachesUsed * config.dailyCache;
+  let cachePayment = 0;
+  if (Object.keys(appliedCacheByDay).length > 0) {
+    for (const [_date, rate] of Object.entries(appliedCacheByDay)) {
+      cachePayment += rate || 0;
+    }
+  } else {
+    cachePayment = totalCachesUsed * config.dailyCache;
+  }
   const remainingPayment = totalRemainingHours * config.overtimeRate;
 
   return {

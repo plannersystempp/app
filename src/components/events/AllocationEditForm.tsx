@@ -87,18 +87,17 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
       return;
     }
 
-    // Check for conflicts with other assignments (excluding current one)
-    const existingAssignments = assignments.filter(a => 
-      a.event_id === assignment.event_id && 
+    const overlappingAllocation = assignments.find(a =>
+      a.event_id === assignment.event_id &&
       a.personnel_id === selectedPersonnel &&
-      a.function_name === selectedFunction &&
-      a.id !== assignment.id
+      a.id !== assignment.id &&
+      (a.work_days || []).some(day => selectedDays.includes(day))
     );
-    
-    if (existingAssignments.length > 0) {
+
+    if (overlappingAllocation) {
       toast({
-        title: "Função já alocada",
-        description: "Esta pessoa já está alocada com esta função neste evento. Escolha uma função diferente.",
+        title: "Conflito de dias",
+        description: "Esta pessoa já está alocada neste evento em um ou mais dias selecionados.",
         variant: "destructive",
       });
       return;

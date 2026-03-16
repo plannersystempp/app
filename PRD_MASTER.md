@@ -1,3 +1,37 @@
+## [2026-03-16] - feat: Cachê diferente por função/divisão no mesmo evento
+ - Mudanças:
+   - Liberada criação/edição de múltiplas alocações da mesma pessoa no mesmo evento, mantendo a regra de não sobrepor dias.
+   - Folha passou a calcular cachê somando taxa por dia, usando a taxa da alocação (cache específico do evento > cache por função > cache padrão).
+   - Conversão diária de horas extras passou a usar o cachê do dia (por data) quando disponível.
+   - Atualizada a função SQL do dashboard para calcular esperado/pendente somando o cachê por dia/alocação.
+ - Arquivos:
+   - `src/hooks/queries/useAllocationsQuery.ts`
+   - `src/components/events/AllocationEditForm.tsx`
+   - `src/components/payroll/payrollCalculations.ts`
+   - `src/services/payrollDataService.ts`
+   - `src/components/payroll/types.ts`
+   - `src/components/payroll/PayrollDetailsCard.tsx`
+   - `src/components/payroll/__tests__/payrollCalculations.cache.test.ts`
+   - `supabase/migrations/fix_event_payment_status_cache_per_day.sql`
+ - Impacto:
+   - Permite que o mesmo profissional tenha cachês diferentes por função/divisão dentro do mesmo evento (desde que em dias distintos).
+   - Evita que a maior taxa “contamine” todos os dias quando existem alocações com valores diferentes.
+
+## [2026-03-16] - fix: Correção de perda de dados no cadastro de pessoal (RG/nascimento/mãe e cachê por função)
+ - Mudanças:
+   - Alterado o fluxo de edição do cadastro para enviar ao backend apenas os campos realmente alterados (sem sobrescrever campos não carregados/tocados).
+   - Ajustada a substituição de funções (`replacePersonnelFunctions`) para preservar `custom_cache` e `custom_overtime` existentes quando o payload não informa novos valores.
+   - Adicionados testes unitários cobrindo o patch de update e a preservação de overrides por função.
+ - Arquivos:
+   - `src/components/personnel/PersonnelForm.tsx`
+   - `src/services/personnelUpdatePayload.ts`
+   - `src/services/personnelFunctionsService.ts`
+   - `src/services/__tests__/personnelFunctionsService.test.ts`
+   - `src/services/__tests__/personnelUpdatePayload.test.ts`
+ - Impacto:
+   - Evita apagar involuntariamente RG, data de nascimento e nome da mãe ao salvar uma edição.
+   - Evita perder o cachê/hora extra configurados por função quando as funções do profissional são atualizadas.
+
 ## [2026-03-14] - fix: Blindagem ao alterar taxa de pessoal para não reabrir eventos quitados
  - Mudanças:
    - Adicionada proteção no fluxo de atualização de pessoal (`useUpdatePersonnelMutation`) para congelar automaticamente `event_specific_cache` e `event_specific_overtime` em alocações históricas concluídas e já pagas antes de aplicar mudança em `event_cache`/`overtime_rate`.

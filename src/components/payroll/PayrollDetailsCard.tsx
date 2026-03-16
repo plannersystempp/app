@@ -62,9 +62,18 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
   const [showFullPaymentDialog, setShowFullPaymentDialog] = useState(false);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   const [confirmPermanent, setConfirmPermanent] = useState(false);
-  const cacheDailyRate = eventSpecificCacheRate
-    || (detail as any).cacheRate
-    || (typeof detail.workDays === 'number' && detail.workDays > 0 ? (detail.cachePay / detail.workDays) : undefined);
+  const cacheDailyRateAvg =
+    detail.cacheDailyRateAvg
+    ?? eventSpecificCacheRate
+    ?? detail.cacheRate
+    ?? (typeof detail.workDays === 'number' && detail.workDays > 0 ? (detail.cachePay / detail.workDays) : undefined);
+  const cacheDailyRateMin = detail.cacheDailyRateMin;
+  const cacheDailyRateMax = detail.cacheDailyRateMax;
+  const cacheDailyRateIsVariable =
+    detail.cacheDailyRateIsVariable
+    ?? (typeof cacheDailyRateMin === 'number' && typeof cacheDailyRateMax === 'number'
+      ? Math.abs(cacheDailyRateMax - cacheDailyRateMin) > 0.000001
+      : false);
 
   const copyPixKey = async () => {
     if (pixKey) {
@@ -165,8 +174,17 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
                     <TooltipContent>
                       <div className="text-sm">
                         <div className="font-medium">Cache específico do evento</div>
-                        <div>Taxa aplicada: {formatCurrency(eventSpecificCacheRate || 0)}/dia</div>
-                        <div>Cálculo: {formatCurrency(eventSpecificCacheRate || 0)} × {detail.workDays} dias</div>
+                        {cacheDailyRateIsVariable && typeof cacheDailyRateMin === 'number' && typeof cacheDailyRateMax === 'number' ? (
+                          <>
+                            <div>Taxas aplicadas: {formatCurrency(cacheDailyRateMin)}–{formatCurrency(cacheDailyRateMax)}/dia</div>
+                            <div>Média: {formatCurrency(cacheDailyRateAvg || 0)}/dia</div>
+                          </>
+                        ) : (
+                          <>
+                            <div>Taxa aplicada: {formatCurrency(cacheDailyRateAvg || 0)}/dia</div>
+                            <div>Cálculo: {formatCurrency(cacheDailyRateAvg || 0)} × {detail.workDays} dias</div>
+                          </>
+                        )}
                       </div>
                     </TooltipContent>
                   </Tooltip>
@@ -174,9 +192,12 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
               )}
             </div>
             <p className="font-semibold text-sm">R$ {detail.cachePay.toFixed(2)}</p>
-            {cacheDailyRate !== undefined && typeof detail.workDays === 'number' && (
+            {cacheDailyRateAvg !== undefined && typeof detail.workDays === 'number' && (
               <p className="text-[11px] text-muted-foreground mt-1">
-                {formatCurrency(cacheDailyRate)} × {detail.workDays} dias
+                {cacheDailyRateIsVariable && typeof cacheDailyRateMin === 'number' && typeof cacheDailyRateMax === 'number'
+                  ? `Taxas variáveis: ${formatCurrency(cacheDailyRateMin)}–${formatCurrency(cacheDailyRateMax)} (média ${formatCurrency(cacheDailyRateAvg)})`
+                  : `${formatCurrency(cacheDailyRateAvg)} × ${detail.workDays} dias`
+                }
               </p>
             )}
           </div>

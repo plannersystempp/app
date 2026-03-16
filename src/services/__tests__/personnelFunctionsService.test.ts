@@ -51,11 +51,60 @@ describe('personnelFunctionsService', () => {
       expect(f1?.is_primary).toBe(false);
       expect(f2?.is_primary).toBe(true);
       expect(f1?.custom_cache).toBe(1000);
-      expect(f2?.custom_cache).toBe(null);
+      expect(f2).not.toHaveProperty('custom_cache');
     });
   });
 
   describe('replacePersonnelFunctions', () => {
+    it('preserva custom_cache/custom_overtime existentes quando payload não fornece', async () => {
+      const previous: PersonnelFunctionRow[] = [
+        {
+          personnel_id: 'p1',
+          function_id: 'f1',
+          team_id: 't1',
+          is_primary: true,
+          custom_cache: 123,
+          custom_overtime: 10,
+        },
+      ];
+
+      const insertedRows: PersonnelFunctionRow[][] = [];
+      const repo: PersonnelFunctionsRepository = {
+        listByPersonnelId: vi.fn(async () => ({ data: previous, error: null })),
+        deleteByPersonnelId: vi.fn(async () => ({ error: null })),
+        deleteByFunctionIds: vi.fn(async () => ({ error: null })),
+        insert: vi.fn(async (rows) => {
+          insertedRows.push(rows);
+          return { error: null };
+        }),
+        upsert: vi.fn(async () => ({ error: null })),
+      };
+
+      await replacePersonnelFunctions(repo, {
+        personnelId: 'p1',
+        teamId: 't1',
+        rows: [
+          {
+            personnel_id: 'p1',
+            function_id: 'f1',
+            team_id: 't1',
+            is_primary: true,
+          },
+        ],
+      });
+
+      expect(insertedRows.flat()).toEqual([
+        {
+          personnel_id: 'p1',
+          function_id: 'f1',
+          team_id: 't1',
+          is_primary: true,
+          custom_cache: 123,
+          custom_overtime: 10,
+        },
+      ]);
+    });
+
     it('restaura associações anteriores se insert falhar', async () => {
       const previous: PersonnelFunctionRow[] = [
         {

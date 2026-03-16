@@ -1237,9 +1237,8 @@ export const EnhancedDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       if (error) {
         console.error('Database error:', error);
-        // Se houver um erro de chave duplicada (mesma pessoa no mesmo evento)
         if (error.code === '23505') {
-          throw new Error("Esta pessoa já está alocada neste evento.");
+          throw new Error('Já existe uma alocação idêntica para esta pessoa (mesmos dias).');
         }
         if (error.message?.includes('Esta pessoa já está alocada')) {
           throw new Error(error.message);

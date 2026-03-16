@@ -16,6 +16,7 @@ import { useCreatePersonnelMutation, useUpdatePersonnelMutation, usePersonnelQue
 import { stripUrlQuery } from '@/utils/url';
 import type { PersonnelFormData } from '@/types/personnelForm';
 import { buildPersonnelFormInitialData } from '@/services/personnelFormMapper';
+import { buildPersonnelUpdatePayload } from '@/services/personnelUpdatePayload';
 
 interface PersonnelFormProps {
   personnel?: Personnel;
@@ -321,12 +322,10 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
       
       if (personnel) {
         // Update existing personnel
-        const updatePayload: any = { ...formData };
-        // Evitar remoção involuntária de funções: se o usuário não tocou nas funções
-        if (formData.functionIds.length === 0 && (personnel.functions?.length || 0) > 0) {
-          delete updatePayload.functionIds;
-          delete updatePayload.primaryFunctionId;
-        }
+        const updatePayload = buildPersonnelUpdatePayload({
+          current: formData,
+          initial: initialDataRef.current,
+        });
         console.log('[PersonnelForm] Updating personnel...', personnel.id);
         await updatePersonnel.mutateAsync({
           id: personnel.id,

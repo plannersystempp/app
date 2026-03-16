@@ -45,6 +45,10 @@ export interface PayrollDetails {
   absences: AbsenceDetail[];
   hasEventSpecificCache?: boolean;
   eventSpecificCacheRate?: number;
+  cacheDailyRateAvg?: number;
+  cacheDailyRateMin?: number;
+  cacheDailyRateMax?: number;
+  cacheDailyRateIsVariable?: boolean;
   overtimeConversionApplied?: boolean;
   overtimeCachesUsed?: number;
   overtimeRemainingHours?: number;

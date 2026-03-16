@@ -446,9 +446,19 @@ export const payrollDataService = {
       const regularHours = PayrollCalc.calculateTotalRegularHours(workLogsData);
       const baseSalary = PayrollCalc.calculateBaseSalary(person);
       const cachePay = PayrollCalc.calculateCachePay(allocationsData, person, workLogsData);
+      const cacheSummary = PayrollCalc.calculateCacheRateSummary(allocationsData, person, workLogsData);
       
       const overtimeRate = PayrollCalc.getOvertimeRate(allocationsData, person);
-      const dailyCache = PayrollCalc.getDailyCacheRate(allocationsData, person);
+      const dailyCache = cacheSummary.avg;
+
+      const overtimeDates = Array.from(
+        new Set(
+          workLogsData
+            .map(l => l.work_date)
+            .filter((v): v is string => typeof v === 'string' && !!v.trim())
+        )
+      );
+      const dailyCacheByDate = PayrollCalc.getDailyCacheRatesByDate(allocationsData, person, overtimeDates);
       
       const overtimeResult = PayrollCalc.calculateOvertimePayWithDailyConversion(
         workLogsData,
@@ -456,6 +466,7 @@ export const payrollDataService = {
           threshold: teamOvertimeConfig.default_overtime_threshold_hours,
           convertEnabled: teamOvertimeConfig.default_convert_overtime_to_daily,
           dailyCache,
+          dailyCacheByDate,
           overtimeRate
         }
       );
@@ -509,7 +520,11 @@ export const payrollDataService = {
         absencesCount: absencesData.length,
         absences: absenceDetails,
         hasEventSpecificCache: hasEventCache,
-        eventSpecificCacheRate: dailyCache,
+        eventSpecificCacheRate: cacheSummary.avg,
+        cacheDailyRateAvg: cacheSummary.avg,
+        cacheDailyRateMin: cacheSummary.min,
+        cacheDailyRateMax: cacheSummary.max,
+        cacheDailyRateIsVariable: cacheSummary.isVariable,
         overtimeConversionApplied: overtimeResult.conversionApplied,
         overtimeCachesUsed: overtimeResult.dailyCachesUsed,
         overtimeRemainingHours: overtimeResult.remainingHours,
