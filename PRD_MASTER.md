@@ -1,3 +1,17 @@
+## [2026-03-17] - fix: Salvar cadastro de pessoal sem alterações e feedback de erros
+ - Mudanças:
+   - Corrigido erro ao clicar em "Salvar" na edição de pessoa sem alterações (evita update vazio no Supabase).
+   - Ajustada a carga de chave PIX para não marcar o formulário como alterado automaticamente.
+   - Melhoradas mensagens de erro para exibir causa provável (ex.: duplicidade/obrigatoriedade) em vez de genérico.
+   - Update agora suporta alterações apenas de função principal/caches sem forçar update da tabela `personnel`.
+ - Arquivos:
+   - `src/components/personnel/PersonnelForm.tsx`
+   - `src/hooks/queries/usePersonnelQuery.ts`
+   - `src/utils/errors.ts`
+ - Impacto:
+   - Elimina falso-positivo de erro no salvamento e reduz fricção na edição.
+   - Usuário recebe feedback mais acionável quando o backend rejeita a operação.
+
 ## [2026-03-16] - fix: Remoção da opção de administrador legal no cadastro
  - Mudanças:
    - Removida a opção "Sou o administrador legal" do fluxo de cadastro quando o usuário escolhe cadastrar uma empresa.

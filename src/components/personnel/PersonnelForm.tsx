@@ -17,6 +17,7 @@ import { stripUrlQuery } from '@/utils/url';
 import type { PersonnelFormData } from '@/types/personnelForm';
 import { buildPersonnelFormInitialData } from '@/services/personnelFormMapper';
 import { buildPersonnelUpdatePayload } from '@/services/personnelUpdatePayload';
+import { getErrorFeedback } from '@/utils/errors';
 
 interface PersonnelFormProps {
   personnel?: Personnel;
@@ -68,6 +69,7 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
 
   // Snapshot do estado inicial para detectar alterações (isDirty)
   const initialDataRef = useRef<PersonnelFormData>(formData);
+  const pixKeyTouchedRef = useRef(false);
 
   const canEditExistingPersonnel = userRole === 'admin' || userRole === 'superadmin';
 
@@ -106,9 +108,15 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
           console.log('PIX key response:', { data, error });
           
           const map = (data && (data as any).pix_keys) ? (data as any).pix_keys : data as any;
-          if (!error && map && map[personnel.id]) {
-            console.log('Setting PIX key:', map[personnel.id]);
-            setFormData(prev => ({ ...prev, pixKey: map[personnel.id] }));
+          const fetchedPixKey = map?.[personnel.id] as string | undefined;
+          if (!error && fetchedPixKey) {
+            console.log('Setting PIX key:', fetchedPixKey);
+            setFormData(prev => {
+              if (pixKeyTouchedRef.current) return prev;
+              const next = { ...prev, pixKey: fetchedPixKey };
+              initialDataRef.current = { ...initialDataRef.current, pixKey: fetchedPixKey };
+              return next;
+            });
           } else {
             console.log('No PIX key found for personnel:', personnel.id);
           }
@@ -127,6 +135,7 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
   }, [formData]);
 
   const handleFieldChange = (field: keyof PersonnelFormData, value: string | number | string[] | Record<string, number>) => {
+    if (field === 'pixKey') pixKeyTouchedRef.current = true;
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -318,60 +327,96 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
         type: formData.type 
       });
       
-      let personnelId: string;
-      
       if (personnel) {
         // Update existing personnel
         const updatePayload = buildPersonnelUpdatePayload({
           current: formData,
           initial: initialDataRef.current,
         });
+        const currentPixKey = (formData.pixKey || '').trim();
+        const initialPixKey = (initialDataRef.current.pixKey || '').trim();
+        const pixKeyChanged = currentPixKey !== initialPixKey;
+
+        const hasUpdateChanges = Object.keys(updatePayload).length > 0;
+        if (!hasUpdateChanges && !pixKeyChanged) {
+          toast({
+            title: 'Nada para salvar',
+            description: 'Nenhuma alteração foi detectada.',
+          });
+          return;
+        }
+
+        if (!hasUpdateChanges && pixKeyChanged) {
+          const pixResult = await handlePixKeyUpdate(personnel.id, currentPixKey);
+          if (!pixResult.ok) {
+            toast({
+              title: 'Erro ao salvar chave PIX',
+              description: pixResult.description,
+              variant: 'destructive'
+            });
+            return;
+          }
+          toast({
+            title: currentPixKey ? 'Chave PIX atualizada' : 'Chave PIX removida',
+            description: currentPixKey
+              ? 'A chave PIX foi salva com sucesso.'
+              : 'A chave PIX foi removida com sucesso.',
+          });
+          onSuccess();
+          onClose();
+          return;
+        }
+
         console.log('[PersonnelForm] Updating personnel...', personnel.id);
         await updatePersonnel.mutateAsync({
           id: personnel.id,
-          ...updatePayload
+          ...updatePayload,
         });
-        personnelId = personnel.id;
+
+        const pixResult = pixKeyChanged
+          ? await handlePixKeyUpdate(personnel.id, currentPixKey)
+          : undefined;
+
+        toast({
+          title: "Pessoa atualizada",
+          description: pixResult && !pixResult.ok
+            ? `Dados salvos, mas não foi possível atualizar a chave PIX: ${pixResult.description}`
+            : "Os dados foram atualizados com sucesso",
+        });
+
+        onSuccess();
+        onClose();
+        return;
       } else {
         // Create new personnel
         console.log('[PersonnelForm] Creating new personnel...');
         const newPersonnel = await createPersonnel.mutateAsync(formData);
-        personnelId = newPersonnel.id;
-        console.log('[PersonnelForm] Personnel created:', personnelId);
+        console.log('[PersonnelForm] Personnel created:', newPersonnel.id);
+
+        const pixKey = (formData.pixKey || '').trim();
+        const pixResult = pixKey
+          ? await handlePixKeyUpdate(newPersonnel.id, pixKey)
+          : undefined;
+
+        toast({
+          title: "Pessoa cadastrada",
+          description: pixResult && !pixResult.ok
+            ? `Pessoa criada, mas não foi possível salvar a chave PIX: ${pixResult.description}`
+            : "Nova pessoa foi cadastrada com sucesso",
+        });
+
+        onSuccess();
+        onClose();
+        return;
       }
-
-      // Handle PIX key if provided
-      if (formData.pixKey.trim()) {
-        await handlePixKeyUpdate(personnelId, formData.pixKey.trim());
-      }
-
-      toast({
-        title: personnel ? "Pessoa atualizada" : "Pessoa cadastrada",
-        description: personnel ? "Os dados foram atualizados com sucesso" : "Nova pessoa foi cadastrada com sucesso",
-      });
-
-      onSuccess();
-      onClose();
     } catch (error) {
       console.error('Error saving personnel:', error);
-      
-      let errorMessage = "Ocorreu um erro ao salvar os dados";
-      
-      if (error instanceof Error) {
-        if (error.message.includes('idx_personnel_cpf_unique')) {
-          errorMessage = "CPF já cadastrado nesta equipe";
-        } else if (error.message.includes('idx_personnel_cnpj_unique')) {
-          errorMessage = "CNPJ já cadastrado nesta equipe";
-        } else if (error.message.includes('duplicate key')) {
-          errorMessage = "Dados duplicados. Verifique CPF/CNPJ.";
-        } else {
-          errorMessage = error.message;
-        }
-      }
+
+      const feedback = getErrorFeedback(error);
       
       toast({
-        title: "Erro ao salvar",
-        description: errorMessage,
+        title: feedback.title,
+        description: feedback.description,
         variant: "destructive"
       });
     } finally {
@@ -389,27 +434,26 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
     onClose();
   };
 
-  const handlePixKeyUpdate = async (personnelId: string, pixKey: string) => {
+  const handlePixKeyUpdate = async (
+    personnelId: string,
+    pixKey: string
+  ): Promise<{ ok: true } | { ok: false; description: string }> => {
     try {
       const { error } = await supabase.functions.invoke('pix-key/set', {
-        body: { personnel_id: personnelId, pix_key: pixKey }
+        body: { personnel_id: personnelId, pix_key: pixKey.trim() || null }
       });
 
       if (error) {
         console.error('Error updating PIX key:', error);
-        toast({
-          title: "Aviso",
-          description: "Dados salvos, mas houve erro ao salvar a chave PIX",
-          variant: "destructive"
-        });
+        const feedback = getErrorFeedback(error);
+        return { ok: false, description: feedback.description };
       }
+
+      return { ok: true };
     } catch (error) {
       console.error('Error calling PIX key function:', error);
-      toast({
-        title: "Aviso", 
-        description: "Dados salvos, mas houve erro ao salvar a chave PIX",
-        variant: "destructive"
-      });
+      const feedback = getErrorFeedback(error);
+      return { ok: false, description: feedback.description };
     }
   };
 
@@ -444,7 +488,7 @@ export const PersonnelForm: React.FC<PersonnelFormProps> = ({ personnel, onClose
               loading={loading}
               onCancel={handleCloseRequest}
               hasUnsavedPhoto={formData.photo_url !== (personnel?.photo_url ? stripUrlQuery(personnel.photo_url) : '')}
-              disabled={loading || photoUploading}
+              disabled={loading || photoUploading || (Boolean(personnel) && !isDirty)}
               saveLabel={photoUploading ? 'Enviando foto...' : undefined}
             />
           </form>

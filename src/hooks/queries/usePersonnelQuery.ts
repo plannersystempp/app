@@ -666,7 +666,6 @@ export const usePersonnelPaginatedQuery = (options: UsePersonnelPaginatedOptions
 export const useCreatePersonnelMutation = () => {
   const queryClient = useQueryClient();
   const { activeTeam } = useTeam();
-  const { toast } = useToast();
   const { broadcast } = useBroadcastInvalidation();
   const personnelFunctionsRepo = createSupabasePersonnelFunctionsRepository();
 
@@ -675,13 +674,20 @@ export const useCreatePersonnelMutation = () => {
       logger.personnel.create({ name: personnelData.name, type: personnelData.type });
       if (!activeTeam) throw new Error('No active team');
 
-      const { functionIds, pixKey, primaryFunctionId, functionCaches, functionOvertimes, ...restData } = personnelData;
+      const {
+        functionIds,
+        pixKey: _pixKey,
+        primaryFunctionId,
+        functionCaches,
+        functionOvertimes,
+        ...restData
+      } = personnelData;
       
       // Usar utilitário centralizado de sanitização
       const sanitizedData = sanitizePersonnelData(restData);
 
-      const dataToInsert: any = {
-        ...sanitizedData,
+      const dataToInsert: Record<string, unknown> = {
+        ...(sanitizedData as Record<string, unknown>),
         team_id: activeTeam.id
       };
       
@@ -693,21 +699,6 @@ export const useCreatePersonnelMutation = () => {
         .single();
 
       if (personnelError) throw personnelError;
-
-      // Handle PIX key if provided
-      if (pixKey && pixKey.trim()) {
-        try {
-          await supabase.functions.invoke('pix-key/set', {
-            body: {
-              personnel_id: personnelResult.id,
-              pix_key: pixKey.trim()
-            }
-          });
-        } catch (pixError) {
-          console.warn('PIX key could not be saved:', pixError);
-          // Don't fail the entire operation for PIX key issues
-        }
-      }
 
       // Associate functions if provided
       if (functionIds && functionIds.length > 0) {
@@ -793,11 +784,6 @@ export const useCreatePersonnelMutation = () => {
       
       // ✅ FASE 3: Notificar outras abas
       broadcast(personnelKeys.all);
-      
-      toast({
-        title: "Sucesso",
-        description: "Pessoal adicionado com sucesso!",
-      });
     },
     onSettled: () => {
       // Invalidar queries inativas (para próxima montagem)
@@ -816,11 +802,6 @@ export const useCreatePersonnelMutation = () => {
       }
       
       console.error('Error creating personnel:', error);
-      toast({
-        title: "Erro",
-        description: "Falha ao adicionar pessoal",
-        variant: "destructive"
-      });
     },
   });
 };
@@ -829,7 +810,6 @@ export const useCreatePersonnelMutation = () => {
 export const useUpdatePersonnelMutation = () => {
   const queryClient = useQueryClient();
   const { activeTeam } = useTeam();
-  const { toast } = useToast();
   const { broadcast } = useBroadcastInvalidation();
   const personnelFunctionsRepo = createSupabasePersonnelFunctionsRepository();
 
@@ -841,43 +821,74 @@ export const useUpdatePersonnelMutation = () => {
       // Usar utilitário centralizado de sanitização
       const dataToUpdate = sanitizePersonnelData(restData);
 
-      const { data: currentPersonnel, error: currentPersonnelError } = await supabase
-        .from('personnel')
-        .select('event_cache, overtime_rate')
-        .eq('id', id)
-        .eq('team_id', activeTeam!.id)
-        .single();
+      const hasPersonnelChanges = Object.keys(dataToUpdate).length > 0;
+      const wantsPixUpdate = pixKey !== undefined;
+      const wantsFunctionUpdate = functionIds !== undefined || primaryFunctionId !== undefined;
+      const wantsCustomValuesUpsert = !wantsFunctionUpdate && (functionCaches !== undefined || functionOvertimes !== undefined);
 
-      if (currentPersonnelError) throw currentPersonnelError;
+      const hasAnyChange = hasPersonnelChanges || wantsPixUpdate || wantsFunctionUpdate || wantsCustomValuesUpsert;
 
-      const currentCache = Number(currentPersonnel.event_cache || 0);
-      const currentOvertime = Number(currentPersonnel.overtime_rate || 0);
-      const nextCache =
-        dataToUpdate.event_cache !== undefined ? Number(dataToUpdate.event_cache || 0) : currentCache;
-      const nextOvertime =
-        dataToUpdate.overtime_rate !== undefined ? Number(dataToUpdate.overtime_rate || 0) : currentOvertime;
+      const fetchCurrentPersonnelRow = async () => {
+        const { data, error } = await supabase
+          .from('personnel')
+          .select()
+          .eq('id', id)
+          .eq('team_id', activeTeam!.id)
+          .single();
 
-      const ratesChanged = nextCache !== currentCache || nextOvertime !== currentOvertime;
+        if (error) throw error;
+        return data;
+      };
 
-      if (ratesChanged) {
-        await freezeHistoricalRatesBeforePersonnelUpdate({
-          personnelId: id,
-          teamId: activeTeam!.id,
-          oldCache: currentCache,
-          oldOvertime: currentOvertime
-        });
+      if (!hasAnyChange) {
+        return fetchCurrentPersonnelRow();
       }
 
-      // Update personnel record
-      const { data, error } = await supabase
-        .from('personnel')
-        .update(dataToUpdate)
-        .eq('id', id)
-        .eq('team_id', activeTeam!.id)
-        .select()
-        .single();
+      let updatedPersonnelRow: unknown | null = null;
 
-      if (error) throw error;
+      if (hasPersonnelChanges) {
+        const shouldCheckRates = dataToUpdate.event_cache !== undefined || dataToUpdate.overtime_rate !== undefined;
+
+        if (shouldCheckRates) {
+          const { data: currentPersonnel, error: currentPersonnelError } = await supabase
+            .from('personnel')
+            .select('event_cache, overtime_rate')
+            .eq('id', id)
+            .eq('team_id', activeTeam!.id)
+            .single();
+
+          if (currentPersonnelError) throw currentPersonnelError;
+
+          const currentCache = Number(currentPersonnel.event_cache || 0);
+          const currentOvertime = Number(currentPersonnel.overtime_rate || 0);
+          const nextCache =
+            dataToUpdate.event_cache !== undefined ? Number(dataToUpdate.event_cache || 0) : currentCache;
+          const nextOvertime =
+            dataToUpdate.overtime_rate !== undefined ? Number(dataToUpdate.overtime_rate || 0) : currentOvertime;
+
+          const ratesChanged = nextCache !== currentCache || nextOvertime !== currentOvertime;
+
+          if (ratesChanged) {
+            await freezeHistoricalRatesBeforePersonnelUpdate({
+              personnelId: id,
+              teamId: activeTeam!.id,
+              oldCache: currentCache,
+              oldOvertime: currentOvertime
+            });
+          }
+        }
+
+        const { data, error } = await supabase
+          .from('personnel')
+          .update(dataToUpdate)
+          .eq('id', id)
+          .eq('team_id', activeTeam!.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        updatedPersonnelRow = data;
+      }
 
       // Handle PIX key update if provided
       if (pixKey !== undefined) {
@@ -894,11 +905,21 @@ export const useUpdatePersonnelMutation = () => {
       }
 
       // Update function associations if provided
-      if (functionIds !== undefined) {
+      if (wantsFunctionUpdate) {
+        let functionIdsToUse = functionIds;
+        if (!functionIdsToUse) {
+          const { data: existingRows, error: existingError } = await personnelFunctionsRepo.listByPersonnelId({
+            teamId: activeTeam!.id,
+            personnelId: id,
+          });
+          if (existingError) throw existingError;
+          functionIdsToUse = existingRows.map((row) => row.function_id);
+        }
+
         const rows = buildPersonnelFunctionRows({
           personnelId: id,
           teamId: activeTeam!.id,
-          functionIds,
+          functionIds: functionIdsToUse,
           primaryFunctionId: primaryFunctionId || undefined,
           functionCaches: functionCaches || undefined,
           functionOvertimes: functionOvertimes || undefined,
@@ -910,7 +931,6 @@ export const useUpdatePersonnelMutation = () => {
           rows,
         });
       } else {
-        // Apenas atualizar caches/horas extras existentes quando funções não foram alteradas
         await upsertPersonnelFunctionCustomValues(personnelFunctionsRepo, {
           personnelId: id,
           teamId: activeTeam!.id,
@@ -919,7 +939,7 @@ export const useUpdatePersonnelMutation = () => {
         });
       }
 
-      return data;
+      return updatedPersonnelRow ?? fetchCurrentPersonnelRow();
     },
     onMutate: async ({ id, ...data }) => {
       logger.personnel.optimistic({ action: 'UPDATE', id, fields: Object.keys(data) });
@@ -974,11 +994,6 @@ export const useUpdatePersonnelMutation = () => {
       
       // ✅ FASE 3: Notificar outras abas
       broadcast(personnelKeys.all);
-      
-      toast({
-        title: "Sucesso",
-        description: "Pessoal atualizado com sucesso!",
-      });
     },
     onSettled: () => {
       // Invalidar queries inativas (para próxima montagem)
@@ -997,11 +1012,6 @@ export const useUpdatePersonnelMutation = () => {
       }
       
       console.error('Error updating personnel:', error);
-      toast({
-        title: "Erro",
-        description: "Falha ao atualizar pessoal",
-        variant: "destructive"
-      });
     },
   });
 };
