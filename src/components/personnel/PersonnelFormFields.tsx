@@ -41,6 +41,8 @@ export const PersonnelFormFields: React.FC<PersonnelFormFieldsProps> = ({
   const { userRole } = useTeam();
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
   const [loadingCEP, setLoadingCEP] = useState(false);
+  const initialZipCodeRef = React.useRef(formData.address_zip_code?.replace(/\D/g, '') || '');
+  const isMountingRef = React.useRef(true);
   
   const cpfValidation = useCPFValidation(formData.cpf, personnelId);
 
@@ -92,6 +94,15 @@ export const PersonnelFormFields: React.FC<PersonnelFormFieldsProps> = ({
 
   useEffect(() => {
     const cep = formData.address_zip_code.replace(/\D/g, '');
+
+    // Evita busca automática na montagem se o CEP já estiver preenchido e igual ao inicial (edição)
+    if (isMountingRef.current) {
+      isMountingRef.current = false;
+      if (cep.length === 8 && cep === initialZipCodeRef.current) {
+        return;
+      }
+    }
+
     if (cep.length !== 8) return;
 
     const timer = setTimeout(() => {

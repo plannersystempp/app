@@ -1,3 +1,12 @@
+## [2026-03-17] - fix: Correção de busca automática de CEP na edição
+ - Mudanças:
+   - Ajustada lógica do `useEffect` em `PersonnelFormFields` para evitar busca automática de endereço (e toast intrusivo) ao abrir a edição de um profissional com CEP já preenchido.
+   - Implementado controle via `useRef` para ignorar a validação inicial se o valor do CEP for idêntico ao carregado na montagem do componente.
+ - Arquivos:
+   - `src/components/personnel/PersonnelFormFields.tsx`
+ - Impacto:
+   - Elimina feedback visual desnecessário ("Endereço encontrado") ao abrir formulários existentes, melhorando a UX.
+
 ## [2026-03-17] - fix: Salvar cadastro de pessoal sem alterações e feedback de erros
  - Mudanças:
    - Corrigido erro ao clicar em "Salvar" na edição de pessoa sem alterações (evita update vazio no Supabase).
