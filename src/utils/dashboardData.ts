@@ -14,8 +14,8 @@ export interface EventItem {
 export function getEventsInProgress(events: EventItem[], now: Date = new Date()): EventItem[] {
   return events.filter((event) => {
     if (!event.start_date || !event.end_date) return false;
-    const startDate = new Date(event.start_date);
-    const endDate = new Date(event.end_date);
+    const startDate = new Date(`${event.start_date}T00:00:00`);
+    const endDate = new Date(`${event.end_date}T23:59:59.999`);
     return startDate <= now && endDate >= now;
   });
 }

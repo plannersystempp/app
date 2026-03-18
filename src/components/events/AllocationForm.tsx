@@ -29,6 +29,7 @@ import { useAllocationsQuery } from '@/hooks/queries/useAllocationsQuery';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { getDailyCacheRate } from '@/components/payroll/payrollCalculations';
+import { normalizeWorkDays } from '@/utils/workDays';
 
 interface AllocationFormProps {
   eventId: string;
@@ -74,6 +75,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   // Get event details for work days calculation
   const event = events.find(e => e.id === eventId);
   const availableDays = getEventFullDateRange(event);
+  const normalizedAvailableDays = normalizeWorkDays(availableDays);
 
   const {
     selectedPersonnel,
@@ -127,7 +129,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
     }
   };
 
-  const selectedDaysSorted = [...selectedDays].sort();
+  const selectedDaysSorted = normalizeWorkDays(selectedDays, { availableDays: normalizedAvailableDays });
   const daysSummary = selectedDaysSorted.length === 0
     ? ''
     : selectedDaysSorted.length === 1
@@ -151,7 +153,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
     ? !!selectedDivisionId
     : !!(newDivisionName || '').trim();
 
-  const daysReady = selectedDays.length > 0;
+  const daysReady = normalizeWorkDays(selectedDays, { availableDays: normalizedAvailableDays }).length > 0;
   const individualReady = !!selectedPersonnel && !!selectedFunction && divisionReady && daysReady;
   const multipleReady = multipleSelection.length > 0 && divisionReady && daysReady && multipleSelection.every(sp => !!sp.selectedFunction);
   const isReadyToSubmit = selectionMode === 'multiple' ? multipleReady : individualReady;
@@ -173,7 +175,9 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
     (newState) => {
       if (newState.selectedPersonnel !== undefined) setSelectedPersonnel(newState.selectedPersonnel);
       if (newState.selectedFunction !== undefined) setSelectedFunction(newState.selectedFunction);
-      if (newState.selectedDays !== undefined) setSelectedDays(newState.selectedDays);
+      if (newState.selectedDays !== undefined) {
+        setSelectedDays(normalizeWorkDays(newState.selectedDays, { availableDays: normalizedAvailableDays }));
+      }
       if (newState.eventSpecificCache !== undefined) setEventSpecificCache(newState.eventSpecificCache);
       if (newState.divisionMode !== undefined) setDivisionMode(newState.divisionMode);
       if (newState.selectedDivisionId !== undefined) setSelectedDivisionId(newState.selectedDivisionId);
@@ -189,9 +193,14 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
     setFormLoading(true);
 
     try {
+      const normalizedSelectedDays = normalizeWorkDays(selectedDays, { availableDays: normalizedAvailableDays });
+      if (normalizedSelectedDays.length !== selectedDays.length) {
+        setSelectedDays(normalizedSelectedDays);
+      }
+
       if (selectionMode === 'individual') {
         // Individual validation
-        if (!selectedPersonnel || !selectedFunction || selectedDays.length === 0) {
+        if (!selectedPersonnel || !selectedFunction || normalizedSelectedDays.length === 0) {
           toast({
             title: "Campos obrigatórios",
             description: "Preencha todos os campos obrigatórios",
@@ -200,7 +209,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
           return;
         }
 
-        const overlappingDays = getOverlappingDaysForPerson(selectedPersonnel, selectedDays);
+        const overlappingDays = getOverlappingDaysForPerson(selectedPersonnel, normalizedSelectedDays);
         if (overlappingDays.length > 0) {
           toast({
             title: "Conflito de dias",
@@ -242,7 +251,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
 
         const conflicts = multipleSelection
           .map(sp => {
-            const overlappingDays = getOverlappingDaysForPerson(sp.personnel.id, selectedDays);
+            const overlappingDays = getOverlappingDaysForPerson(sp.personnel.id, normalizedSelectedDays);
             return overlappingDays.length > 0
               ? { name: sp.personnel.name, days: overlappingDays }
               : null;
@@ -273,7 +282,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
           return;
         }
 
-        if (selectedDays.length === 0) {
+        if (normalizedSelectedDays.length === 0) {
           toast({
             title: "Campos obrigatórios",
             description: "Selecione pelo menos um dia de trabalho",
@@ -321,7 +330,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
             personnel_id: selectedPerson.personnel.id,
             division_id: finalDivisionId,
             function_name: selectedPerson.selectedFunction,
-            work_days: selectedDays,
+            work_days: normalizedSelectedDays,
             ...(eventSpecificCache > 0 && { event_specific_cache: eventSpecificCache })
           })
         );
@@ -504,18 +513,20 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
                     availableDays={availableDays}
                     selectedDays={selectedDays}
                     onDayToggle={(day, checked) => {
-                      if (checked) {
-                        setSelectedDays([...selectedDays, day]);
-                      } else {
-                        setSelectedDays(selectedDays.filter(d => d !== day));
-                      }
+                      setSelectedDays((prev) => {
+                        const next = checked ? [...prev, day] : prev.filter((d) => d !== day);
+                        return normalizeWorkDays(next, { availableDays: normalizedAvailableDays });
+                      });
                     }}
                     onSelectAllDays={() => {
-                      if (selectedDays.length === availableDays.length) {
-                        setSelectedDays([]);
-                      } else {
-                        setSelectedDays([...availableDays]);
-                      }
+                      setSelectedDays((prev) => {
+                        const isAllSelected =
+                          normalizedAvailableDays.length > 0 &&
+                          prev.length === normalizedAvailableDays.length &&
+                          normalizedAvailableDays.every((d) => prev.includes(d));
+
+                        return isAllSelected ? [] : normalizedAvailableDays;
+                      });
                     }}
                   />
 

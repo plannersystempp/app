@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { parseHoursInput, formatHours, formatHoursInputLive, pushLeftAddDigit, pushLeftBackspace } from '@/utils/formatters';
+import { normalizeWorkDays } from '@/utils/workDays';
 import { Clock, Edit2, Save, X, Trash2, RotateCcw, UserX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -43,6 +44,8 @@ export const WorkLogManager: React.FC<WorkLogManagerProps> = ({
   const [overtimeHours, setOvertimeHours] = useState<{ [key: string]: number }>({});
   const [loading, setLoading] = useState(false);
   const [loggerNames, setLoggerNames] = useState<Record<string, string>>({});
+
+  const normalizedWorkDays = normalizeWorkDays(assignment?.work_days);
 
   // Carregar registros de trabalho existentes
   useEffect(() => {
@@ -331,7 +334,7 @@ export const WorkLogManager: React.FC<WorkLogManagerProps> = ({
             </CardHeader>
             <CardContent>
               <div className="space-y-2 sm:space-y-3">
-                 {assignment.work_days?.sort((a, b) => a.localeCompare(b)).map((date) => {
+                 {normalizedWorkDays.map((date) => {
                    const existingLog = workLogs.find(log => log.work_date === date);
                    const currentHours = overtimeHours[date] || existingLog?.overtime_hours || 0;
                    const isEditing = editingDate === date;

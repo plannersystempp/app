@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useToast } from '@/hooks/use-toast';
+import { normalizeWorkDays } from '@/utils/workDays';
 
 interface UseAllocationFormProps {
   eventId: string;
@@ -66,7 +67,7 @@ export const useAllocationForm = ({
   const isFormValid = () => {
     const hasPersonnel = selectedPersonnel !== '';
     const hasFunction = selectedFunction !== '';
-    const hasDays = selectedDays.length > 0;
+    const hasDays = normalizeWorkDays(selectedDays).length > 0;
     const hasDivision = divisionMode === 'existing' 
       ? selectedDivisionId !== ''
       : newDivisionName.trim() !== '';
@@ -77,12 +78,17 @@ export const useAllocationForm = ({
   const handleSubmit = async () => {
     if (!isFormValid()) return;
 
+    const normalizedSelectedDays = normalizeWorkDays(selectedDays);
+    if (normalizedSelectedDays.length !== selectedDays.length) {
+      setSelectedDays(normalizedSelectedDays);
+    }
+
     // Check if person is already allocated to this event on overlapping days
     const overlappingAllocation = assignments.find(a => 
       a.event_id === eventId && 
       a.personnel_id === selectedPersonnel &&
       // Check for day overlap
-      a.work_days.some(day => selectedDays.includes(day))
+      (Array.isArray(a.work_days) ? a.work_days : []).some(day => normalizedSelectedDays.includes(day))
     );
     
     if (overlappingAllocation) {
@@ -119,7 +125,7 @@ export const useAllocationForm = ({
         personnel_id: selectedPersonnel,
         division_id: finalDivisionId,
         function_name: selectedFunction,
-        work_days: selectedDays,
+        work_days: normalizedSelectedDays,
         start_time: startTime || undefined,
         end_time: endTime || undefined,
         ...(eventSpecificCache > 0 && { event_specific_cache: eventSpecificCache })

@@ -13,6 +13,7 @@ import { formatCurrency } from '@/utils/formatters';
 import { useTeam } from '@/contexts/TeamContext';
 import { getDailyCacheRate, type AllocationData, type PersonnelData } from '@/components/payroll/payrollCalculations';
 import { useWorkLogsQuery } from '@/hooks/queries/useWorkLogsQuery';
+import { normalizeWorkDays } from '@/utils/workDays';
 
 interface AllocationCardProps {
   assignment: Assignment;
@@ -44,6 +45,8 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
   const totalHours = assignmentWorkLogs.reduce((sum, log) => sum + Number(log.hours_worked || 0), 0);
   const totalOvertimeHours = assignmentWorkLogs.reduce((sum, log) => sum + Number(log.overtime_hours || 0), 0);
 
+  const normalizedWorkDays = normalizeWorkDays(assignment.work_days);
+
   const pickBestDailyLog = (day: string) => {
     const sameDay = assignmentWorkLogs.filter(l => l.work_date === day);
     if (sameDay.length === 0) return null;
@@ -64,8 +67,8 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
     })[0];
   };
 
-  const absentDaysCount = assignment.work_days.filter(day => pickBestDailyLog(day)?.attendance_status === 'absent').length;
-  const effectiveWorkDays = Math.max(0, assignment.work_days.length - absentDaysCount);
+  const absentDaysCount = normalizedWorkDays.filter(day => pickBestDailyLog(day)?.attendance_status === 'absent').length;
+  const effectiveWorkDays = Math.max(0, normalizedWorkDays.length - absentDaysCount);
 
   if (!person) return null;
 
@@ -157,7 +160,7 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
             </div>
             <div className="text-2xl font-bold text-primary">
               {effectiveWorkDays}
-              {absentDaysCount > 0 && <span className="text-sm font-normal text-muted-foreground ml-1">/ {assignment.work_days.length}</span>}
+              {absentDaysCount > 0 && <span className="text-sm font-normal text-muted-foreground ml-1">/ {normalizedWorkDays.length}</span>}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
               {effectiveWorkDays === 1 ? 'dia' : 'dias'}
@@ -183,7 +186,7 @@ export const AllocationCard: React.FC<AllocationCardProps> = ({
         </div>
 
         <div className="flex justify-center gap-2 my-4">
-          {assignment.work_days.map((day) => {
+          {normalizedWorkDays.map((day) => {
             const dayLog = pickBestDailyLog(day);
             return (
               <div 

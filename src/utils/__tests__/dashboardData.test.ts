@@ -16,6 +16,16 @@ describe('getEventsInProgress', () => {
     expect(res.map(e => e.id)).toEqual(['e1']);
   });
 
+  it('inclui evento no dia final até 23:59:59', () => {
+    const events: EventItem[] = [
+      { id: 'f1', status: 'em_andamento', start_date: '2025-11-01', end_date: '2025-11-05' },
+      { id: 'f2', status: 'em_andamento', start_date: '2025-11-01', end_date: '2025-11-04' },
+    ];
+    const now = new Date('2025-11-05T21:30:00');
+    const res = getEventsInProgress(events, now);
+    expect(res.map(e => e.id)).toEqual(['f1']);
+  });
+
   it('ignora eventos sem start/end date', () => {
     const events: EventItem[] = [
       { id: 'a', status: 'em_andamento', start_date: '2025-11-01' },

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { DivisionSelector } from '@/components/events/allocation/DivisionSelecto
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/utils/formatters';
 import { type Assignment } from '@/contexts/EnhancedDataContext';
+import { normalizeWorkDays } from '@/utils/workDays';
 
 interface AllocationEditFormProps {
   assignment: Assignment | null;
@@ -43,6 +44,7 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
   const [loading, setLoading] = useState(false);
 
   const eventDivisions = divisions.filter(d => d.event_id === assignment?.event_id);
+  const normalizedAvailableDays = useMemo(() => normalizeWorkDays(availableDays), [availableDays]);
 
   const handleSelectedDivisionChange = (divisionId: string) => {
     setDivisionMode('existing');
@@ -61,7 +63,8 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
     if (assignment && open) {
       setSelectedPersonnel(assignment.personnel_id);
       setSelectedFunction(assignment.function_name);
-      setSelectedDays(assignment.work_days || []);
+      const normalizedDays = normalizeWorkDays(assignment.work_days, { availableDays: normalizedAvailableDays });
+      setSelectedDays(normalizedDays);
       setSelectedDivisionId(assignment.division_id);
       setDivisionMode('existing');
       setNewDivisionName('');
@@ -70,15 +73,19 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
       setEndTime(assignment.end_time || '');
       const cache = assignment.event_specific_cache || 0;
       setEventSpecificCache(cache);
-      setTotalEventValue(cache * (assignment.work_days?.length || 0));
+      setTotalEventValue(cache * normalizedDays.length);
     }
-  }, [assignment, open]);
+  }, [assignment, open, normalizedAvailableDays]);
 
   const handleSubmit = async () => {
     const newDivisionNameTrimmed = newDivisionName.trim();
     const divisionValid = divisionMode === 'new' ? !!newDivisionNameTrimmed : !!selectedDivisionId;
+    const normalizedSelectedDays = normalizeWorkDays(selectedDays, { availableDays: normalizedAvailableDays });
+    if (normalizedSelectedDays.length !== selectedDays.length) {
+      setSelectedDays(normalizedSelectedDays);
+    }
 
-    if (!assignment || !selectedPersonnel || !selectedFunction || selectedDays.length === 0 || !divisionValid) {
+    if (!assignment || !selectedPersonnel || !selectedFunction || normalizedSelectedDays.length === 0 || !divisionValid) {
       toast({
         title: "Campos obrigatórios",
         description: "Preencha todos os campos obrigatórios",
@@ -91,7 +98,7 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
       a.event_id === assignment.event_id &&
       a.personnel_id === selectedPersonnel &&
       a.id !== assignment.id &&
-      (a.work_days || []).some(day => selectedDays.includes(day))
+      (a.work_days || []).some(day => normalizedSelectedDays.includes(day))
     );
 
     if (overlappingAllocation) {
@@ -135,7 +142,7 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
         ...assignment,
         personnel_id: selectedPersonnel,
         function_name: functionName,
-        work_days: selectedDays,
+        work_days: normalizedSelectedDays,
         division_id: divisionIdToSave,
         event_specific_cache: eventSpecificCache > 0 ? eventSpecificCache : undefined,
         start_time: startTime || undefined,
@@ -156,19 +163,19 @@ export const AllocationEditForm: React.FC<AllocationEditFormProps> = ({
   };
 
   const handleSelectAllDays = () => {
-    if (selectedDays.length === availableDays.length) {
-      setSelectedDays([]);
-    } else {
-      setSelectedDays([...availableDays]);
-    }
+    const isAllSelected =
+      normalizedAvailableDays.length > 0 &&
+      selectedDays.length === normalizedAvailableDays.length &&
+      normalizedAvailableDays.every((d) => selectedDays.includes(d));
+
+    setSelectedDays(isAllSelected ? [] : normalizedAvailableDays);
   };
 
   const handleDayToggle = (day: string, checked: boolean) => {
-    if (checked) {
-      setSelectedDays([...selectedDays, day]);
-    } else {
-      setSelectedDays(selectedDays.filter(d => d !== day));
-    }
+    setSelectedDays((prev) => {
+      const next = checked ? [...prev, day] : prev.filter((d) => d !== day);
+      return normalizeWorkDays(next, { availableDays: normalizedAvailableDays });
+    });
   };
 
   // Handle total event value change

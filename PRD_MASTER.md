@@ -1,3 +1,31 @@
+## [2026-03-18] - fix: Dias selecionados duplicados inflavam totais e cards
+ - Mudanças:
+   - Normalizada a lista de `work_days` (deduplicação, ordenação e validação) na edição/criação de alocações e na exibição dos cards.
+   - Ajustada a UI de horas extras para iterar apenas por dias únicos, evitando linhas repetidas.
+   - Adicionado teste unitário para garantir normalização consistente de dias.
+ - Arquivos:
+   - `src/utils/workDays.ts`
+   - `src/utils/__tests__/workDays.test.ts`
+   - `src/components/events/AllocationEditForm.tsx`
+   - `src/components/events/AllocationCard.tsx`
+   - `src/components/events/AllocationForm.tsx`
+   - `src/components/events/WorkLogManager.tsx`
+   - `src/components/events/allocation/useAllocationForm.ts`
+ - Impacto:
+   - Corrige o bug onde marcar 2 dias podia exibir 4 (e calcular valor como 4×), mesmo com apenas 2 checkboxes marcados.
+   - Evita persistir duplicatas em `work_days`, reduzindo regressões em folha, previsões e relatórios.
+
+## [2026-03-18] - fix: Dashboard passa a listar corretamente eventos em andamento
+ - Mudanças:
+   - Corrigido o cálculo de período em `getEventsInProgress` para considerar início do dia (`T00:00:00`) e fim do dia (`T23:59:59.999`) nas datas do evento.
+   - Adicionado teste unitário cobrindo o cenário de evento ainda válido no dia final à noite.
+ - Arquivos:
+   - `src/utils/dashboardData.ts`
+   - `src/utils/__tests__/dashboardData.test.ts`
+ - Impacto:
+   - Evita falso negativo no card "Eventos em Andamento" quando há múltiplos eventos ativos no último dia do intervalo.
+   - Melhora a consistência do dashboard com a expectativa operacional da equipe.
+
 ## [2026-03-17] - fix: Correção de busca automática de CEP na edição
  - Mudanças:
    - Ajustada lógica do `useEffect` em `PersonnelFormFields` para evitar busca automática de endereço (e toast intrusivo) ao abrir a edição de um profissional com CEP já preenchido.
