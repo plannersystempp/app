@@ -7,6 +7,7 @@ import { useBroadcastInvalidation } from './useBroadcastInvalidation';
 import { supabase } from '@/integrations/supabase/client';
 import type { WorkRecord } from '@/contexts/EnhancedDataContext';
 import { payrollKeys } from './usePayrollQuery';
+import { toWorkRecordWrite, type WorkRecordWrite } from '@/services/workRecordWrite';
 
 // Query keys for consistent caching
 export const workLogsKeys = {
@@ -80,16 +81,18 @@ export const useCreateWorkLogMutation = () => {
   const { broadcast } = useBroadcastInvalidation();
 
   return useMutation({
-    mutationFn: async (workLogData: Omit<WorkRecord, 'id' | 'created_at' | 'team_id'>) => {
+    mutationFn: async (workLogData: Omit<WorkRecord, 'id' | 'created_at' | 'team_id' | 'logged_by_name'>) => {
       if (!activeTeam) throw new Error('No active team');
+
+      const payload: WorkRecordWrite & { team_id: string } = {
+        ...(toWorkRecordWrite(workLogData) as WorkRecordWrite),
+        team_id: activeTeam.id,
+      };
 
       const { data, error } = await supabase
         .from('work_records')
         .upsert([
-          { 
-            ...workLogData, 
-            team_id: activeTeam.id 
-          }
+          payload
         ], {
           onConflict: 'team_id,employee_id,event_id,work_date'
         })
@@ -104,7 +107,7 @@ export const useCreateWorkLogMutation = () => {
       queryClient.setQueryData(workLogsKeys.list(activeTeam!.id), (old: any) => {
         const arr = Array.isArray(old) ? [...old] : [];
         const idx = arr.findIndex((r: WorkRecord) => r.employee_id === workRecord.employee_id && r.event_id === workRecord.event_id && r.work_date === workRecord.work_date);
-        if (idx >= 0) arr[idx] = workRecord; else arr.push(workRecord);
+        if (idx >= 0) arr[idx] = { ...(arr[idx] as WorkRecord), ...workRecord }; else arr.push(workRecord);
         return arr;
       });
       // ✅ FASE 2: Invalidar imediatamente + refetch ativo
@@ -132,9 +135,10 @@ export const useCreateWorkLogMutation = () => {
     },
     onError: (error) => {
       console.error('Error creating work log:', error);
+      const message = error instanceof Error ? error.message : 'Falha ao criar registro de horas';
       toast({
         title: "Erro",
-        description: "Falha ao criar registro de horas",
+        description: message,
         variant: "destructive"
       });
     },
@@ -156,9 +160,24 @@ export const useUpdateWorkLogMutation = () => {
 
   return useMutation({
     mutationFn: async (workLog: WorkRecord) => {
+      const payload = toWorkRecordWrite({
+        employee_id: workLog.employee_id,
+        event_id: workLog.event_id,
+        work_date: workLog.work_date,
+        hours_worked: workLog.hours_worked,
+        overtime_hours: workLog.overtime_hours,
+        total_pay: workLog.total_pay,
+        logged_by_id: workLog.logged_by_id,
+        date_logged: workLog.date_logged,
+        attendance_status: workLog.attendance_status,
+        notes: workLog.notes,
+        check_in_time: workLog.check_in_time,
+        check_out_time: workLog.check_out_time,
+      });
+
       const { data, error } = await supabase
         .from('work_records')
-        .update(workLog)
+        .update(payload)
         .eq('id', workLog.id)
         .eq('team_id', activeTeam!.id)
         .select()
@@ -172,7 +191,7 @@ export const useUpdateWorkLogMutation = () => {
       queryClient.setQueryData(workLogsKeys.list(activeTeam!.id), (old: any) => {
         const arr = Array.isArray(old) ? [...old] : [];
         const idx = arr.findIndex((r: WorkRecord) => r.id === workRecord.id);
-        if (idx >= 0) arr[idx] = workRecord;
+        if (idx >= 0) arr[idx] = { ...(arr[idx] as WorkRecord), ...workRecord };
         return arr;
       });
       // ✅ FASE 2: Invalidar imediatamente + refetch ativo
@@ -200,9 +219,10 @@ export const useUpdateWorkLogMutation = () => {
     },
     onError: (error) => {
       console.error('Error updating work log:', error);
+      const message = error instanceof Error ? error.message : 'Falha ao atualizar registro de horas';
       toast({
         title: "Erro",
-        description: "Falha ao atualizar registro de horas",
+        description: message,
         variant: "destructive"
       });
     },

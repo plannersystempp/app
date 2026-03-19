@@ -116,6 +116,7 @@ export const WorkLogManager: React.FC<WorkLogManagerProps> = ({
           ...existingLog,
           overtime_hours: hours,
           total_pay: 0,
+          logged_by_id: user.id,
         });
         console.log('Registro atualizado com sucesso');
       } else {
@@ -126,7 +127,8 @@ export const WorkLogManager: React.FC<WorkLogManagerProps> = ({
           work_date: date,
           overtime_hours: hours,
           hours_worked: 8,
-          total_pay: 0
+          total_pay: 0,
+          logged_by_id: user.id,
         });
         console.log('Novo registro criado com sucesso');
       }
@@ -139,9 +141,10 @@ export const WorkLogManager: React.FC<WorkLogManagerProps> = ({
       });
     } catch (error) {
       console.error('Erro ao salvar horas extras:', error);
+      const message = error instanceof Error ? error.message : "Falha ao salvar horas extras. Tente novamente.";
       toast({
         title: "Erro",
-        description: "Falha ao salvar horas extras. Tente novamente.",
+        description: message,
         variant: "destructive"
       });
     } finally {

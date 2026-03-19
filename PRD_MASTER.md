@@ -1,3 +1,19 @@
+## [2026-03-19] - fix: Falha ao salvar hora extra e chegada/saída
+ - Mudanças:
+   - Sanitizado payload de insert/update em `work_records` para não enviar campos derivados (ex.: `logged_by_name`) que quebravam o PostgREST.
+   - Salvamento de hora extra passa a registrar `logged_by_id` e erros agora exibem a mensagem real quando disponível.
+   - Melhorada a observabilidade do salvamento de chegada/saída com log de erro e toast com mensagem do backend.
+   - Extraída função utilitária de payload e adicionado teste unitário.
+ - Arquivos:
+   - `src/hooks/queries/useWorkLogsQuery.ts`
+   - `src/components/events/WorkLogManager.tsx`
+   - `src/components/events/EventDailyAttendance.tsx`
+   - `src/services/workRecordWrite.ts`
+   - `src/services/workRecordWrite.test.ts`
+ - Impacto:
+   - Desbloqueia o lançamento de horas extras e de horários (entrada/saída) quando já existia registro no dia.
+   - Reduz regressão futura ao padronizar escrita de `work_records` e manter testes cobrindo o payload.
+
 ## [2026-03-18] - fix: Dias selecionados duplicados inflavam totais e cards
  - Mudanças:
    - Normalizada a lista de `work_days` (deduplicação, ordenação e validação) na edição/criação de alocações e na exibição dos cards.

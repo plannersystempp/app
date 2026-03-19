@@ -162,10 +162,12 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
           setOvertimeNotifiedKeys(prev => ({ ...prev, [key]: false }));
         }
       }
-    } catch {
+    } catch (error) {
+      console.error('Erro ao salvar chegada/saída:', error);
+      const message = error instanceof Error ? error.message : 'Falha ao salvar horários de chegada/saída';
       toast({
         title: 'Erro',
-        description: 'Falha ao salvar horários de chegada/saída',
+        description: message,
         variant: 'destructive',
       });
     }
@@ -193,11 +195,13 @@ export const DailyAttendanceList: React.FC<DailyAttendanceListProps> = ({ eventI
     try {
       await saveCheckTimes(timeModalPerson, modalCheckIn, modalCheckOut);
       closeTimeModal();
-    } catch {
+    } catch (error) {
       setTimeDrafts(prev => ({ ...prev, [key]: previousTimes }));
+      console.error('Erro ao salvar chegada/saída (modal):', error);
+      const message = error instanceof Error ? error.message : 'Falha ao salvar horários de chegada/saída';
       toast({
         title: 'Erro',
-        description: 'Falha ao salvar horários de chegada/saída',
+        description: message,
         variant: 'destructive',
       });
     } finally {
