@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { useEnhancedData } from '@/contexts/EnhancedDataContext';
+import { useEnhancedData, type Supplier } from '@/contexts/EnhancedDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ export const ManageSuppliers: React.FC = () => {
   const { suppliers, supplierItems } = useEnhancedData();
   const { user } = useAuth();
   const [showForm, setShowForm] = useState(false);
-  const [editingSupplier, setEditingSupplier] = useState<any>(null);
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const isAdmin = user?.role === 'admin';

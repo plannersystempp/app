@@ -128,9 +128,12 @@ export const PayrollEventView: React.FC = () => {
   const selectedEvent = events.find(e => e.id === eventId);
 
   const handleOpenReport = () => {
-    if (eventId) {
-      navigate(`/app/folha/relatorio/${eventId}`);
+    if (!eventId) return;
+    if (categoryTab === 'suppliers') {
+      navigate(`/app/relatorios/pagamentos-fornecedores?eventId=${encodeURIComponent(eventId)}`);
+      return;
     }
+    navigate(`/app/folha/relatorio/${eventId}`);
   };
 
   const handleBackToSelection = () => {
@@ -248,11 +251,11 @@ export const PayrollEventView: React.FC = () => {
             <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex gap-2'}`}>
               <Button
                 onClick={handleOpenReport}
-                disabled={payrollDetails.length === 0}
+                disabled={categoryTab === 'staff' ? payrollDetails.length === 0 : supplierCosts.length === 0}
                 className={`${isMobile ? 'w-full' : 'w-auto'} text-sm`}
               >
                 <FileText className="w-4 h-4 mr-2" />
-                {isMobile ? 'Imprimir' : 'Imprimir Relatório'}
+                {isMobile ? 'Imprimir' : categoryTab === 'suppliers' ? 'Relatório Fornecedores' : 'Imprimir Relatório'}
               </Button>
             </div>
           </div>
@@ -359,14 +362,7 @@ export const PayrollEventView: React.FC = () => {
                 />
               </div>
 
-              {/* Placeholder para Loading (usando dados do contexto não temos loading state explícito separado) */}
-              {false ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-12 w-full" />
-                </div>
-              ) : supplierCosts.length === 0 ? (
+              {supplierCosts.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   Nenhum custo de fornecedor registrado para este evento.
                 </div>

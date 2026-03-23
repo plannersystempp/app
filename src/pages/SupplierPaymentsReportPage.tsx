@@ -17,6 +17,7 @@ import { useSuppliersQuery } from '@/hooks/queries/useSuppliersQuery';
 import { useSupplierCostsQuery } from '@/hooks/queries/useSupplierCostsQuery';
 import { safeLocalStorage } from '@/utils/safeStorage';
 import { SupplierPaymentsReportColumnSelector } from '@/components/suppliers/SupplierPaymentsReportColumnSelector';
+import { useSearchParams } from 'react-router-dom';
 import {
   getDefaultVisibleSupplierPaymentsReportColumns,
   getSupplierPaymentsReportColumnLabel,
@@ -43,12 +44,22 @@ export default function SupplierPaymentsReportPage() {
   const { activeTeam } = useTeam();
   const eventsQuery = useEventsQuery();
   const suppliersQuery = useSuppliersQuery();
+  const [searchParams] = useSearchParams();
 
-  const [startDate, setStartDate] = useState<string>(isoMonthStart());
-  const [endDate, setEndDate] = useState<string>(isoToday());
+  const eventIdFromUrl = searchParams.get('eventId')?.trim() ?? '';
+
+  const [startDate, setStartDate] = useState<string>(() => (eventIdFromUrl ? '' : isoMonthStart()));
+  const [endDate, setEndDate] = useState<string>(() => (eventIdFromUrl ? '' : isoToday()));
   const [status, setStatus] = useState<SupplierPaymentsStatusFilter>('todos');
   const [supplierId, setSupplierId] = useState<string>('all');
-  const [eventId, setEventId] = useState<string>('all');
+  const [eventId, setEventId] = useState<string>(() => (eventIdFromUrl ? eventIdFromUrl : 'all'));
+
+  useEffect(() => {
+    if (!eventIdFromUrl) return;
+    setEventId(eventIdFromUrl);
+    setStartDate('');
+    setEndDate('');
+  }, [eventIdFromUrl]);
 
   const filters = useMemo(
     () => ({
@@ -305,7 +316,9 @@ export default function SupplierPaymentsReportPage() {
               <FileText className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium">Resultados</span>
             </div>
-            <span className="text-xs text-muted-foreground">Período: {startDate} — {endDate}</span>
+            <span className="text-xs text-muted-foreground">
+              Período: {startDate || '—'} — {endDate || '—'}
+            </span>
           </div>
 
           {isLoading ? (
