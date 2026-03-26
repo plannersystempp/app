@@ -1,3 +1,21 @@
+## [2026-03-26] - fix: Botão de confirmar pagamento sem efeito quando sessão não está pronta
+ - Mudanças:
+   - Registro de pagamento integral/parcial deixa de falhar silenciosamente quando `user` ainda não foi resolvido no contexto.
+   - Implementado fallback de `userId` via `supabase.auth.getUser()` e toasts explícitos para sessão/equipe/evento ausentes.
+ - Arquivos:
+   - `src/components/payroll/usePayrollActions.ts`
+ - Impacto:
+   - Evita o cenário “clico em Confirmar Pagamento e nada acontece” em inicialização lenta/estado inconsistente de autenticação.
+
+## [2026-03-26] - fix: Clique em confirmar pagamento quebrava por variável indefinida
+ - Mudanças:
+   - Corrigido ReferenceError ao confirmar pagamento integral na folha (uso de `cacheDailyRate` não definido).
+   - Snapshot de congelamento de cachê passa a usar taxa diária calculada com fallback seguro.
+ - Arquivos:
+   - `src/components/payroll/PayrollDetailsCard.tsx`
+ - Impacto:
+   - Desbloqueia o botão "Confirmar Pagamento" no diálogo de pagamento integral.
+
 ## [2026-03-26] - fix: Desbloqueio de baixa integral na folha para perfil financeiro
  - Mudanças:
    - Ajustado controle de acesso da tela de folha por evento para permitir o perfil `financeiro` (alinhado à RLS do Supabase).

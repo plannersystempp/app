@@ -68,13 +68,46 @@ export const usePayrollActions = (
   const { activeTeam } = useTeam();
   const { toast } = useToast();
 
+  const resolveUserId = async (): Promise<string | null> => {
+    if (user?.id) return user.id;
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user?.id) return null;
+    return data.user.id;
+  };
+
   const handleRegisterPayment = async (
     personnelId: string,
     totalAmount: number,
     notes?: string,
     snapshot?: FullPaymentSnapshot
   ) => {
-    if (!user || !activeTeam) return;
+    if (!selectedEventId) {
+      toast({
+        title: "Erro",
+        description: "Evento não definido para registrar pagamento.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!activeTeam) {
+      toast({
+        title: "Erro",
+        description: "Equipe não definida para registrar pagamento.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const userId = await resolveUserId();
+    if (!userId) {
+      toast({
+        title: "Sessão expirada",
+        description: "Faça login novamente para registrar pagamentos.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     // VALIDAÇÃO: Verificar se a pessoa está alocada no evento
     const { data: allocations, error: allocError } = await supabase
@@ -118,7 +151,7 @@ export const usePayrollActions = (
           total_amount_paid: totalAmount,
           team_id: activeTeam.id,
           notes: notes || null,
-          paid_by_id: user.id
+          paid_by_id: userId
         }])
         .select()
         .single();
@@ -210,7 +243,33 @@ export const usePayrollActions = (
   };
 
   const handleRegisterPartialPayment = async (personnelId: string, amount: number, notes: string) => {
-    if (!user || !activeTeam) return;
+    if (!selectedEventId) {
+      toast({
+        title: "Erro",
+        description: "Evento não definido para registrar pagamento.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!activeTeam) {
+      toast({
+        title: "Erro",
+        description: "Equipe não definida para registrar pagamento.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const userId = await resolveUserId();
+    if (!userId) {
+      toast({
+        title: "Sessão expirada",
+        description: "Faça login novamente para registrar pagamentos.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     // VALIDAÇÃO: Verificar se a pessoa está alocada no evento
     const { data: allocations, error: allocError } = await supabase
@@ -254,7 +313,7 @@ export const usePayrollActions = (
           total_amount_paid: amount,
           team_id: activeTeam.id,
           notes: notes || null,
-          paid_by_id: user.id
+          paid_by_id: userId
         }])
         .select()
         .single();

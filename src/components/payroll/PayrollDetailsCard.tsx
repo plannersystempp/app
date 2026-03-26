@@ -67,6 +67,9 @@ export const PayrollDetailsCard: React.FC<PayrollDetailsCardProps> = ({
     ?? eventSpecificCacheRate
     ?? detail.cacheRate
     ?? (typeof detail.workDays === 'number' && detail.workDays > 0 ? (detail.cachePay / detail.workDays) : undefined);
+  const cacheDailyRate = typeof cacheDailyRateAvg === 'number' && Number.isFinite(cacheDailyRateAvg)
+    ? cacheDailyRateAvg
+    : 0;
   const cacheDailyRateMin = detail.cacheDailyRateMin;
   const cacheDailyRateMax = detail.cacheDailyRateMax;
   const cacheDailyRateIsVariable =
