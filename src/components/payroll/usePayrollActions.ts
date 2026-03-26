@@ -10,10 +10,54 @@ import { invalidateCache } from './eventStatusCache';
 import { notificationService } from '@/services/notificationService';
 import { personnelPaymentsKeys } from '@/hooks/queries/usePersonnelPaymentsQuery';
 import { personnelHistoryKeys } from '@/hooks/queries/usePersonnelHistoryQuery';
+import { monthlyPayrollKeys } from '@/hooks/queries/useMonthlyPayrollQuery';
 
 type FullPaymentSnapshot = {
   cacheRate?: number;
   overtimeRate?: number;
+};
+
+type PostgrestErrorLike = {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+};
+
+const getErrorMessage = (error: unknown): string => {
+  const e = error as PostgrestErrorLike | { message?: unknown } | null | undefined;
+  const code = typeof (e as PostgrestErrorLike | undefined)?.code === 'string'
+    ? (e as PostgrestErrorLike).code
+    : undefined;
+  const message = typeof (e as { message?: unknown } | undefined)?.message === 'string'
+    ? (e as { message?: string }).message
+    : undefined;
+
+  if (code === '23505') return 'Pagamento já registrado (duplicado).';
+
+  const lower = (message || '').toLowerCase();
+  if (code === '42501' || lower.includes('row-level security') || lower.includes('permission denied')) {
+    return 'Sem permissão para registrar pagamento nesta equipe.';
+  }
+
+  return message || 'Falha inesperada ao executar a operação.';
+};
+
+export const invalidateAfterPayrollClosingChange = (
+  queryClient: {
+    invalidateQueries: (args: { queryKey: readonly unknown[]; refetchType?: 'active' | 'all' | 'none' }) => unknown;
+  },
+  eventId: string,
+  personnelId?: string
+) => {
+  queryClient.invalidateQueries({ queryKey: payrollKeys.event(eventId), refetchType: 'active' });
+  queryClient.invalidateQueries({ queryKey: payrollKeys.all, refetchType: 'active' });
+  queryClient.invalidateQueries({ queryKey: monthlyPayrollKeys.all, refetchType: 'active' });
+  if (personnelId) {
+    queryClient.invalidateQueries({ queryKey: personnelHistoryKeys.all(personnelId), refetchType: 'active' });
+  } else {
+    queryClient.invalidateQueries({ queryKey: ['personnel-history'], refetchType: 'active' });
+  }
 };
 
 export const usePayrollActions = (
@@ -40,7 +84,12 @@ export const usePayrollActions = (
       .eq('personnel_id', personnelId);
 
     if (allocError) {
-      console.error('Error checking allocation:', allocError);
+      console.error('[Payroll] Error checking allocation', {
+        eventId: selectedEventId,
+        personnelId,
+        teamId: activeTeam.id,
+        error: allocError
+      });
       toast({
         title: "Erro",
         description: "Falha ao verificar alocação",
@@ -76,39 +125,48 @@ export const usePayrollActions = (
 
       if (error) throw error;
 
-      const freezePayload: Record<string, number> = {};
+      const freezePayload: { event_specific_cache?: number; event_specific_overtime?: number } = {};
       const cacheRate = Number(snapshot?.cacheRate || 0);
       const overtimeRate = Number(snapshot?.overtimeRate || 0);
 
-      if (cacheRate > 0) {
+      if (Number.isFinite(cacheRate) && cacheRate > 0) {
         freezePayload.event_specific_cache = Number(cacheRate.toFixed(4));
       }
-      if (overtimeRate > 0) {
+      if (Number.isFinite(overtimeRate) && overtimeRate > 0) {
         freezePayload.event_specific_overtime = Number(overtimeRate.toFixed(4));
       }
 
       if (Object.keys(freezePayload).length > 0) {
         const { error: freezeError } = await supabase
           .from('personnel_allocations')
-          .update(freezePayload as any)
+          .update(freezePayload)
           .eq('event_id', selectedEventId)
           .eq('personnel_id', personnelId);
 
         if (freezeError) {
-          await supabase
+          const rollback = await supabase
             .from('payroll_closings')
             .delete()
             .eq('id', data.id)
             .eq('team_id', activeTeam.id);
+          if (rollback.error) {
+            console.error('[Payroll] Rollback failed after freeze error', {
+              eventId: selectedEventId,
+              personnelId,
+              teamId: activeTeam.id,
+              closingId: data.id,
+              freezeError,
+              rollbackError: rollback.error
+            });
+          }
           throw freezeError;
         }
       }
 
+      invalidateAfterPayrollClosingChange(queryClient, selectedEventId, personnelId);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: payrollKeys.event(selectedEventId) }),
         queryClient.invalidateQueries({ queryKey: ['event-payment-status'], refetchType: 'active' }),
-        queryClient.invalidateQueries({ queryKey: ['team-pending-payments'] }),
-        queryClient.invalidateQueries({ queryKey: personnelHistoryKeys.all(personnelId) }),
+        queryClient.invalidateQueries({ queryKey: ['team-pending-payments'], refetchType: 'active' }),
       ]);
 
 
@@ -136,10 +194,16 @@ export const usePayrollActions = (
       // Invalidar cache para forçar atualização nos dashboards
       invalidateCache();
     } catch (error) {
-      console.error('Error registering payment:', error);
+      console.error('[Payroll] Error registering full payment', {
+        eventId: selectedEventId,
+        personnelId,
+        teamId: activeTeam?.id,
+        totalAmount,
+        error
+      });
       toast({
         title: "Erro",
-        description: "Falha ao registrar pagamento",
+        description: getErrorMessage(error),
         variant: "destructive"
       });
     }
@@ -156,7 +220,12 @@ export const usePayrollActions = (
       .eq('personnel_id', personnelId);
 
     if (allocError) {
-      console.error('Error checking allocation:', allocError);
+      console.error('[Payroll] Error checking allocation (partial)', {
+        eventId: selectedEventId,
+        personnelId,
+        teamId: activeTeam.id,
+        error: allocError
+      });
       toast({
         title: "Erro",
         description: "Falha ao verificar alocação",
@@ -192,7 +261,7 @@ export const usePayrollActions = (
 
       if (error) throw error;
 
-      await queryClient.invalidateQueries({ queryKey: payrollKeys.event(selectedEventId) });
+      invalidateAfterPayrollClosingChange(queryClient, selectedEventId, personnelId);
       await queryClient.invalidateQueries({ queryKey: ['event-payment-status'], refetchType: 'active' });
 
 
@@ -215,10 +284,16 @@ export const usePayrollActions = (
       // Invalidar cache para forçar atualização nos dashboards
       invalidateCache();
     } catch (error) {
-      console.error('Error registering partial payment:', error);
+      console.error('[Payroll] Error registering partial payment', {
+        eventId: selectedEventId,
+        personnelId,
+        teamId: activeTeam?.id,
+        amount,
+        error
+      });
       toast({
         title: "Erro",
-        description: "Falha ao registrar pagamento parcial",
+        description: getErrorMessage(error),
         variant: "destructive"
       });
     }
@@ -286,14 +361,11 @@ export const usePayrollActions = (
       }
 
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: payrollKeys.event(selectedEventId) }),
         queryClient.invalidateQueries({ queryKey: ['event-payment-status'], refetchType: 'active' }),
-        queryClient.invalidateQueries({ queryKey: personnelPaymentsKeys.all }),
-        queryClient.invalidateQueries({ queryKey: ['team-pending-payments'] }),
-        affectedPersonnelId
-          ? queryClient.invalidateQueries({ queryKey: personnelHistoryKeys.all(affectedPersonnelId) })
-          : Promise.resolve(),
+        queryClient.invalidateQueries({ queryKey: personnelPaymentsKeys.all, refetchType: 'active' }),
+        queryClient.invalidateQueries({ queryKey: ['team-pending-payments'], refetchType: 'active' }),
       ]);
+      invalidateAfterPayrollClosingChange(queryClient, selectedEventId, affectedPersonnelId || undefined);
 
       toast({
         title: "Sucesso",
@@ -302,11 +374,16 @@ export const usePayrollActions = (
 
       // Invalidar cache para forçar atualização nos dashboards
       invalidateCache();
-    } catch (error: any) {
-      console.error('Error canceling payment:', error);
+    } catch (error: unknown) {
+      console.error('[Payroll] Error canceling payment', {
+        eventId: selectedEventId,
+        paymentId,
+        teamId: activeTeam?.id,
+        error
+      });
       toast({
         title: "Erro",
-        description: error?.message ? String(error.message) : "Falha ao cancelar pagamento",
+        description: getErrorMessage(error),
         variant: "destructive"
       });
     }

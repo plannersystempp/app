@@ -1,3 +1,15 @@
+## [2026-03-26] - fix: Desbloqueio de baixa integral na folha para perfil financeiro
+ - Mudanças:
+   - Ajustado controle de acesso da tela de folha por evento para permitir o perfil `financeiro` (alinhado à RLS do Supabase).
+   - Melhorada a observabilidade do registro de pagamento integral/parcial com logs estruturados e mensagens de erro mais acionáveis.
+   - Centralizada a invalidação de caches após mudanças em fechamentos de folha (inclui folha mensal e histórico do profissional).
+ - Arquivos:
+   - `src/components/payroll/PayrollEventView.tsx`
+   - `src/components/payroll/usePayrollActions.ts`
+ - Impacto:
+   - Usuários com perfil `financeiro` conseguem registrar pagamento integral/parcial na folha, conforme política do banco.
+   - Reduz tempo de diagnóstico em falhas de registro (ex.: RLS/permissão/duplicidade) e melhora consistência de atualização de dados.
+
 ## [2026-03-19] - fix: Falha ao salvar hora extra e chegada/saída
  - Mudanças:
    - Sanitizado payload de insert/update em `work_records` para não enviar campos derivados (ex.: `logged_by_name`) que quebravam o PostgREST.

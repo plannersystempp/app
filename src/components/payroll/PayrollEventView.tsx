@@ -20,6 +20,7 @@ import { type EventSupplierCost } from '@/contexts/data/types';
 import { useEventsQuery } from '@/hooks/queries/useEventsQuery';
 import { useSupplierCostsQuery } from '@/hooks/queries/useSupplierCostsQuery';
 import { Clock, Loader2 } from 'lucide-react';
+import { getUserPermissions, hasAllPermissions } from '@/lib/accessControl';
 
 export const PayrollEventView: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -27,7 +28,7 @@ export const PayrollEventView: React.FC = () => {
   const { data: events = [], isLoading: loadingEvents } = useEventsQuery();
   const { data: eventSupplierCosts = [], isLoading: loadingCosts } = useSupplierCostsQuery({ eventId });
 
-  const { activeTeam, userRole } = useTeam();
+  const { activeTeam, userRole, memberCaps } = useTeam();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
 
@@ -124,7 +125,11 @@ export const PayrollEventView: React.FC = () => {
     setShowPaymentDialog(true);
   };
 
-  const canManagePayroll = userRole === 'admin';
+  const userPermissions = useMemo(
+    () => getUserPermissions({ userRole, memberCaps }),
+    [userRole, memberCaps]
+  );
+  const canManagePayroll = hasAllPermissions({ userPermissions, required: 'finance' });
   const selectedEvent = events.find(e => e.id === eventId);
 
   const handleOpenReport = () => {
@@ -163,7 +168,7 @@ export const PayrollEventView: React.FC = () => {
             <DollarSign className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Acesso Restrito</h2>
             <p className="text-muted-foreground">
-              Apenas administradores podem gerenciar a folha de pagamento.
+              Apenas administradores e financeiro podem gerenciar a folha de pagamento.
             </p>
           </CardContent>
         </Card>
