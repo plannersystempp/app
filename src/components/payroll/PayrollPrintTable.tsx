@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { formatCurrency } from '@/utils/formatters';
 import { formatPeriodDays, generateDateArray, formatDateBR } from '@/utils/dateUtils';
 import { getDefaultVisiblePayrollReportColumns, type PayrollReportColumnId, getPayrollReportColumnLabel } from './payrollReportColumns';
+import type { ReportBrandingState } from '@/hooks/useReportBranding';
 
 type EventInfo = {
   name?: string;
@@ -42,9 +43,10 @@ interface PayrollPrintTableProps {
   details: PayrollDetail[];
   showPartialPaid?: boolean;
   visibleColumns?: PayrollReportColumnId[];
+  branding?: ReportBrandingState;
 }
 
-export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, event, details, showPartialPaid, visibleColumns }) => {
+export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, event, details, showPartialPaid, visibleColumns, branding }) => {
   const totalGeral = details.reduce((sum, d) => sum + (d.totalPay || 0), 0);
   const hasPartialPayments = showPartialPaid && details.some(d => (d.paidAmount || 0) > 0 && (d.pendingAmount || 0) > 0);
   const totalPagoParcial = details
@@ -67,6 +69,10 @@ export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, 
   const footerNotice = containsPersonalData
     ? 'Uso interno — este relatório pode conter dados pessoais e sensíveis.'
     : 'Uso interno — este relatório pode conter informações sensíveis.';
+
+  const showLogo = branding?.showLogo ?? true;
+  const brandLogo = branding?.logoDataUrl ?? null;
+  const paperLetterhead = branding?.paperLetterhead ?? false;
 
   const headerClassName = (colId: PayrollReportColumnId) => {
     if (colId === 'dailyCache' || colId === 'overtimePay' || colId === 'totalPay') return 'payroll-th text-right';
@@ -138,12 +144,18 @@ export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, 
   const shouldShowFooter = columns.includes('totalPay');
 
   return (
-    <div className="payroll-report-page print-section p-8 max-w-[210mm] mx-auto">
+    <div className="payroll-report-page print-section p-8 max-w-[210mm] mx-auto" style={paperLetterhead ? { paddingTop: '40mm' } : undefined}>
       {/* Cabeçalho Completo */}
       <div className="mb-6">
         <div className="payroll-report-info">
           <div className="flex justify-center mb-2">
-            <img src="/icons/logo_plannersystem.png" alt="PlannerSystem" className="h-6 w-auto opacity-80" />
+            {showLogo ? (
+              <img
+                src={brandLogo || "/icons/logo_plannersystem.png"}
+                alt={brandLogo ? "Logomarca" : "PlannerSystem"}
+                className="h-6 w-auto opacity-80"
+              />
+            ) : null}
           </div>
           <div style={{fontSize: '18px', fontWeight: 'bold', color: '#1e40af', marginBottom: '8px', textAlign: 'center'}}>
             {teamName}

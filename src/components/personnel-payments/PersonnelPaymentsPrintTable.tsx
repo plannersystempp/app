@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { formatCurrency } from '@/utils/formatters';
 import { formatDateBR } from '@/utils/dateUtils';
+import type { ReportBrandingState } from '@/hooks/useReportBranding';
 
 type PaymentDetail = {
   id: string;
@@ -18,12 +19,14 @@ interface PersonnelPaymentsPrintTableProps {
   teamName?: string;
   payments: PaymentDetail[];
   filterStatus?: string;
+  branding?: ReportBrandingState;
 }
 
 export const PersonnelPaymentsPrintTable: React.FC<PersonnelPaymentsPrintTableProps> = ({ 
   teamName, 
   payments,
-  filterStatus 
+  filterStatus,
+  branding
 }) => {
   const totalGeral = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
   const totalPago = payments
@@ -59,10 +62,19 @@ export const PersonnelPaymentsPrintTable: React.FC<PersonnelPaymentsPrintTablePr
     return labels[filterStatus] || 'Pagamentos Avulsos';
   };
 
+  const showLogo = branding?.showLogo ?? true;
+  const brandLogo = branding?.logoDataUrl ?? null;
+  const paperLetterhead = branding?.paperLetterhead ?? false;
+
   return (
-    <div className="payroll-report-page print-section p-8 max-w-[210mm] mx-auto">
+    <div className="payroll-report-page print-section p-8 max-w-[210mm] mx-auto" style={paperLetterhead ? { paddingTop: '40mm' } : undefined}>
       {/* Cabeçalho */}
       <div className="mb-6">
+        {showLogo && brandLogo ? (
+          <div className="flex justify-center mb-2">
+            <img src={brandLogo} alt="Logomarca" className="h-8 w-auto opacity-90" />
+          </div>
+        ) : null}
         <h2 className="payroll-report-subtitle text-center">Relatório de Pagamentos Avulsos</h2>
         <div className="payroll-report-info">
           <div style={{fontSize: '18px', fontWeight: 'bold', color: '#1e40af', marginBottom: '8px', textAlign: 'center'}}>

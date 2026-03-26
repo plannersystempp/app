@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,13 +11,16 @@ import { formatDateShort } from '@/utils/dateUtils';
 import FilterChips from '@/components/dashboard/FilterChips';
 import { useSupplierPaymentsReport } from '@/hooks/reports/useSupplierPaymentsReport';
 import type { SupplierPaymentsStatusFilter } from '@/utils/supplierPaymentsReport';
-import { FileText } from 'lucide-react';
+import { FileText, Printer } from 'lucide-react';
 import { useEventsQuery } from '@/hooks/queries/useEventsQuery';
 import { useSuppliersQuery } from '@/hooks/queries/useSuppliersQuery';
 import { useSupplierCostsQuery } from '@/hooks/queries/useSupplierCostsQuery';
 import { safeLocalStorage } from '@/utils/safeStorage';
 import { SupplierPaymentsReportColumnSelector } from '@/components/suppliers/SupplierPaymentsReportColumnSelector';
 import { useSearchParams } from 'react-router-dom';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { useReportBranding } from '@/hooks/useReportBranding';
 import {
   getDefaultVisibleSupplierPaymentsReportColumns,
   getSupplierPaymentsReportColumnLabel,
@@ -45,6 +48,8 @@ export default function SupplierPaymentsReportPage() {
   const eventsQuery = useEventsQuery();
   const suppliersQuery = useSuppliersQuery();
   const [searchParams] = useSearchParams();
+  const { branding, setLogoDataUrl, setPaperLetterhead, setShowLogo } = useReportBranding(activeTeam?.id);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
 
   const eventIdFromUrl = searchParams.get('eventId')?.trim() ?? '';
 
@@ -181,6 +186,40 @@ export default function SupplierPaymentsReportPage() {
     ];
   }, [activeTeam?.name, endDate, exportHeaders, rows, startDate]);
 
+  const selectedEventLabel = useMemo(() => {
+    if (eventId === 'all') return 'Todos';
+    const found = (eventsQuery.data || []).find((e) => e.id === eventId);
+    return found?.name || '—';
+  }, [eventId, eventsQuery.data]);
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handlePickLogo = () => {
+    logoInputRef.current?.click();
+  };
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > 2 * 1024 * 1024) return;
+
+    const dataUrl = await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onerror = () => resolve(null);
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+      reader.readAsDataURL(file);
+    });
+
+    if (!dataUrl) return;
+    setLogoDataUrl(dataUrl);
+    setShowLogo(true);
+  };
+
   const clearFilters = () => {
     setStartDate(isoMonthStart());
     setEndDate(isoToday());
@@ -191,6 +230,110 @@ export default function SupplierPaymentsReportPage() {
 
   return (
     <div className="min-h-screen space-y-4">
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+
+          .print-section, .print-section * {
+            visibility: visible;
+          }
+
+          .print-section {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0;
+            padding: 20mm;
+          }
+
+          .print-section.letterhead {
+            padding-top: 40mm;
+          }
+
+          @page {
+            size: A4;
+            margin: 10mm;
+          }
+
+          .supplier-report-page .report-info {
+            background-color: #f0f0f0 !important;
+            border: 1px solid #000;
+            padding: 12px;
+            border-radius: 0;
+            font-size: 10pt;
+            margin-bottom: 1rem;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          .supplier-report-page .report-title {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 12px;
+          }
+
+          .supplier-report-page .report-table-container {
+            background: white;
+            border: 1px solid #000;
+            border-radius: 0;
+            padding: 0;
+            margin: 1rem 0;
+            box-shadow: none;
+            page-break-inside: avoid;
+          }
+
+          .supplier-report-page .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 2px solid #000;
+            font-size: 10pt;
+          }
+
+          .supplier-report-page .report-th {
+            background-color: #e0e0e0 !important;
+            border: 1px solid #000;
+            padding: 8px 6px;
+            font-weight: bold;
+            font-size: 10pt;
+            color: #000;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          .supplier-report-page .report-td {
+            border: 1px solid #000;
+            padding: 6px 6px;
+            font-size: 9pt;
+            color: #000;
+            vertical-align: top;
+          }
+
+          .supplier-report-page .report-row-even {
+            background-color: #ffffff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          .supplier-report-page .report-row-odd {
+            background-color: #f5f5f5 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          .supplier-report-page .report-summary {
+            border: 2px solid #000 !important;
+            padding: 12px !important;
+            page-break-inside: avoid;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+        }
+      `}</style>
+
       <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <h1 className="text-lg sm:text-xl md:text-2xl font-semibold">Relatório de Pagamentos de Fornecedores</h1>
@@ -205,8 +348,37 @@ export default function SupplierPaymentsReportPage() {
             items={exportItems}
             disabled={isLoading || rows.length === 0}
           />
+          <div className="flex flex-wrap items-center gap-2 ml-2">
+            <div className="flex items-center gap-2">
+              <Switch checked={branding.paperLetterhead} onCheckedChange={setPaperLetterhead} />
+              <Label className="text-sm">Papel timbrado</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={branding.showLogo} onCheckedChange={setShowLogo} />
+              <Label className="text-sm">Logomarca</Label>
+            </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleLogoFileChange}
+            />
+            <Button variant="outline" onClick={handlePickLogo}>
+              Escolher logo
+            </Button>
+            {branding.logoDataUrl && (
+              <Button variant="outline" onClick={() => setLogoDataUrl(null)}>
+                Remover logo
+              </Button>
+            )}
+          </div>
           <Button variant="outline" onClick={clearFilters} disabled={isLoading}>
             Limpar filtros
+          </Button>
+          <Button onClick={handlePrint} disabled={isLoading || rows.length === 0}>
+            <Printer className="w-4 h-4 mr-2" />
+            Imprimir
           </Button>
         </div>
       </div>
@@ -376,6 +548,77 @@ export default function SupplierPaymentsReportPage() {
           )}
         </CardContent>
       </Card>
+
+      <div className={`supplier-report-page print-section hidden print:block ${branding.paperLetterhead ? 'letterhead' : ''}`}>
+        <div className="mb-6">
+          {branding.showLogo && branding.logoDataUrl ? (
+            <div className="flex justify-center mb-2">
+              <img src={branding.logoDataUrl} alt="Logomarca" className="h-10 w-auto opacity-90" />
+            </div>
+          ) : null}
+          <div className="report-title text-center">Relatório de Pagamentos de Fornecedores</div>
+          <div className="report-info">
+            <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#000', marginBottom: '8px', textAlign: 'center' }}>
+              {activeTeam?.name || '—'}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+              <div><strong>Evento:</strong> {selectedEventLabel}</div>
+              <div><strong>Fornecedor:</strong> {supplierId === 'all' ? 'Todos' : ((suppliersQuery.data || []).find((s) => s.id === supplierId)?.name || '—')}</div>
+              <div><strong>Status:</strong> {status}</div>
+              <div><strong>Período:</strong> {startDate || '—'} — {endDate || '—'}</div>
+              <div><strong>Total de itens:</strong> {totals.countTotal}</div>
+              <div><strong>Gerado em:</strong> {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="report-summary mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div><strong>Valor total:</strong> {formatCurrency(totals.totalAmount)} ({totals.countTotal})</div>
+            <div><strong>Valor pago:</strong> {formatCurrency(totals.paidAmount)} ({totals.countPaid})</div>
+            <div><strong>Valor pendente:</strong> {formatCurrency(totals.pendingAmount)} ({totals.countPending})</div>
+          </div>
+        </div>
+
+        {rows.length === 0 ? (
+          <div className="text-center text-muted-foreground">Nenhum resultado para os filtros selecionados.</div>
+        ) : (
+          <div className="report-table-container">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th className="report-th">Fornecedor</th>
+                  <th className="report-th">Evento</th>
+                  <th className="report-th">Descrição/Item</th>
+                  <th className="report-th" style={{ textAlign: 'right' }}>Qtd.</th>
+                  <th className="report-th" style={{ textAlign: 'right' }}>V. Unit.</th>
+                  <th className="report-th" style={{ textAlign: 'right' }}>V. Total</th>
+                  <th className="report-th" style={{ textAlign: 'right' }}>V. Pago</th>
+                  <th className="report-th" style={{ textAlign: 'right' }}>V. Pendente</th>
+                  <th className="report-th">Status</th>
+                  <th className="report-th">Data</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, idx) => (
+                  <tr key={r.id} className={idx % 2 === 0 ? 'report-row-even' : 'report-row-odd'}>
+                    <td className="report-td"><strong>{r.supplierName}</strong></td>
+                    <td className="report-td">{r.eventName}</td>
+                    <td className="report-td">{r.description}</td>
+                    <td className="report-td" style={{ textAlign: 'right' }}>{r.quantity}</td>
+                    <td className="report-td" style={{ textAlign: 'right' }}>{formatCurrency(r.unitPrice)}</td>
+                    <td className="report-td" style={{ textAlign: 'right' }}><strong>{formatCurrency(r.totalAmount)}</strong></td>
+                    <td className="report-td" style={{ textAlign: 'right' }}>{formatCurrency(r.paidAmount)}</td>
+                    <td className="report-td" style={{ textAlign: 'right' }}>{formatCurrency(r.pendingAmount)}</td>
+                    <td className="report-td">{r.statusLabel}</td>
+                    <td className="report-td">{r.paymentDate ? formatDateShort(r.paymentDate) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,15 +1,20 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTeam } from '@/contexts/TeamContext';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { usePaymentForecastQuery } from '@/hooks/queries/usePaymentForecastQuery';
 import { PaymentForecastPrintTable } from '@/components/payment-forecast/PaymentForecastPrintTable';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { useReportBranding } from '@/hooks/useReportBranding';
 
 export default function PaymentForecastReportPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { activeTeam } = useTeam();
+  const { branding, setLogoDataUrl, setPaperLetterhead, setShowLogo } = useReportBranding(activeTeam?.id);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
   
   const weeksParam = searchParams.get('weeks');
   const weeksAhead = weeksParam ? parseInt(weeksParam, 10) : 3;
@@ -18,6 +23,28 @@ export default function PaymentForecastReportPage() {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handlePickLogo = () => {
+    logoInputRef.current?.click();
+  };
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > 2 * 1024 * 1024) return;
+
+    const dataUrl = await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onerror = () => resolve(null);
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+      reader.readAsDataURL(file);
+    });
+    if (!dataUrl) return;
+    setLogoDataUrl(dataUrl);
+    setShowLogo(true);
   };
 
   const handleBack = () => {
@@ -143,6 +170,10 @@ export default function PaymentForecastReportPage() {
             margin: 0;
             padding: 20mm;
           }
+
+          .print-section.letterhead {
+            padding-top: 40mm;
+          }
           
           @page {
             size: A4;
@@ -251,10 +282,37 @@ export default function PaymentForecastReportPage() {
           </Button>
           <h1 className="text-xl font-semibold">Relatório de Previsão de Pagamentos</h1>
         </div>
-        <Button onClick={handlePrint} className="flex items-center gap-2">
-          <Printer className="h-4 w-4" />
-          Imprimir
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 mr-2">
+            <div className="flex items-center gap-2">
+              <Switch checked={branding.paperLetterhead} onCheckedChange={setPaperLetterhead} />
+              <Label className="text-sm">Papel timbrado</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={branding.showLogo} onCheckedChange={setShowLogo} />
+              <Label className="text-sm">Logomarca</Label>
+            </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleLogoFileChange}
+            />
+            <Button variant="outline" onClick={handlePickLogo}>
+              Escolher logo
+            </Button>
+            {branding.logoDataUrl && (
+              <Button variant="outline" onClick={() => setLogoDataUrl(null)}>
+                Remover logo
+              </Button>
+            )}
+          </div>
+          <Button onClick={handlePrint} className="flex items-center gap-2">
+            <Printer className="h-4 w-4" />
+            Imprimir
+          </Button>
+        </div>
       </div>
 
       {/* Conteúdo para impressão */}
@@ -263,6 +321,7 @@ export default function PaymentForecastReportPage() {
           teamName={activeTeam?.name}
           weeks={weeks}
           weeksAhead={weeksAhead}
+          branding={branding}
         />
       </div>
     </div>

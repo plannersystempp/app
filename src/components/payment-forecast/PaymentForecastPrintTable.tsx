@@ -1,18 +1,21 @@
 import React, { useMemo } from 'react';
 import { formatCurrency } from '@/utils/formatters';
 import { formatDateShort } from '@/utils/dateUtils';
-import type { WeekForecast } from '@/services/paymentForecastService';
+import type { ForecastItem, WeekForecast } from '@/services/paymentForecastService';
+import type { ReportBrandingState } from '@/hooks/useReportBranding';
 
 interface PaymentForecastPrintTableProps {
   teamName?: string;
   weeks: WeekForecast[];
   weeksAhead: number;
+  branding?: ReportBrandingState;
 }
 
 export const PaymentForecastPrintTable: React.FC<PaymentForecastPrintTableProps> = ({ 
   teamName, 
   weeks,
-  weeksAhead 
+  weeksAhead,
+  branding
 }) => {
   const totalGeral = useMemo(() => {
     return weeks.reduce((acc, w) => acc + w.totalAmount, 0);
@@ -22,10 +25,19 @@ export const PaymentForecastPrintTable: React.FC<PaymentForecastPrintTableProps>
     return weeks.reduce((m, w) => Math.max(m, w.totalAmount), 0);
   }, [weeks]);
 
+  const showLogo = branding?.showLogo ?? true;
+  const brandLogo = branding?.logoDataUrl ?? null;
+  const paperLetterhead = branding?.paperLetterhead ?? false;
+
   return (
-    <div className="payroll-report-page print-section p-8 max-w-[210mm] mx-auto">
+    <div className="payroll-report-page print-section p-8 max-w-[210mm] mx-auto" style={paperLetterhead ? { paddingTop: '40mm' } : undefined}>
       {/* Cabeçalho */}
       <div className="mb-6">
+        {showLogo && brandLogo ? (
+          <div className="flex justify-center mb-2">
+            <img src={brandLogo} alt="Logomarca" className="h-8 w-auto opacity-90" />
+          </div>
+        ) : null}
         <h2 className="payroll-report-subtitle text-center">Previsão de Pagamentos</h2>
         <div className="payroll-report-info">
           <div style={{fontSize: '18px', fontWeight: 'bold', color: '#1e40af', marginBottom: '8px', textAlign: 'center'}}>
@@ -51,7 +63,7 @@ export const PaymentForecastPrintTable: React.FC<PaymentForecastPrintTableProps>
         const avulsos = week.items.filter(i => i.kind === 'avulso');
         
         const parseDate = (d: string) => new Date(`${d}T12:00:00`).getTime();
-        const byDateThenAmount = (a: any, b: any) => {
+        const byDateThenAmount = (a: ForecastItem, b: ForecastItem) => {
           const da = parseDate(a.dueDate);
           const db = parseDate(b.dueDate);
           if (da !== db) return da - db;

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEnhancedData } from '@/contexts/EnhancedDataContext';
 import { useTeam } from '@/contexts/TeamContext';
@@ -13,6 +13,9 @@ import { safeLocalStorage } from '@/utils/safeStorage';
 import { getPayrollReportColumnLabel, getDefaultVisiblePayrollReportColumns, sanitizePayrollReportColumns, type PayrollReportColumnId } from '@/components/payroll/payrollReportColumns';
 import { formatPeriodDays, generateDateArray, formatDateBR } from '@/utils/dateUtils';
 import type { PayrollDetails } from '@/components/payroll/types';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { useReportBranding } from '@/hooks/useReportBranding';
 
 export const PayrollReportPage: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -20,11 +23,35 @@ export const PayrollReportPage: React.FC = () => {
   const { events } = useEnhancedData();
   const { activeTeam } = useTeam();
   const { payrollDetails, loading } = usePayrollData(eventId || '');
+  const { branding, setLogoDataUrl, setPaperLetterhead, setShowLogo } = useReportBranding(activeTeam?.id);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedEvent = events.find(e => e.id === eventId);
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handlePickLogo = () => {
+    logoInputRef.current?.click();
+  };
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > 2 * 1024 * 1024) return;
+
+    const dataUrl = await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onerror = () => resolve(null);
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+      reader.readAsDataURL(file);
+    });
+    if (!dataUrl) return;
+    setLogoDataUrl(dataUrl);
+    setShowLogo(true);
   };
 
   const handleBack = () => {
@@ -403,6 +430,31 @@ export const PayrollReportPage: React.FC = () => {
               disabled={loading || payrollDetails.length === 0}
             />
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <Switch checked={branding.paperLetterhead} onCheckedChange={setPaperLetterhead} />
+              <Label className="text-sm">Papel timbrado</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={branding.showLogo} onCheckedChange={setShowLogo} />
+              <Label className="text-sm">Logomarca</Label>
+            </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleLogoFileChange}
+            />
+            <Button variant="outline" onClick={handlePickLogo}>
+              Escolher logo
+            </Button>
+            {branding.logoDataUrl && (
+              <Button variant="outline" onClick={() => setLogoDataUrl(null)}>
+                Remover logo
+              </Button>
+            )}
+          </div>
           {selectedEvent && (
             <Button onClick={handleGoToEvent} variant="secondary">
               <Calendar className="w-4 h-4 mr-2" />
@@ -424,6 +476,7 @@ export const PayrollReportPage: React.FC = () => {
         details={payrollDetails}
         showPartialPaid={true}
         visibleColumns={visibleColumns}
+        branding={branding}
       />
     </div>
   );
