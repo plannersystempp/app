@@ -4,18 +4,21 @@ import { safeLocalStorage } from '@/utils/safeStorage';
 export type ReportBrandingState = Readonly<{
   logoDataUrl: string | null;
   showLogo: boolean;
+  showTeamName: boolean;
   paperLetterhead: boolean;
 }>;
 
 const defaultState: ReportBrandingState = {
   logoDataUrl: null,
   showLogo: true,
+  showTeamName: true,
   paperLetterhead: false,
 };
 
 type StoredBranding = Partial<{
   logoDataUrl: string | null;
   showLogo: boolean;
+  showTeamName: boolean;
   paperLetterhead: boolean;
 }>;
 
@@ -38,6 +41,8 @@ export function useReportBranding(teamId?: string) {
       return {
         logoDataUrl: isValidDataUrl(p.logoDataUrl) ? p.logoDataUrl : null,
         showLogo: typeof p.showLogo === 'boolean' ? p.showLogo : defaultState.showLogo,
+        showTeamName:
+          typeof p.showTeamName === 'boolean' ? p.showTeamName : defaultState.showTeamName,
         paperLetterhead:
           typeof p.paperLetterhead === 'boolean' ? p.paperLetterhead : defaultState.paperLetterhead,
       };
@@ -58,6 +63,10 @@ export function useReportBranding(teamId?: string) {
     setState((prev) => ({ ...prev, showLogo }));
   };
 
+  const setShowTeamName = (showTeamName: boolean) => {
+    setState((prev) => ({ ...prev, showTeamName }));
+  };
+
   const setPaperLetterhead = (paperLetterhead: boolean) => {
     setState((prev) => ({ ...prev, paperLetterhead }));
   };
@@ -66,7 +75,7 @@ export function useReportBranding(teamId?: string) {
     branding: state,
     setLogoDataUrl,
     setShowLogo,
+    setShowTeamName,
     setPaperLetterhead,
   };
 }
-

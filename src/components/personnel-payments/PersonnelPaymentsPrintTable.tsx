@@ -65,6 +65,7 @@ export const PersonnelPaymentsPrintTable: React.FC<PersonnelPaymentsPrintTablePr
   const showLogo = branding?.showLogo ?? true;
   const brandLogo = branding?.logoDataUrl ?? null;
   const paperLetterhead = branding?.paperLetterhead ?? false;
+  const showTeamName = branding?.showTeamName ?? true;
 
   return (
     <div className="payroll-report-page print-section p-8 max-w-[210mm] mx-auto" style={paperLetterhead ? { paddingTop: '40mm' } : undefined}>
@@ -72,14 +73,16 @@ export const PersonnelPaymentsPrintTable: React.FC<PersonnelPaymentsPrintTablePr
       <div className="mb-6">
         {showLogo && brandLogo ? (
           <div className="flex justify-center mb-2">
-            <img src={brandLogo} alt="Logomarca" className="h-8 w-auto opacity-90" />
+            <img src={brandLogo} alt="Logomarca" className="h-12 w-auto opacity-90" />
           </div>
         ) : null}
         <h2 className="payroll-report-subtitle text-center">Relatório de Pagamentos Avulsos</h2>
         <div className="payroll-report-info">
-          <div style={{fontSize: '18px', fontWeight: 'bold', color: '#1e40af', marginBottom: '8px', textAlign: 'center'}}>
-            {teamName}
-          </div>
+          {showTeamName ? (
+            <div style={{fontSize: '18px', fontWeight: 'bold', color: '#1e40af', marginBottom: '8px', textAlign: 'center'}}>
+              {teamName}
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
             <div><strong>Tipo:</strong> {getFilterLabel()}</div>
             <div><strong>Total de Pagamentos:</strong> {payments.length}</div>

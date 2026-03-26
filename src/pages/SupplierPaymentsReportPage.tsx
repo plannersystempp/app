@@ -48,7 +48,7 @@ export default function SupplierPaymentsReportPage() {
   const eventsQuery = useEventsQuery();
   const suppliersQuery = useSuppliersQuery();
   const [searchParams] = useSearchParams();
-  const { branding, setLogoDataUrl, setPaperLetterhead, setShowLogo } = useReportBranding(activeTeam?.id);
+  const { branding, setLogoDataUrl, setPaperLetterhead, setShowLogo, setShowTeamName } = useReportBranding(activeTeam?.id);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
 
   const eventIdFromUrl = searchParams.get('eventId')?.trim() ?? '';
@@ -357,6 +357,10 @@ export default function SupplierPaymentsReportPage() {
               <Switch checked={branding.showLogo} onCheckedChange={setShowLogo} />
               <Label className="text-sm">Logomarca</Label>
             </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={branding.showTeamName} onCheckedChange={setShowTeamName} />
+              <Label className="text-sm">Nome da equipe</Label>
+            </div>
             <input
               ref={logoInputRef}
               type="file"
@@ -553,14 +557,16 @@ export default function SupplierPaymentsReportPage() {
         <div className="mb-6">
           {branding.showLogo && branding.logoDataUrl ? (
             <div className="flex justify-center mb-2">
-              <img src={branding.logoDataUrl} alt="Logomarca" className="h-10 w-auto opacity-90" />
+              <img src={branding.logoDataUrl} alt="Logomarca" className="h-14 w-auto opacity-90" />
             </div>
           ) : null}
           <div className="report-title text-center">Relatório de Pagamentos de Fornecedores</div>
           <div className="report-info">
-            <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#000', marginBottom: '8px', textAlign: 'center' }}>
-              {activeTeam?.name || '—'}
-            </div>
+            {branding.showTeamName ? (
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#000', marginBottom: '8px', textAlign: 'center' }}>
+                {activeTeam?.name || '—'}
+              </div>
+            ) : null}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
               <div><strong>Evento:</strong> {selectedEventLabel}</div>
               <div><strong>Fornecedor:</strong> {supplierId === 'all' ? 'Todos' : ((suppliersQuery.data || []).find((s) => s.id === supplierId)?.name || '—')}</div>

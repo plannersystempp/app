@@ -23,7 +23,7 @@ export const PayrollReportPage: React.FC = () => {
   const { events } = useEnhancedData();
   const { activeTeam } = useTeam();
   const { payrollDetails, loading } = usePayrollData(eventId || '');
-  const { branding, setLogoDataUrl, setPaperLetterhead, setShowLogo } = useReportBranding(activeTeam?.id);
+  const { branding, setLogoDataUrl, setPaperLetterhead, setShowLogo, setShowTeamName } = useReportBranding(activeTeam?.id);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedEvent = events.find(e => e.id === eventId);
@@ -438,6 +438,10 @@ export const PayrollReportPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <Switch checked={branding.showLogo} onCheckedChange={setShowLogo} />
               <Label className="text-sm">Logomarca</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={branding.showTeamName} onCheckedChange={setShowTeamName} />
+              <Label className="text-sm">Nome da equipe</Label>
             </div>
             <input
               ref={logoInputRef}

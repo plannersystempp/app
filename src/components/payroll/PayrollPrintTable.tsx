@@ -73,6 +73,7 @@ export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, 
   const showLogo = branding?.showLogo ?? true;
   const brandLogo = branding?.logoDataUrl ?? null;
   const paperLetterhead = branding?.paperLetterhead ?? false;
+  const showTeamName = branding?.showTeamName ?? true;
 
   const headerClassName = (colId: PayrollReportColumnId) => {
     if (colId === 'dailyCache' || colId === 'overtimePay' || colId === 'totalPay') return 'payroll-th text-right';
@@ -147,19 +148,22 @@ export const PayrollPrintTable: React.FC<PayrollPrintTableProps> = ({ teamName, 
     <div className="payroll-report-page print-section p-8 max-w-[210mm] mx-auto" style={paperLetterhead ? { paddingTop: '40mm' } : undefined}>
       {/* Cabeçalho Completo */}
       <div className="mb-6">
+        <div className="payroll-report-title text-center">Relatório de Pessoal</div>
         <div className="payroll-report-info">
           <div className="flex justify-center mb-2">
             {showLogo ? (
               <img
                 src={brandLogo || "/icons/logo_plannersystem.png"}
                 alt={brandLogo ? "Logomarca" : "PlannerSystem"}
-                className="h-6 w-auto opacity-80"
+                className="h-12 w-auto opacity-90"
               />
             ) : null}
           </div>
-          <div style={{fontSize: '18px', fontWeight: 'bold', color: '#1e40af', marginBottom: '8px', textAlign: 'center'}}>
-            {teamName}
-          </div>
+          {showTeamName ? (
+            <div style={{fontSize: '18px', fontWeight: 'bold', color: '#1e40af', marginBottom: '8px', textAlign: 'center'}}>
+              {teamName}
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
             <div><strong>Evento:</strong> {event?.name || '—'}</div>
             <div><strong>Local:</strong> {event?.location || '—'}</div>
