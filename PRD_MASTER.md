@@ -1,3 +1,33 @@
+## [2026-03-28] - fix: Overflow horizontal e corte no layout com sidebar expandida
+ - Mudanças:
+   - Adicionado `min-w-0` ao container principal do `Layout.tsx` e às seções críticas do `SupplierPaymentsReportPage.tsx`.
+   - Garante que o conteúdo (como tabelas largas) não force o container principal a estourar a largura da tela quando a sidebar está expandida.
+   - Refinado o comportamento de wrap e truncate no cabeçalho do relatório para melhor adaptação em resoluções intermediárias.
+ - Arquivos:
+   - `src/components/Layout.tsx`
+   - `src/pages/SupplierPaymentsReportPage.tsx`
+ - Impacto:
+   - Resolve o problema de "corte lateral" na direita da tela quando o menu lateral está aberto, permitindo que a área de conteúdo se ajuste dinamicamente ao espaço disponível.
+
+## [2026-03-28] - fix: Responsividade e organização do cabeçalho de relatórios
+ - Mudanças:
+   - Refatorado o cabeçalho do relatório de fornecedores para separar ações principais (Imprimir, Exportar) de configurações estéticas (Logo, Papel timbrado).
+   - Implementada barra de opções secundária com fundo destacado para reduzir poluição visual e evitar cortes em telas médias/pequenas.
+   - Ajustada a tipografia e espaçamento para melhor legibilidade em dispositivos móveis.
+ - Arquivos:
+   - `src/pages/SupplierPaymentsReportPage.tsx`
+ - Impacto:
+   - Melhora significativa na UX/UI, eliminando o agrupamento confuso de botões e garantindo que todas as funções estejam visíveis sem cortes.
+
+## [2026-03-28] - fix: Ações do relatório de fornecedores não cortam na lateral
+ - Mudanças:
+   - Ajustado layout do cabeçalho do relatório de pagamentos de fornecedores para permitir quebra de linha (wrap) dos controles de ação.
+   - Evita overflow horizontal que cortava o botão “Imprimir” e demais ações em resoluções menores.
+ - Arquivos:
+   - `src/pages/SupplierPaymentsReportPage.tsx`
+ - Impacto:
+   - Visualização consistente com a versão esperada (sem elementos “cortados” na direita).
+
 ## [2026-03-26] - fix: Botão de confirmar pagamento sem efeito quando sessão não está pronta
  - Mudanças:
    - Registro de pagamento integral/parcial deixa de falhar silenciosamente quando `user` ainda não foi resolvido no contexto.

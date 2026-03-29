@@ -121,77 +121,80 @@ export const DivisionCard: React.FC<DivisionCardProps> = ({
       )}>
         <Collapsible open={isExpanded} onOpenChange={onToggle}>
           <CardHeader className="pb-3 space-y-0">
-            <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-2">
-              <div className="flex items-center gap-2 flex-1 min-w-[150px]">
-                <div 
-                  {...attributes} 
-                  {...listeners} 
-                  style={{ touchAction: 'none' }}
-                  className="cursor-grab active:cursor-grabbing p-3 -ml-2 hover:bg-muted active:bg-primary/10 active:text-primary active:ring-2 active:ring-primary/20 rounded text-muted-foreground flex items-center justify-center min-w-[44px] min-h-[44px] touch-none select-none"
-                >
-                  <GripVertical className="h-5 w-5" />
-                </div>
-                
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="p-1 h-auto hover:bg-transparent">
-                    {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-                </CollapsibleTrigger>
-
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <div className="flex flex-col gap-3">
+              <div className="flex items-start gap-2 min-w-0">
+                <Users className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
                   <CardTitle className="text-xs sm:text-sm md:text-base break-words cursor-pointer leading-tight" onClick={onToggle}>
-                    {division.name} 
+                    {division.name}
                     <span className="ml-2 text-[10px] sm:text-xs font-normal text-muted-foreground inline-block">
                       ({assignments.length})
                     </span>
                   </CardTitle>
+                  {division.description && (
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-1 break-words">
+                      {division.description}
+                    </p>
+                  )}
                 </div>
               </div>
-              
-              <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => onAddAllocation(division.id)}
-                        className="h-8 w-8"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span className="sr-only">Adicionar</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Adicionar</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onEditDivision(division)}
-                  className="h-8 w-8 p-0"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowDeleteDialog(true)}
-                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1">
+                  <div
+                    {...attributes}
+                    {...listeners}
+                    style={{ touchAction: 'none' }}
+                    className="cursor-grab active:cursor-grabbing p-3 -ml-2 hover:bg-muted active:bg-primary/10 active:text-primary active:ring-2 active:ring-primary/20 rounded text-muted-foreground flex items-center justify-center min-w-[44px] min-h-[44px] touch-none select-none"
+                  >
+                    <GripVertical className="h-5 w-5" />
+                  </div>
+
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="p-1 h-auto hover:bg-transparent">
+                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => onAddAllocation(division.id)}
+                          className="h-8 w-8"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span className="sr-only">Adicionar</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Adicionar</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onEditDivision(division)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
-            
-            {division.description && (
-              <p className="text-xs sm:text-sm text-muted-foreground mt-2 pl-8">
-                {division.description}
-              </p>
-            )}
           </CardHeader>
           
           <CollapsibleContent className="animate-collapsible-down">

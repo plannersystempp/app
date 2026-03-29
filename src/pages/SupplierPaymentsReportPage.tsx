@@ -229,7 +229,7 @@ export default function SupplierPaymentsReportPage() {
   };
 
   return (
-    <div className="min-h-screen space-y-4">
+    <div className="min-h-screen w-full min-w-0 space-y-4">
       <style>{`
         @media print {
           body * {
@@ -334,13 +334,19 @@ export default function SupplierPaymentsReportPage() {
         }
       `}</style>
 
-      <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-lg sm:text-xl md:text-2xl font-semibold">Relatório de Pagamentos de Fornecedores</h1>
-          <p className="text-sm text-muted-foreground">Filtre por período, status, fornecedor e evento, e exporte CSV/PDF.</p>
+      {/* Cabeçalho Principal */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between w-full min-w-0">
+        <div className="space-y-1 flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight truncate">Relatório de Pagamentos de Fornecedores</h1>
+          <p className="text-sm text-muted-foreground truncate sm:whitespace-normal">Filtre por período, status, fornecedor e evento, e exporte CSV/PDF.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <SupplierPaymentsReportColumnSelector visibleColumns={visibleColumns} onChange={setVisibleColumns} disabled={isLoading || rows.length === 0} />
+
+        <div className="flex flex-wrap items-center gap-2 justify-end">
+          <SupplierPaymentsReportColumnSelector
+            visibleColumns={visibleColumns}
+            onChange={setVisibleColumns}
+            disabled={isLoading || rows.length === 0}
+          />
           <ExportDropdown
             data={[]}
             filename="relatorio_pagamentos_fornecedores"
@@ -348,43 +354,54 @@ export default function SupplierPaymentsReportPage() {
             items={exportItems}
             disabled={isLoading || rows.length === 0}
           />
-          <div className="flex flex-wrap items-center gap-2 ml-2">
-            <div className="flex items-center gap-2">
-              <Switch checked={branding.paperLetterhead} onCheckedChange={setPaperLetterhead} />
-              <Label className="text-sm">Papel timbrado</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={branding.showLogo} onCheckedChange={setShowLogo} />
-              <Label className="text-sm">Logomarca</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={branding.showTeamName} onCheckedChange={setShowTeamName} />
-              <Label className="text-sm">Nome da equipe</Label>
-            </div>
-            <input
-              ref={logoInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleLogoFileChange}
-            />
-            <Button variant="outline" onClick={handlePickLogo}>
-              Escolher logo
-            </Button>
-            {branding.logoDataUrl && (
-              <Button variant="outline" onClick={() => setLogoDataUrl(null)}>
-                Remover logo
-              </Button>
-            )}
-          </div>
-          <Button variant="outline" onClick={clearFilters} disabled={isLoading}>
+          <Button variant="outline" onClick={clearFilters} disabled={isLoading} className="hidden sm:flex">
             Limpar filtros
           </Button>
-          <Button onClick={handlePrint} disabled={isLoading || rows.length === 0}>
+          <Button onClick={handlePrint} disabled={isLoading || rows.length === 0} className="bg-primary hover:bg-primary/90">
             <Printer className="w-4 h-4 mr-2" />
             Imprimir
           </Button>
         </div>
+      </div>
+
+      {/* Barra de Opções de Impressão e Marca */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 p-3 bg-muted/40 rounded-lg border border-border/50 w-full min-w-0">
+        <div className="flex items-center gap-2">
+          <Switch checked={branding.paperLetterhead} onCheckedChange={setPaperLetterhead} id="paper-letterhead" />
+          <Label htmlFor="paper-letterhead" className="text-sm cursor-pointer">Papel timbrado</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch checked={branding.showLogo} onCheckedChange={setShowLogo} id="show-logo" />
+          <Label htmlFor="show-logo" className="text-sm cursor-pointer">Logomarca</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch checked={branding.showTeamName} onCheckedChange={setShowTeamName} id="show-team-name" />
+          <Label htmlFor="show-team-name" className="text-sm cursor-pointer">Nome da equipe</Label>
+        </div>
+
+        <div className="h-4 w-px bg-border hidden md:block" />
+
+        <div className="flex items-center gap-2">
+          <input
+            ref={logoInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleLogoFileChange}
+          />
+          <Button variant="outline" size="sm" onClick={handlePickLogo} className="h-8">
+            Escolher logo
+          </Button>
+          {branding.logoDataUrl && (
+            <Button variant="ghost" size="sm" onClick={() => setLogoDataUrl(null)} className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10">
+              Remover logo
+            </Button>
+          )}
+        </div>
+
+        <Button variant="outline" size="sm" onClick={clearFilters} disabled={isLoading} className="sm:hidden h-8 ml-auto">
+          Limpar filtros
+        </Button>
       </div>
 
       {loadError ? (
@@ -464,7 +481,7 @@ export default function SupplierPaymentsReportPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full min-w-0">
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{formatCurrency(totals.totalAmount)}</div>
@@ -507,7 +524,7 @@ export default function SupplierPaymentsReportPage() {
               <p className="text-muted-foreground">Nenhum resultado para os filtros selecionados.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="w-full overflow-x-auto min-w-0">
               <Table className="min-w-[1000px]">
                 <TableHeader>
                   <TableRow>
